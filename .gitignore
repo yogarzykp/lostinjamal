@@ -233,7 +233,7 @@ run_docker.sh
 run_test.py
 test.py
 
-# text-jagger canonical harness runtime dirs (created by run_instruct_local.sh)
+# text-jagger training harness runtime dirs
 outputs/
 secure_checkpoints/
 datasets/
@@ -242,13 +242,9 @@ datasets/
 mcp_server/.venv/
 mcp_server/*.egg-info/
 
-# Eval harness runtime cache + per-task result files
-scripts/eval_harness/_tmp/
-scripts/eval_harness/baseline_*.json
-scripts/eval_harness/experiment_*.json
-eval_harness/_tmp/
-eval_harness/baseline_*.json
-eval_harness/experiment_*.json
+# trainer/ pycache (ported from master-text)
+trainer/__pycache__/
+trainer/**/__pycache__/
 
 # Research notes / local scratch
 docs/research/local_*.md

@@ -9,10 +9,11 @@ WORKDIR /app
 
 RUN pip install --no-cache-dir \
     huggingface_hub \
-    wandb
+    wandb 
 
-COPY scripts/ scripts/
+COPY trainer/ trainer/
+COPY scripts/core/ core/
 
-ENV PYTHONPATH=/app/scripts
+ENV PYTHONPATH=/app
 
-ENTRYPOINT ["python", "scripts/hf_upload.py"]
+ENTRYPOINT ["python", "trainer/utils/hf_upload.py"]
