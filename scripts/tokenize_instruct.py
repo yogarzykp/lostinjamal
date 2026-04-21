@@ -179,6 +179,17 @@ def split_dataset(
     with open(total_data_path, "r") as file:
         data = json.load(file)
 
+    # Optional pre-split dedup (opt-in via INSTRUCT_DEDUP=1).
+    # Exact hash + optional Jaccard n-gram. Stdlib+numpy only, no Docker deps.
+    try:
+        from data.dedup_knn import dedup_from_env
+        deduped, stats = dedup_from_env(data)
+        if stats.get("enabled"):
+            print(f"[dedup] {stats}", flush=True)
+            data = deduped
+    except Exception as exc:
+        print(f"[dedup] skipped ({exc}) — continuing without dedup", flush=True)
+
     random.seed(seed)
     random.shuffle(data)
     if max_data_size > 0:
