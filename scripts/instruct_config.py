@@ -1,3 +1,6 @@
+import os
+from math import ceil
+
 from model_utility import (
     get_model_architecture,
     get_model_num_params,
@@ -8,6 +11,30 @@ from model_utility import (
 )
 from copy import deepcopy
 from lrs_lookup import get_instruct_lr
+
+# Validator's test_axolotl.yml sets sequence_len: 4096 — mirror exactly.
+VALIDATOR_SEQUENCE_LEN = 4096
+
+
+def _resolve_max_length(model_path: str) -> int | None:
+    """Mirror validator's auto-halve logic (G.O.D/validator/evaluation/common.py:430-431).
+
+    If model.config.max_position_embeddings < 2 * 4096, halve sequence_len to
+    ceil(max_position_embeddings / 2). Otherwise use 4096. This keeps training
+    and eval distributions aligned per-task, zero manual tuning.
+
+    Returns None if detection fails, so caller can fall back to YAML default.
+    """
+    try:
+        from transformers import AutoConfig
+        cfg = AutoConfig.from_pretrained(model_path, trust_remote_code=True)
+        max_emb = getattr(cfg, "max_position_embeddings", None)
+        if max_emb and max_emb < 2 * VALIDATOR_SEQUENCE_LEN:
+            return ceil(max_emb / 2)
+        return VALIDATOR_SEQUENCE_LEN
+    except Exception as exc:
+        print(f"[instruct_config] max_length auto-resolve failed: {exc}", flush=True)
+        return None
 
 
 FIXED_BS_CONFIG = {
@@ -280,6 +307,18 @@ def get_training_json(train_info: dict) -> dict:
     train_request["adjust_batch_size"] = False
     train_request["periodic_save_steps"] = 500
     train_request["checking_step"] = 70
+
+    # Native max_length: per-task auto-halve matching validator behavior.
+    # Opt out via INSTRUCT_SKIP_MAX_LENGTH=1 (original winner fallback to YAML 2048).
+    if os.getenv("INSTRUCT_SKIP_MAX_LENGTH") != "1":
+        resolved = _resolve_max_length(model_path)
+        if resolved is not None:
+            train_request["max_length"] = resolved
+            print(
+                f"[instruct_config] max_length={resolved} "
+                f"(validator-aligned auto-halve)",
+                flush=True,
+            )
 
     if param_nums < 1_000_000_000:
         train_request["min_steps"] = max(
