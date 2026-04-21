@@ -1,0 +1,17 @@
+[project]
+name = "text-jagger-mcp"
+version = "0.1.0"
+description = "Read-only MCP server for monitoring text-jagger training via Redis + log files"
+requires-python = ">=3.10"
+dependencies = [
+    "mcp>=1.2.0",
+    "redis>=5.0.0",
+    "pydantic>=2.0.0",
+]
+
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["mcp_server"]
