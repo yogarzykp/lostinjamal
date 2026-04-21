@@ -362,26 +362,52 @@ def main():
     checking_step = train_request["checking_step"]
     if checking_step >= total_steps_per_epoch:
         checking_step = total_steps_per_epoch - 2
-    
+
+    callbacks_list = [
+        CustomEvalSaveCallback(
+            WhenToEvalHandler(train_request["end_time"], train_request["save_before_remaining_time"], periodic_save_steps=periodic_save_steps, steps_per_epoch=total_steps_per_epoch, max_steps=max_steps),
+            train_request["submission_dir"],
+            training_args.output_dir,
+            train_request["model_name"],
+            max_steps,
+            checking_step=checking_step,
+            total_steps_all_epochs=total_steps_all_epochs,
+            end_time=train_request["end_time"],
+            checking_mode=train_request.get("checking_mode", "none")
+        )
+    ]
+
+    # Optional observability callbacks (opt-in, fail-closed on Redis error)
+    if os.getenv("INSTRUCT_METRICS_REDIS") == "1":
+        try:
+            from callbacks.metrics_callback import MetricsCallback
+            callbacks_list.append(MetricsCallback(
+                task_id=train_request["task_id"],
+                experiment_name=os.getenv("INSTRUCT_EXPERIMENT_NAME", "baseline"),
+            ))
+            print("[train_instruct] MetricsCallback registered", flush=True)
+        except Exception as exc:
+            print(f"[train_instruct] Failed to load MetricsCallback: {exc}", flush=True)
+
+    if os.getenv("INSTRUCT_EXPERIMENT_LOG") == "1":
+        try:
+            from callbacks.experiment_logger import ExperimentLoggerCallback
+            callbacks_list.append(ExperimentLoggerCallback(
+                task_id=train_request["task_id"],
+                model_name=train_request["model_name"],
+                experiment_name=os.getenv("INSTRUCT_EXPERIMENT_NAME", "baseline"),
+            ))
+            print("[train_instruct] ExperimentLoggerCallback registered", flush=True)
+        except Exception as exc:
+            print(f"[train_instruct] Failed to load ExperimentLoggerCallback: {exc}", flush=True)
+
     trainer = Trainer(
         model=model,
         tokenizer=tokenizer,
         args=training_args,
         train_dataset=train_ds,
         eval_dataset=dev_ds,
-        callbacks=[
-            CustomEvalSaveCallback(
-                WhenToEvalHandler(train_request["end_time"], train_request["save_before_remaining_time"], periodic_save_steps=periodic_save_steps, steps_per_epoch=total_steps_per_epoch, max_steps=max_steps),
-                train_request["submission_dir"],
-                training_args.output_dir,
-                train_request["model_name"],
-                max_steps, 
-                checking_step=checking_step,
-                total_steps_all_epochs=total_steps_all_epochs,
-                end_time=train_request["end_time"],
-                checking_mode=train_request.get("checking_mode", "none")
-            )
-        ],
+        callbacks=callbacks_list,
     )
 
     trainer.tokenizer = tokenizer

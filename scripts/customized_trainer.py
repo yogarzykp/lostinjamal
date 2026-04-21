@@ -342,14 +342,25 @@ def resize_if_needed(model_name, model, token_nums):
 
 
 def init_wandb(train_request: Dict):
-    # set wandb_mode=offline; do not upload the data to wandb export WANDB_MODE=offline
-    return True
-    task_id = train_request["task_id"]
-    expected_repo_name = train_request["expected_repo_name"]
-    os.environ["WANDB_MODE"] = "offline"
-    os.environ["WANDB_DIR"] = train_request["wandb_log_dir"]
-    os.environ["WANDB_RUN_ID"] = f"{task_id}_{expected_repo_name}"
-    os.environ["WANDB_NAME"] = f"{task_id}_{expected_repo_name}"
+    """No-op stub by design.
+
+    W&B env vars (WANDB_MODE, WANDB_RUN_ID, WANDB_NAME, WANDB_DIR) are set at
+    the orchestrator level in text_trainer.py:193-197 BEFORE training
+    subprocess is spawned, so child processes inherit them. Calling this
+    function again inside training would re-apply the same values — pointless
+    but not harmful.
+
+    The `return True` prematurely-terminated body below (now removed) used to
+    re-assign these env vars. Dead code removed for clarity.
+
+    To toggle online W&B at runtime: export WANDB_MODE=online before calling
+    text_trainer.py.
+
+    Kept as a function (not deleted) to preserve the import contract used by
+    train_instruct.py / train_dpo.py / train_grpo.py.
+    """
+    mode = os.environ.get("WANDB_MODE", "offline")
+    run_id = os.environ.get("WANDB_RUN_ID", "")
     if is_main_process(LOCAL_RANK):
-        os.makedirs(train_request["wandb_log_dir"], exist_ok=True)
+        print(f"[init_wandb] W&B mode={mode} run_id={run_id} (stub — env set upstream)", flush=True)
     return True
