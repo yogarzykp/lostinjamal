@@ -23,7 +23,12 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import time
 from typing import Any, Iterable
+
+# Progress + safety knobs for O(n^2) Jaccard stage (overridable via env)
+JACCARD_PROGRESS_EVERY = int(os.getenv("INSTRUCT_DEDUP_JACCARD_PROGRESS_EVERY", "500"))
+JACCARD_MAX_SECONDS = int(os.getenv("INSTRUCT_DEDUP_JACCARD_MAX_SECONDS", "900"))  # 15 min default
 
 
 def _canonical_text(sample: dict, instruct_keys: tuple[str, ...], output_keys: tuple[str, ...]) -> str:
@@ -94,8 +99,12 @@ def dedup_samples(
         stats["after_jaccard"] = len(exact_filtered)
         return exact_filtered, stats
 
-    # Stage 2: Jaccard near-duplicate on instruction (O(n²))
+    # Stage 2: Jaccard near-duplicate on instruction (O(n^2))
     # Pre-compute n-gram sets once.
+    n = len(exact_filtered)
+    print(f"[dedup] Stage 2 Jaccard starting: n={n}, threshold={jaccard_threshold}, ngram_k={ngram_k}, max_seconds={JACCARD_MAX_SECONDS}", flush=True)
+    t0 = time.time()
+
     ngram_sets: list[set[str]] = []
     for sample in exact_filtered:
         instruct = ""
@@ -105,12 +114,28 @@ def dedup_samples(
                 instruct = v.strip().lower()
                 break
         ngram_sets.append(_char_ngrams(instruct, ngram_k))
+    print(f"[dedup] Stage 2 ngram_sets built in {time.time() - t0:.1f}s. Starting pairwise loop...", flush=True)
 
-    keep_mask = [True] * len(exact_filtered)
-    for i in range(len(exact_filtered)):
+    keep_mask = [True] * n
+    timeout_hit = False
+    for i in range(n):
         if not keep_mask[i]:
             continue
-        for j in range(i + 1, len(exact_filtered)):
+        # Progress log + timeout check
+        if i % JACCARD_PROGRESS_EVERY == 0 and i > 0:
+            elapsed = time.time() - t0
+            pct = 100.0 * i / n
+            rate = i / elapsed if elapsed > 0 else 0
+            eta = (n - i) / rate if rate > 0 else float("inf")
+            print(
+                f"[dedup] Jaccard progress: i={i}/{n} ({pct:.1f}%), removed={stats['jaccard_removed']}, elapsed={elapsed:.0f}s, ETA={eta:.0f}s",
+                flush=True,
+            )
+            if elapsed > JACCARD_MAX_SECONDS:
+                print(f"[dedup] Jaccard TIMEOUT hit at {elapsed:.0f}s (limit {JACCARD_MAX_SECONDS}s). Aborting stage 2 — returning exact-only result + partial jaccard removals.", flush=True)
+                timeout_hit = True
+                break
+        for j in range(i + 1, n):
             if not keep_mask[j]:
                 continue
             if _jaccard(ngram_sets[i], ngram_sets[j]) >= jaccard_threshold:
@@ -119,6 +144,8 @@ def dedup_samples(
 
     jaccard_filtered = [s for s, keep in zip(exact_filtered, keep_mask) if keep]
     stats["after_jaccard"] = len(jaccard_filtered)
+    stats["jaccard_elapsed_sec"] = round(time.time() - t0, 1)
+    stats["jaccard_timeout_hit"] = timeout_hit
     return jaccard_filtered, stats
 
 
