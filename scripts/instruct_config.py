@@ -187,7 +187,8 @@ def get_run_cmd(config: dict, gpu_nums: int):
     --save_strategy epoch \
     --logging_steps 5 \
     --learning_rate {learning_rate} \
-    --weight_decay 0. \
+    --weight_decay {weight_decay} \
+    --label_smoothing_factor {label_smoothing} \
     --warmup_steps 35 \
     --lr_scheduler_type cosine_with_min_lr \
     --lr_scheduler_kwargs "{\\"min_lr_rate\\": {min_lr_rate}}" \
@@ -237,12 +238,43 @@ def get_training_json(train_info: dict) -> dict:
         "distributed": config.get("distributed", "ddp"),
         "gradient_checkpointing": "True",
         "gradient_accumulation_steps": 4,
+        "weight_decay": 0.0,  # current winner default (no regularization)
+        "label_smoothing": 0.0,  # no label smoothing by default
         "use_attn_implementation": (
             "kernels-community/vllm-flash-attn3"
             if train_info.get("is_openai", False)
             else ""
         ),
     }
+
+    # Regularization stack (opt-in). Targets overfitting pattern observed in
+    # Task B Llama-3.2-1B arxiv-qa (eval_loss epoch1=2.15 → epoch3=2.42, 12% worse).
+    # Enable via INSTRUCT_REGULARIZATION=1. Defaults:
+    #   weight_decay=0.01  (AdamW standard, prevents weight blow-up)
+    #   label_smoothing=0.1  (SFT-proven, softens one-hot targets)
+    # Both values overridable via INSTRUCT_WEIGHT_DECAY and INSTRUCT_LABEL_SMOOTHING.
+    if os.getenv("INSTRUCT_REGULARIZATION") == "1":
+        try:
+            run_config["weight_decay"] = float(os.getenv("INSTRUCT_WEIGHT_DECAY", "0.01"))
+            run_config["label_smoothing"] = float(os.getenv("INSTRUCT_LABEL_SMOOTHING", "0.1"))
+            print(
+                f"[instruct_config] regularization ON: "
+                f"weight_decay={run_config['weight_decay']}, "
+                f"label_smoothing={run_config['label_smoothing']}",
+                flush=True,
+            )
+        except ValueError as exc:
+            print(f"[instruct_config] regularization parse failed: {exc}. Keeping defaults 0.0/0.0.", flush=True)
+
+    # Epoch override (opt-in). Reduces training time / overfit exposure.
+    # Enable via INSTRUCT_EPOCHS=<int>. Default keeps existing 3.
+    epoch_override = os.getenv("INSTRUCT_EPOCHS")
+    if epoch_override:
+        try:
+            run_config["epoch_num"] = int(epoch_override)
+            print(f"[instruct_config] epoch_num override: {run_config['epoch_num']}", flush=True)
+        except ValueError:
+            print(f"[instruct_config] INSTRUCT_EPOCHS={epoch_override!r} invalid int, keeping default 3", flush=True)
 
     # there are models that do not support packing, so we need to check if the model supports packing
     if run_config["disable_fa"] == "True" or model_architecture.strip().lower() in [
