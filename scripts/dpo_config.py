@@ -165,17 +165,11 @@ def get_run_cmd(config: dict, gpu_nums: int):
     elif run_type == "ds":
         start_cmd = f"deepspeed"
 
-    # DPO loss_type — default "apo_zero" on high branch (Zhang 2024, adaptive preference opt).
-    # Empirical: apo_zero + 1 epoch beats sigmoid + 3 epoch on d4456b0f (3.526 vs 3.78).
-    # Override via INSTRUCT_DPO_LOSS:
-    #   "sigmoid"  Original DPO (Rafailov 2023).
-    #   "ipo"      Identity Preference Opt (Azar 2023). Needs much lower LR.
-    #   "hinge"    Hinge loss variant.
-    #   "bco_pair" KTO successor (prospect theory classification).
-    #   "robust"   Handles noisy preferences.
+    # DPO loss_type — default "sigmoid" (boss rank1 vanilla config reproducible 3.0566 vs 3.526 apo_zero).
+    # Override via INSTRUCT_DPO_LOSS: sigmoid/ipo/hinge/bco_pair/robust/apo_zero/apo_down etc.
     # Full list in TRL 0.18 DPOTrainer docs.
     import os as _os
-    dpo_loss_type = _os.getenv("INSTRUCT_DPO_LOSS", "apo_zero")
+    dpo_loss_type = _os.getenv("INSTRUCT_DPO_LOSS", "sigmoid")
     template = (
         start_cmd
         + """ train_dpo.py \
@@ -229,11 +223,10 @@ def get_training_json(train_info: dict) -> dict:
     model_architecture = get_model_architecture(model_path)
     param_nums = get_model_num_params(model_name, model_path)
     config = get_config(param_nums)
-    # max_length: validator-aligned auto-halve (mirror instruct_config pattern).
-    # Default fallback 1024 = TRL DPOConfig default (conservative, safe).
+    # max_length: default 1024 (TRL DPOConfig default, matches rank1 boss config 2.6304).
+    # Validator-aligned auto-halve 4096 HURT DPO eval (3.78 vs 3.06 at 1024 on d4456b0f).
     # Override via INSTRUCT_DPO_MAX_LENGTH env var.
-    resolved_max_length = _resolve_max_length(model_path)
-    default_max_length = resolved_max_length if resolved_max_length is not None else 1024
+    default_max_length = 1024
     if os.getenv("INSTRUCT_DPO_MAX_LENGTH"):
         try:
             default_max_length = int(os.getenv("INSTRUCT_DPO_MAX_LENGTH"))
@@ -241,7 +234,7 @@ def get_training_json(train_info: dict) -> dict:
             pass
 
     run_config = {
-        "epoch_num": 1,
+        "epoch_num": 3,
         "batch_size": config["batch_size"],
         "learning_rate": config["lr"],
         "min_lr_rate": 0.25,
