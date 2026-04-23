@@ -222,8 +222,17 @@ def get_training_json(train_info: dict) -> dict:
     model_architecture = get_model_architecture(model_path)
     param_nums = get_model_num_params(model_name, model_path)
     config = get_instruct_config(param_nums)
+    # NEW DEFAULTS (proven across 2 tournament tasks — 2026-04-22 experiments):
+    #   epoch_num: 3 -> 2   (best checkpoint already at or before epoch 2 in both
+    #                        tasks tested; epoch 3 caused +12% overfit on Task B)
+    #   weight_decay: 0.0 -> 0.01  (AdamW standard, -0.85% on Task B, neutral
+    #                               on Task A, low risk)
+    #   label_smoothing: 0.0 (UNCHANGED — large vocab trap for causal LM;
+    #                         +4.48% regression on Llama-3 128K vocab)
+    # Override via env vars INSTRUCT_EPOCHS, INSTRUCT_WEIGHT_DECAY,
+    # INSTRUCT_LABEL_SMOOTHING.
     run_config = {
-        "epoch_num": 3,
+        "epoch_num": 2,
         "batch_size": config["batch_size"],
         "learning_rate": config["lr"],
         "min_lr_rate": 0.25,
@@ -238,8 +247,8 @@ def get_training_json(train_info: dict) -> dict:
         "distributed": config.get("distributed", "ddp"),
         "gradient_checkpointing": "True",
         "gradient_accumulation_steps": 4,
-        "weight_decay": 0.0,  # current winner default (no regularization)
-        "label_smoothing": 0.0,  # no label smoothing by default
+        "weight_decay": 0.01,
+        "label_smoothing": 0.0,
         "use_attn_implementation": (
             "kernels-community/vllm-flash-attn3"
             if train_info.get("is_openai", False)
@@ -247,34 +256,31 @@ def get_training_json(train_info: dict) -> dict:
         ),
     }
 
-    # Regularization stack (opt-in). Targets overfitting pattern observed in
-    # Task B Llama-3.2-1B arxiv-qa (eval_loss epoch1=2.15 → epoch3=2.42, 12% worse).
-    # Enable via INSTRUCT_REGULARIZATION=1. Defaults:
-    #   weight_decay=0.01  (AdamW standard, prevents weight blow-up)
-    #   label_smoothing=0.1  (SFT-proven, softens one-hot targets)
-    # Both values overridable via INSTRUCT_WEIGHT_DECAY and INSTRUCT_LABEL_SMOOTHING.
-    if os.getenv("INSTRUCT_REGULARIZATION") == "1":
+    # Env overrides (for experiments — default values above are the proven
+    # tournament config). Kept backward-compat with INSTRUCT_REGULARIZATION
+    # flag but no longer gated behind it.
+    if os.getenv("INSTRUCT_WEIGHT_DECAY"):
         try:
-            run_config["weight_decay"] = float(os.getenv("INSTRUCT_WEIGHT_DECAY", "0.01"))
-            run_config["label_smoothing"] = float(os.getenv("INSTRUCT_LABEL_SMOOTHING", "0.1"))
-            print(
-                f"[instruct_config] regularization ON: "
-                f"weight_decay={run_config['weight_decay']}, "
-                f"label_smoothing={run_config['label_smoothing']}",
-                flush=True,
-            )
-        except ValueError as exc:
-            print(f"[instruct_config] regularization parse failed: {exc}. Keeping defaults 0.0/0.0.", flush=True)
-
-    # Epoch override (opt-in). Reduces training time / overfit exposure.
-    # Enable via INSTRUCT_EPOCHS=<int>. Default keeps existing 3.
-    epoch_override = os.getenv("INSTRUCT_EPOCHS")
-    if epoch_override:
-        try:
-            run_config["epoch_num"] = int(epoch_override)
-            print(f"[instruct_config] epoch_num override: {run_config['epoch_num']}", flush=True)
+            run_config["weight_decay"] = float(os.getenv("INSTRUCT_WEIGHT_DECAY"))
         except ValueError:
-            print(f"[instruct_config] INSTRUCT_EPOCHS={epoch_override!r} invalid int, keeping default 3", flush=True)
+            pass
+    if os.getenv("INSTRUCT_LABEL_SMOOTHING"):
+        try:
+            run_config["label_smoothing"] = float(os.getenv("INSTRUCT_LABEL_SMOOTHING"))
+        except ValueError:
+            pass
+    if os.getenv("INSTRUCT_EPOCHS"):
+        try:
+            run_config["epoch_num"] = int(os.getenv("INSTRUCT_EPOCHS"))
+        except ValueError:
+            pass
+
+    print(
+        f"[instruct_config] config: epoch_num={run_config['epoch_num']}, "
+        f"weight_decay={run_config['weight_decay']}, "
+        f"label_smoothing={run_config['label_smoothing']}",
+        flush=True,
+    )
 
     # there are models that do not support packing, so we need to check if the model supports packing
     if run_config["disable_fa"] == "True" or model_architecture.strip().lower() in [
