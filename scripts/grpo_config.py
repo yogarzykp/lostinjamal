@@ -289,6 +289,21 @@ def get_training_json(train_info: dict) -> dict:
     train_request["adjust_batch_size"] = False
     train_request["periodic_save_steps"] = 500
 
+    # GRPO prompt truncation: default TRL GRPOConfig = 512 tokens.
+    # Many tournament prompts (reasoning, code, complex instructions) exceed
+    # 512 → left-truncated in train_grpo.py:truncate_prompts → context loss.
+    # Bump to 1024 (2x) for better context retention.
+    # Override via INSTRUCT_GRPO_MAX_PROMPT_LENGTH env var.
+    import os
+    grpo_max_prompt = 1024
+    if os.getenv("INSTRUCT_GRPO_MAX_PROMPT_LENGTH"):
+        try:
+            grpo_max_prompt = int(os.getenv("INSTRUCT_GRPO_MAX_PROMPT_LENGTH"))
+        except ValueError:
+            pass
+    train_request["max_prompt_length"] = grpo_max_prompt
+    print(f"[grpo_config] max_prompt_length={grpo_max_prompt} (bumped from TRL default 512)", flush=True)
+
     if if_contain_slow_reward_function(train_info["dataset_type"]):
         train_request["save_before_remaining_time"] = 12
         if config["label"] == "0_1_b":

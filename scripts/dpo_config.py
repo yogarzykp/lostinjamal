@@ -1,6 +1,29 @@
+import os
+from math import ceil
 from model_utility import get_model_architecture, get_model_num_params, get_use_liger, disable_flash_attention, get_gradient_checkpointing, get_gpu_count
 from copy import deepcopy
 from lrs_lookup import get_dpo_lr
+
+# Validator DPO eval config uses sequence_len=4096 (same shared validator/test_axolotl.yml).
+# Port from instruct_config: auto-halve based on model max_position_embeddings.
+VALIDATOR_SEQUENCE_LEN = 4096
+
+
+def _resolve_max_length(model_path: str) -> int | None:
+    """Mirror validator's auto-halve logic for DPO.
+
+    Returns None if AutoConfig fails — caller falls back to TRL DPOConfig default.
+    """
+    try:
+        from transformers import AutoConfig
+        cfg = AutoConfig.from_pretrained(model_path, trust_remote_code=True)
+        max_emb = getattr(cfg, "max_position_embeddings", None)
+        if max_emb and max_emb < 2 * VALIDATOR_SEQUENCE_LEN:
+            return ceil(max_emb / 2)
+        return VALIDATOR_SEQUENCE_LEN
+    except Exception as exc:
+        print(f"[dpo_config] max_length auto-resolve failed: {exc}", flush=True)
+        return None
 
 DPO_CONFIG = {
     "0_1_b": {
@@ -164,6 +187,7 @@ def get_run_cmd(config: dict, gpu_nums: int):
     --tf32 True \
     --gradient_checkpointing {gradient_checkpointing} \
     --optim {optimizer} \
+    --max_length {max_length} \
     --use_liger {use_liger} --disable_fa {disable_fa}"""
     )
 
@@ -191,6 +215,17 @@ def get_training_json(train_info: dict) -> dict:
     model_architecture = get_model_architecture(model_path)
     param_nums = get_model_num_params(model_name, model_path)
     config = get_config(param_nums)
+    # max_length: validator-aligned auto-halve (mirror instruct_config pattern).
+    # Default fallback 1024 = TRL DPOConfig default (conservative, safe).
+    # Override via INSTRUCT_DPO_MAX_LENGTH env var.
+    resolved_max_length = _resolve_max_length(model_path)
+    default_max_length = resolved_max_length if resolved_max_length is not None else 1024
+    if os.getenv("INSTRUCT_DPO_MAX_LENGTH"):
+        try:
+            default_max_length = int(os.getenv("INSTRUCT_DPO_MAX_LENGTH"))
+        except ValueError:
+            pass
+
     run_config = {
         "epoch_num": 3,
         "batch_size": config["batch_size"],
@@ -206,8 +241,10 @@ def get_training_json(train_info: dict) -> dict:
         "distributed": config.get("distributed", "ddp"),
         "gradient_checkpointing": get_gradient_checkpointing(model_name),
         "gradient_accumulation_steps": 1,
+        "max_length": default_max_length,
         "use_attn_implementation": "kernels-community/vllm-flash-attn3" if train_info.get("is_openai", False) else ""
     }
+    print(f"[dpo_config] max_length={default_max_length} (validator-aligned auto-halve)", flush=True)
     
     if not config.get("gradient_checkpointing", True):
         run_config["gradient_checkpointing"] = False
