@@ -350,7 +350,26 @@ def main():
                 * training_args.gradient_accumulation_steps
                 * training_args.world_size
             )
-    
+
+    # Safety guard: prevent ZeroDivisionError in WhenToEvalHandler when filtered
+    # dataset is smaller than batch (e.g. long-context dataset + small-context model).
+    if total_steps_per_epoch == 0:
+        log_info(
+            f"WARNING: total_steps_per_epoch=0 "
+            f"(len(train_ds)={len(train_ds)}, batch={training_args.per_device_train_batch_size}, "
+            f"world_size={training_args.world_size}). Forcing batch_size=1."
+        )
+        training_args.per_device_train_batch_size = 1
+        total_steps_per_epoch = len(train_ds) // (
+            training_args.gradient_accumulation_steps * training_args.world_size
+        )
+        if total_steps_per_epoch == 0:
+            raise RuntimeError(
+                f"Dataset empty after filter (len={len(train_ds)}). "
+                f"Model context likely too small for this dataset. Cannot train."
+            )
+        log_info(f"Safety guard active: total_steps_per_epoch={total_steps_per_epoch}")
+
     total_steps_all_epochs = total_steps_per_epoch * training_args.num_train_epochs
     log_info(f"total_steps_per_epoch: {total_steps_per_epoch}; total_steps_all_epochs: {total_steps_all_epochs}")
     
