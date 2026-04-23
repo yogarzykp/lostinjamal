@@ -194,6 +194,13 @@ def get_run_cmd(config: dict, gpu_nums: int):
     if run_type == "ds":
         start_cmd = f"deepspeed"
 
+    # GRPO loss_type + scale_rewards — Dr.GRPO support (sail-sg/oat Mar 2025 paper).
+    #   Default TRL: loss_type="bnpo" (baseline normalized), scale_rewards=True.
+    #   Dr.GRPO: loss_type="dr_grpo", scale_rewards=False. Fixes length + difficulty bias.
+    #   Override via INSTRUCT_GRPO_LOSS and INSTRUCT_GRPO_SCALE_REWARDS env.
+    import os as _os
+    grpo_loss_type = _os.getenv("INSTRUCT_GRPO_LOSS", "bnpo")
+    grpo_scale_rewards = _os.getenv("INSTRUCT_GRPO_SCALE_REWARDS", "True")
     template = (
         start_cmd
         + """ train_grpo.py \
@@ -218,9 +225,12 @@ def get_run_cmd(config: dict, gpu_nums: int):
     --gradient_checkpointing {gradient_checkpointing} \
     --optim {optimizer} \
     --max_prompt_length {max_prompt_length} \
+    --loss_type """ + grpo_loss_type + """ \
+    --scale_rewards """ + grpo_scale_rewards + """ \
     --use_liger {use_liger} --num_generations {num_generations} --vllm_mode colocate --vllm_gpu_memory_utilization {vllm_gpu_memory_utilization} \
     --disable_fa {disable_fa}"""
     )
+    print(f"[grpo_config] loss_type={grpo_loss_type}, scale_rewards={grpo_scale_rewards}", flush=True)
 
     if config.get("use_lora", False):
         template += (

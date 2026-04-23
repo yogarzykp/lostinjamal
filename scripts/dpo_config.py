@@ -164,6 +164,14 @@ def get_run_cmd(config: dict, gpu_nums: int):
     elif run_type == "ds":
         start_cmd = f"deepspeed"
 
+    # DPO loss_type — default "sigmoid" (original DPO). Override via INSTRUCT_DPO_LOSS:
+    #   "ipo"      Identity Preference Opt (Azar 2023). No sigmoid → avoid overfit on confident pairs.
+    #   "hinge"    Hinge loss variant.
+    #   "kto_pair" Kahneman-Tversky (prospect theory-inspired).
+    #   "apo_zero", "apo_down" Adaptive preference optimization.
+    # Full list in TRL 0.18 DPOTrainer docs.
+    import os as _os
+    dpo_loss_type = _os.getenv("INSTRUCT_DPO_LOSS", "sigmoid")
     template = (
         start_cmd
         + """ train_dpo.py \
@@ -188,8 +196,10 @@ def get_run_cmd(config: dict, gpu_nums: int):
     --gradient_checkpointing {gradient_checkpointing} \
     --optim {optimizer} \
     --max_length {max_length} \
+    --loss_type """ + dpo_loss_type + """ \
     --use_liger {use_liger} --disable_fa {disable_fa}"""
     )
+    print(f"[dpo_config] loss_type={dpo_loss_type}", flush=True)
 
     if config.get("use_lora", False):
         template += (
