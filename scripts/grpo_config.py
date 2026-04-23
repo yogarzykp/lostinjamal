@@ -217,6 +217,7 @@ def get_run_cmd(config: dict, gpu_nums: int):
     --tf32 True \
     --gradient_checkpointing {gradient_checkpointing} \
     --optim {optimizer} \
+    --max_prompt_length {max_prompt_length} \
     --use_liger {use_liger} --num_generations {num_generations} --vllm_mode colocate --vllm_gpu_memory_utilization {vllm_gpu_memory_utilization} \
     --disable_fa {disable_fa}"""
     )
@@ -290,9 +291,11 @@ def get_training_json(train_info: dict) -> dict:
     train_request["periodic_save_steps"] = 500
 
     # GRPO prompt truncation: default TRL GRPOConfig = 512 tokens.
-    # Many tournament prompts (reasoning, code, complex instructions) exceed
-    # 512 → left-truncated in train_grpo.py:truncate_prompts → context loss.
-    # Bump to 1024 (2x) for better context retention.
+    # Fix (v2): we need BOTH dataset-level AND TRL-config-level bump.
+    # - train_request["max_prompt_length"] → consumed in train_grpo.py:441
+    #   for truncate_prompts() (dataset pre-truncation).
+    # - run_config["max_prompt_length"] → rendered into --max_prompt_length CLI
+    #   flag → passed to TRL GRPOConfig so TRL doesn't re-truncate to default 512.
     # Override via INSTRUCT_GRPO_MAX_PROMPT_LENGTH env var.
     import os
     grpo_max_prompt = 1024
@@ -302,7 +305,8 @@ def get_training_json(train_info: dict) -> dict:
         except ValueError:
             pass
     train_request["max_prompt_length"] = grpo_max_prompt
-    print(f"[grpo_config] max_prompt_length={grpo_max_prompt} (bumped from TRL default 512)", flush=True)
+    run_config["max_prompt_length"] = grpo_max_prompt
+    print(f"[grpo_config] max_prompt_length={grpo_max_prompt} (CLI + dataset level, bumped from TRL default 512)", flush=True)
 
     if if_contain_slow_reward_function(train_info["dataset_type"]):
         train_request["save_before_remaining_time"] = 12
