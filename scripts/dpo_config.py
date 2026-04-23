@@ -164,14 +164,17 @@ def get_run_cmd(config: dict, gpu_nums: int):
     elif run_type == "ds":
         start_cmd = f"deepspeed"
 
-    # DPO loss_type — default "sigmoid" (original DPO). Override via INSTRUCT_DPO_LOSS:
-    #   "ipo"      Identity Preference Opt (Azar 2023). No sigmoid → avoid overfit on confident pairs.
+    # DPO loss_type — default "apo_zero" on high branch (Zhang 2024, adaptive preference opt).
+    # Empirical: apo_zero + 1 epoch beats sigmoid + 3 epoch on d4456b0f (3.526 vs 3.78).
+    # Override via INSTRUCT_DPO_LOSS:
+    #   "sigmoid"  Original DPO (Rafailov 2023).
+    #   "ipo"      Identity Preference Opt (Azar 2023). Needs much lower LR.
     #   "hinge"    Hinge loss variant.
-    #   "kto_pair" Kahneman-Tversky (prospect theory-inspired).
-    #   "apo_zero", "apo_down" Adaptive preference optimization.
+    #   "bco_pair" KTO successor (prospect theory classification).
+    #   "robust"   Handles noisy preferences.
     # Full list in TRL 0.18 DPOTrainer docs.
     import os as _os
-    dpo_loss_type = _os.getenv("INSTRUCT_DPO_LOSS", "sigmoid")
+    dpo_loss_type = _os.getenv("INSTRUCT_DPO_LOSS", "apo_zero")
     template = (
         start_cmd
         + """ train_dpo.py \
@@ -237,7 +240,7 @@ def get_training_json(train_info: dict) -> dict:
             pass
 
     run_config = {
-        "epoch_num": 3,
+        "epoch_num": 1,
         "batch_size": config["batch_size"],
         "learning_rate": config["lr"],
         "min_lr_rate": 0.25,
