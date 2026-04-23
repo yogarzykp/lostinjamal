@@ -255,7 +255,17 @@ def get_training_json(train_info: dict) -> dict:
         "use_attn_implementation": "kernels-community/vllm-flash-attn3" if train_info.get("is_openai", False) else ""
     }
     print(f"[dpo_config] max_length={default_max_length} (validator-aligned auto-halve)", flush=True)
-    
+
+    # DPO epoch override — INSTRUCT_DPO_EPOCHS=1 prevents overfit on small/convergent pairs.
+    # Default 3 confirmed overfit-prone (azul eval 3.12 @ epoch1 → 3.40 @ epoch3 on Phi-3.5).
+    _dpo_epochs_override = os.getenv("INSTRUCT_DPO_EPOCHS")
+    if _dpo_epochs_override:
+        try:
+            run_config["epoch_num"] = int(_dpo_epochs_override)
+            print(f"[dpo_config] epoch_num overridden: {run_config['epoch_num']}", flush=True)
+        except ValueError:
+            print(f"[dpo_config] INSTRUCT_DPO_EPOCHS invalid ({_dpo_epochs_override}), using default {run_config['epoch_num']}", flush=True)
+
     if not config.get("gradient_checkpointing", True):
         run_config["gradient_checkpointing"] = False
     
