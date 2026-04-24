@@ -291,28 +291,58 @@ def main():
         checking_step = total_steps_per_epoch - 2
     
 
-    trainer = DPOTrainer(
-        model=model,
-        ref_model=ref_model,
-        args=training_args,
-        train_dataset=train_ds,
-        eval_dataset=dev_ds,
-        processing_class=tokenizer,
-        peft_config=peft_config,
-        callbacks=[
-            CustomEvalSaveCallback(
-                WhenToEvalHandler(train_request["end_time"], train_request["save_before_remaining_time"], periodic_save_steps=periodic_save_steps, steps_per_epoch=total_steps_per_epoch, max_steps=max_steps),
-                train_request["submission_dir"],
-                training_args.output_dir,
-                train_request["model_name"],
-                max_steps,
-                checking_step=checking_step,
-                total_steps_all_epochs=total_steps_all_epochs,
-                end_time=train_request["end_time"],
-                checking_mode=train_request.get("checking_mode", "none")
-            )
-        ],
-    )
+    # Optional SimPO branch — switches from DPOTrainer to CPOTrainer with loss_type="simpo".
+    # SimPO (Meng 2024, arxiv 2405.14734): reference-free, length-normalized, +target margin.
+    # Enable via env: INSTRUCT_DPO_ALGO=simpo. Tunable via SIMPO_GAMMA / SIMPO_BETA / CPO_ALPHA.
+    use_simpo = os.getenv("INSTRUCT_DPO_ALGO", "dpo").lower() == "simpo"
+    _callbacks_list = [
+        CustomEvalSaveCallback(
+            WhenToEvalHandler(train_request["end_time"], train_request["save_before_remaining_time"], periodic_save_steps=periodic_save_steps, steps_per_epoch=total_steps_per_epoch, max_steps=max_steps),
+            train_request["submission_dir"],
+            training_args.output_dir,
+            train_request["model_name"],
+            max_steps,
+            checking_step=checking_step,
+            total_steps_all_epochs=total_steps_all_epochs,
+            end_time=train_request["end_time"],
+            checking_mode=train_request.get("checking_mode", "none")
+        )
+    ]
+
+    if use_simpo:
+        log_info("[train_dpo] SimPO mode: switching to CPOTrainer with loss_type=simpo")
+        from trl import CPOConfig, CPOTrainer
+        from dataclasses import fields as _fields
+        # CPOConfig shares most fields with DPOConfig (both inherit TrainingArguments).
+        # Copy shared fields; override SimPO-specific.
+        _cpo_field_names = {f.name for f in _fields(CPOConfig)}
+        _shared_kwargs = {k: v for k, v in vars(training_args).items() if k in _cpo_field_names}
+        _shared_kwargs["loss_type"] = "simpo"
+        _shared_kwargs["cpo_alpha"] = float(os.getenv("CPO_ALPHA", "0.0"))  # 0.0 = pure SimPO (no SFT aux)
+        _shared_kwargs["simpo_gamma"] = float(os.getenv("SIMPO_GAMMA", "1.4"))  # target reward margin
+        _shared_kwargs["beta"] = float(os.getenv("SIMPO_BETA", "2.0"))  # SimPO needs higher β than DPO's 0.1
+        cpo_args = CPOConfig(**_shared_kwargs)
+        log_info(f"[train_dpo] SimPO: beta={cpo_args.beta}, gamma={cpo_args.simpo_gamma}, cpo_alpha={cpo_args.cpo_alpha}")
+        trainer = CPOTrainer(
+            model=model,
+            args=cpo_args,
+            train_dataset=train_ds,
+            eval_dataset=dev_ds,
+            processing_class=tokenizer,
+            peft_config=peft_config,
+            callbacks=_callbacks_list,
+        )
+    else:
+        trainer = DPOTrainer(
+            model=model,
+            ref_model=ref_model,
+            args=training_args,
+            train_dataset=train_ds,
+            eval_dataset=dev_ds,
+            processing_class=tokenizer,
+            peft_config=peft_config,
+            callbacks=_callbacks_list,
+        )
     
     print("Start training ...", flush=True)       
     # trainer.train()
