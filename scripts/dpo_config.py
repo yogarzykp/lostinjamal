@@ -1,4 +1,4 @@
-"""bruhh 2"""
+"""bruhh 3"""
 import os
 from math import ceil
 from model_utility import get_model_architecture, get_model_num_params, get_use_liger, disable_flash_attention, get_gradient_checkpointing, get_gpu_count
@@ -165,6 +165,11 @@ def get_run_cmd(config: dict, gpu_nums: int):
     elif run_type == "ds":
         start_cmd = f"deepspeed"
 
+    # DPO loss_type — default "sigmoid" (boss rank1 vanilla config reproducible 3.0566 vs 3.526 apo_zero).
+    # Override via INSTRUCT_DPO_LOSS: sigmoid/ipo/hinge/bco_pair/robust/apo_zero/apo_down etc.
+    # Full list in TRL 0.18 DPOTrainer docs.
+    import os as _os
+    dpo_loss_type = _os.getenv("INSTRUCT_DPO_LOSS", "sigmoid")
     template = (
         start_cmd
         + """ train_dpo.py \
@@ -189,8 +194,10 @@ def get_run_cmd(config: dict, gpu_nums: int):
     --gradient_checkpointing {gradient_checkpointing} \
     --optim {optimizer} \
     --max_length {max_length} \
+    --loss_type """ + dpo_loss_type + """ \
     --use_liger {use_liger} --disable_fa {disable_fa}"""
     )
+    print(f"[dpo_config] loss_type={dpo_loss_type}", flush=True)
 
     if config.get("use_lora", False):
         template += (
@@ -216,11 +223,10 @@ def get_training_json(train_info: dict) -> dict:
     model_architecture = get_model_architecture(model_path)
     param_nums = get_model_num_params(model_name, model_path)
     config = get_config(param_nums)
-    # max_length: validator-aligned auto-halve (mirror instruct_config pattern).
-    # Default fallback 1024 = TRL DPOConfig default (conservative, safe).
+    # max_length: default 1024 (TRL DPOConfig default, matches rank1 boss config 2.6304).
+    # Validator-aligned auto-halve 4096 HURT DPO eval (3.78 vs 3.06 at 1024 on d4456b0f).
     # Override via INSTRUCT_DPO_MAX_LENGTH env var.
-    resolved_max_length = _resolve_max_length(model_path)
-    default_max_length = resolved_max_length if resolved_max_length is not None else 1024
+    default_max_length = 1024
     if os.getenv("INSTRUCT_DPO_MAX_LENGTH"):
         try:
             default_max_length = int(os.getenv("INSTRUCT_DPO_MAX_LENGTH"))
@@ -246,7 +252,17 @@ def get_training_json(train_info: dict) -> dict:
         "use_attn_implementation": "kernels-community/vllm-flash-attn3" if train_info.get("is_openai", False) else ""
     }
     print(f"[dpo_config] max_length={default_max_length} (validator-aligned auto-halve)", flush=True)
-    
+
+    # DPO epoch override — INSTRUCT_DPO_EPOCHS=1 prevents overfit on small/convergent pairs.
+    # Default 3 confirmed overfit-prone (azul eval 3.12 @ epoch1 → 3.40 @ epoch3 on Phi-3.5).
+    _dpo_epochs_override = os.getenv("INSTRUCT_DPO_EPOCHS")
+    if _dpo_epochs_override:
+        try:
+            run_config["epoch_num"] = int(_dpo_epochs_override)
+            print(f"[dpo_config] epoch_num overridden: {run_config['epoch_num']}", flush=True)
+        except ValueError:
+            print(f"[dpo_config] INSTRUCT_DPO_EPOCHS invalid ({_dpo_epochs_override}), using default {run_config['epoch_num']}", flush=True)
+
     if not config.get("gradient_checkpointing", True):
         run_config["gradient_checkpointing"] = False
     

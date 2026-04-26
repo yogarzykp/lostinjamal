@@ -11,6 +11,12 @@ from huggingface_hub import login
 
 
 def patch_model_metadata(output_dir: str, base_model_id: str):
+    # Guard: if base_model_id missing/invalid, skip the patch entirely — PEFT has already
+    # saved the correct base_model_name_or_path during training. Without this guard, patch
+    # would write literal "None" → breaks eval with 401 Unauthorized for huggingface.co/None.
+    if base_model_id is None or str(base_model_id).strip() in ("", "None"):
+        print(f"[hf_upload] MODEL env missing/invalid ({base_model_id!r}); skip patch, keep PEFT-saved base_model_name_or_path", flush=True)
+        return
     try:
         adapter_config_path = os.path.join(output_dir, "adapter_config.json")
 
