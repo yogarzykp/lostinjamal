@@ -201,6 +201,16 @@ def get_run_cmd(config: dict, gpu_nums: int):
     import os as _os
     grpo_loss_type = _os.getenv("INSTRUCT_GRPO_LOSS", "bnpo")
     grpo_scale_rewards = _os.getenv("INSTRUCT_GRPO_SCALE_REWARDS", "True")
+    # GRPO beta — KL coefficient. TRL default 0.04. Dr.GRPO recommends 0 (no KL).
+    # Override via INSTRUCT_GRPO_BETA. Set to 0.0 for full Dr.GRPO behavior.
+    grpo_beta = _os.getenv("INSTRUCT_GRPO_BETA", "0.04")
+    try:
+        grpo_beta = float(grpo_beta)
+    except ValueError:
+        grpo_beta = 0.04
+    # GRPO num_generations — rollouts per prompt. TRL default 8.
+    # Override via INSTRUCT_GRPO_NUM_GENERATIONS. Lower (4) = faster, higher (16) = more samples.
+    grpo_num_gen_override = _os.getenv("INSTRUCT_GRPO_NUM_GENERATIONS")
     template = (
         start_cmd
         + """ train_grpo.py \
@@ -227,10 +237,15 @@ def get_run_cmd(config: dict, gpu_nums: int):
     --max_prompt_length {max_prompt_length} \
     --loss_type """ + grpo_loss_type + """ \
     --scale_rewards """ + grpo_scale_rewards + """ \
+    --beta """ + str(grpo_beta) + """ \
     --use_liger {use_liger} --num_generations {num_generations} --vllm_mode colocate --vllm_gpu_memory_utilization {vllm_gpu_memory_utilization} \
     --disable_fa {disable_fa}"""
     )
-    print(f"[grpo_config] loss_type={grpo_loss_type}, scale_rewards={grpo_scale_rewards}", flush=True)
+    if grpo_num_gen_override:
+        # If user overrides num_generations, replace {num_generations} placeholder with their value.
+        # Otherwise template uses config["num_generations"] (set in get_training_json).
+        template = template.replace("--num_generations {num_generations}", f"--num_generations {grpo_num_gen_override}")
+    print(f"[grpo_config] loss_type={grpo_loss_type}, scale_rewards={grpo_scale_rewards}, beta={grpo_beta}", flush=True)
 
     if config.get("use_lora", False):
         template += (
