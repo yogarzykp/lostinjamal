@@ -170,6 +170,13 @@ def get_run_cmd(config: dict, gpu_nums: int):
     # Full list in TRL 0.18 DPOTrainer docs.
     import os as _os
     dpo_loss_type = _os.getenv("INSTRUCT_DPO_LOSS", "sigmoid")
+    # DPO beta — default 0.1 (TRL standard). Override via INSTRUCT_DPO_BETA.
+    # Lower β (0.05) = looser KL constraint, higher β (0.3) = stricter chosen-vs-rejected distinction.
+    dpo_beta = _os.getenv("INSTRUCT_DPO_BETA", "0.1")
+    try:
+        dpo_beta = float(dpo_beta)
+    except ValueError:
+        dpo_beta = 0.1
     template = (
         start_cmd
         + """ train_dpo.py \
@@ -194,10 +201,11 @@ def get_run_cmd(config: dict, gpu_nums: int):
     --gradient_checkpointing {gradient_checkpointing} \
     --optim {optimizer} \
     --max_length {max_length} \
+    --beta """ + str(dpo_beta) + """ \
     --loss_type """ + dpo_loss_type + """ \
     --use_liger {use_liger} --disable_fa {disable_fa}"""
     )
-    print(f"[dpo_config] loss_type={dpo_loss_type}", flush=True)
+    print(f"[dpo_config] loss_type={dpo_loss_type}, beta={dpo_beta}", flush=True)
 
     if config.get("use_lora", False):
         template += (
