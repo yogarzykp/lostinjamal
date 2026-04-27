@@ -190,8 +190,11 @@ def run_training(
             with open(log_path, "w") as f:
                 f.write("STARTING TRAINING")
 
+        # WANDB_MODE — env-overridable. Set WANDB_MODE=online + WANDB_API_KEY in docker
+        # --env to enable live monitoring (requires trainer container internet access,
+        # i.e. remove --network none from docker run).
         training_env_vars = {
-            "WANDB_MODE": "offline",
+            "WANDB_MODE": os.getenv("WANDB_MODE", "offline"),
             "WANDB_RUN_ID": f"{task_id}_{expected_repo_name}",
             "WANDB_NAME": f"{task_id}_{expected_repo_name}",
         }
