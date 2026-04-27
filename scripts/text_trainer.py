@@ -373,7 +373,24 @@ def main():
         "checking_mode": "first_time",
     }
 
-    if (
+    # ADAPTIVE_MODE=on routes to 100% dynamics-driven config (lotob).
+    # Default off → legacy bucket lookup (preserves vanilla winning path).
+    # Source: report_format_standard memory + Gradients Discord 2026-04-28.
+    use_adaptive = os.getenv("ADAPTIVE_MODE", "0") == "1"
+    if use_adaptive:
+        from adaptive_config import get_adaptive_training_json
+        print(f"[text_trainer] ADAPTIVE_MODE=on — using dynamics-driven config", flush=True)
+        train_info = get_adaptive_training_json(args.task_type, train_info)
+        if args.task_type == TaskType.INSTRUCTTEXTTASK.value or args.task_type == TaskType.CHATTASK.value:
+            tokenize_cmd = f"/workspace/axo_py/bin/python tokenize_instruct.py {request_path}"
+        elif args.task_type == TaskType.DPOTASK.value:
+            tokenize_cmd = f"python tokenize_dpo.py {request_path}"
+        elif args.task_type == TaskType.GRPOTASK.value:
+            tokenize_cmd = f"python tokenize_grpo.py {request_path}"
+        else:
+            raise ValueError(f"Task type {args.task_type} not supported")
+        train_cmd = train_info["run_cmd"]
+    elif (
         args.task_type == TaskType.INSTRUCTTEXTTASK.value
         or args.task_type == TaskType.CHATTASK.value
     ):

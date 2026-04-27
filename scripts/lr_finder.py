@@ -1,0 +1,172 @@
+"""
+LR Finder — Leslie Smith LRRT (arxiv 1506.01186).
+
+Single-run LR Range Test. ~100 steps. Returns LR at steepest loss decrease.
+
+Used by adaptive_config.py for runtime LR selection — replaces hardcoded
+bucket lookup. Works regardless of model_name (survives anonymization).
+"""
+import math
+from typing import Iterable, List, Tuple
+
+import torch
+
+
+def find_lr_lrrt(
+    model,
+    optimizer,
+    dataloader: Iterable,
+    lr_min: float = 1e-7,
+    lr_max: float = 1e-2,
+    num_iter: int = 100,
+    smooth_factor: float = 0.05,
+    diverge_factor: float = 4.0,
+    device: str = "cuda",
+) -> Tuple[float, List[float], List[float]]:
+    """Leslie Smith LR Range Test.
+
+    Sweeps LR exponentially from lr_min → lr_max over num_iter steps.
+    Tracks loss. Returns:
+    - suggested_lr: LR where smoothed loss has steepest negative slope
+    - lrs: log-space LR points tested
+    - losses: smoothed loss at each step
+
+    Args:
+        model: model in train mode
+        optimizer: pre-built optimizer (will adjust LR)
+        dataloader: streaming dataset
+        lr_min/lr_max: bounds
+        num_iter: total LR steps
+        smooth_factor: EMA factor for loss smoothing (0.05 = slow)
+        diverge_factor: stop early if loss > diverge_factor × min_loss
+
+    Heuristic for "best LR":
+        Suggest LR at point where d(smoothed_loss) / d(log_lr) is most negative.
+        This is where loss is decreasing fastest (steep descent).
+    """
+    model.train()
+    lrs: List[float] = []
+    raw_losses: List[float] = []
+    smoothed_losses: List[float] = []
+
+    log_lr_min = math.log10(lr_min)
+    log_lr_max = math.log10(lr_max)
+    step_log_lr = (log_lr_max - log_lr_min) / max(1, num_iter - 1)
+
+    avg_loss = 0.0
+    min_smooth = float("inf")
+
+    for step, batch in enumerate(dataloader):
+        if step >= num_iter:
+            break
+
+        # Set LR for this step (exponential sweep)
+        log_lr = log_lr_min + step * step_log_lr
+        cur_lr = 10 ** log_lr
+        for pg in optimizer.param_groups:
+            pg["lr"] = cur_lr
+
+        # Forward + backward
+        batch = {k: v.to(device) for k, v in batch.items() if isinstance(v, torch.Tensor)}
+        out = model(**batch)
+        loss = out.loss if hasattr(out, "loss") else out["loss"]
+        if not torch.isfinite(loss):
+            print(f"[lrrt] step {step} non-finite loss, stopping", flush=True)
+            break
+
+        optimizer.zero_grad()
+        loss.backward()
+        torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)  # safety
+        optimizer.step()
+
+        loss_val = loss.item()
+        # EMA smoothing
+        if step == 0:
+            avg_loss = loss_val
+        else:
+            avg_loss = (1 - smooth_factor) * avg_loss + smooth_factor * loss_val
+        bias_corrected = avg_loss / (1 - (1 - smooth_factor) ** (step + 1))
+
+        lrs.append(cur_lr)
+        raw_losses.append(loss_val)
+        smoothed_losses.append(bias_corrected)
+
+        # Early stop on divergence
+        if bias_corrected < min_smooth:
+            min_smooth = bias_corrected
+        elif bias_corrected > diverge_factor * min_smooth:
+            print(f"[lrrt] step {step} loss diverging ({bias_corrected:.3f} > {diverge_factor}× min), stopping", flush=True)
+            break
+
+    if len(smoothed_losses) < 5:
+        # Fallback: not enough data for slope analysis
+        print(f"[lrrt] insufficient data ({len(smoothed_losses)} steps), returning lr_min×10", flush=True)
+        return lr_min * 10, lrs, smoothed_losses
+
+    # Find steepest descent point
+    # d(smoothed_loss)/d(log_lr) — most negative slope
+    log_lrs = [math.log10(lr) for lr in lrs]
+    slopes = []
+    for i in range(1, len(smoothed_losses)):
+        d_loss = smoothed_losses[i] - smoothed_losses[i - 1]
+        d_loglr = log_lrs[i] - log_lrs[i - 1]
+        if abs(d_loglr) < 1e-9:
+            slopes.append(0)
+        else:
+            slopes.append(d_loss / d_loglr)
+
+    # Most negative slope (steepest descent)
+    if all(s >= 0 for s in slopes):
+        # No descent observed → suggest mid-range LR
+        idx = len(lrs) // 2
+    else:
+        idx = slopes.index(min(slopes)) + 1  # +1 because slopes[i] = lr[i] - lr[i-1]
+
+    suggested_lr = lrs[idx]
+    # Optional: divide by 10 for safety (Smith's original advice — pick LR slightly LEFT of min)
+    # Practical: take steep-descent LR / 10 as starting point
+    safe_lr = suggested_lr / 10.0
+
+    print(f"[lrrt] suggested_lr={suggested_lr:.2e}, safe_lr={safe_lr:.2e} (idx={idx}/{len(lrs)})", flush=True)
+    return safe_lr, lrs, smoothed_losses
+
+
+def find_lr_for_task(
+    model,
+    train_dataset,
+    tokenizer,
+    task_type: str,
+    num_iter: int = 100,
+    batch_size: int = 4,
+    device: str = "cuda",
+) -> float:
+    """Convenience wrapper: build minimal dataloader + run LRRT.
+
+    For DPO/GRPO, the chosen-only proxy approach is recommended (caller's
+    responsibility — convert preference dataset → SFT-style chosen-only).
+
+    Returns: suggested_lr (float)
+    """
+    from torch.utils.data import DataLoader
+    from torch.optim import AdamW
+
+    # Subset for speed
+    subset = train_dataset.select(range(min(num_iter * batch_size, len(train_dataset))))
+    loader = DataLoader(subset, batch_size=batch_size, shuffle=True)
+
+    # Bare optimizer at lr_min (will be overridden in sweep)
+    optimizer = AdamW(model.parameters(), lr=1e-7)
+
+    # Save initial weights to restore (LRRT shouldn't permanently mutate model)
+    init_state = {n: p.detach().clone() for n, p in model.named_parameters() if p.requires_grad}
+
+    try:
+        suggested_lr, _, _ = find_lr_lrrt(model, optimizer, loader, num_iter=num_iter, device=device)
+    finally:
+        # Restore weights — LRRT was just for measurement
+        with torch.no_grad():
+            for n, p in model.named_parameters():
+                if n in init_state and p.requires_grad:
+                    p.copy_(init_state[n])
+
+    return suggested_lr
