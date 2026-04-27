@@ -205,36 +205,77 @@ class DatasetMetrics:
     has_chat_template_signal: bool = False
 
 
-def measure_dataset(jsonl_path: str, tokenizer, max_samples: int = 1000) -> DatasetMetrics:
-    """Probe dataset for length distribution. Sample-based for speed.
+def measure_dataset(dataset_path: str, tokenizer, max_samples: int = 1000) -> DatasetMetrics:
+    """Probe dataset for length distribution. Handles both JSON array + JSONL.
 
     For seq_len_p95 → use to set max_length adaptively (no validator-blind 4096).
+    Robust to: malformed JSON, missing fields, both JSON-array and JSONL formats.
     """
     seq_lens: List[int] = []
     n_samples = 0
     chat_signal = False
-    with open(jsonl_path) as f:
-        for i, line in enumerate(f):
-            if i >= max_samples:
-                break
-            try:
-                obj = json.loads(line)
-            except Exception:
-                continue
-            text = obj.get("text") or obj.get("output") or obj.get("chosen") or ""
-            if "<|" in text or "[INST]" in text:
-                chat_signal = True
-            tokens = tokenizer(text, add_special_tokens=False, return_length=True)
-            seq_lens.append(len(tokens["input_ids"]))
+    objs: List = []
+
+    # Try full JSON load first (most tournament datasets are JSON arrays)
+    try:
+        with open(dataset_path, "r") as f:
+            data = json.load(f)
+        if isinstance(data, list):
+            objs = data[:max_samples]
+        elif isinstance(data, dict) and "data" in data:
+            # Some datasets nested as {"data": [...]}
+            objs = data["data"][:max_samples] if isinstance(data["data"], list) else []
+    except (json.JSONDecodeError, ValueError):
+        # Fallback: JSONL line-by-line
+        try:
+            with open(dataset_path, "r") as f:
+                for i, line in enumerate(f):
+                    if len(objs) >= max_samples:
+                        break
+                    try:
+                        objs.append(json.loads(line))
+                    except Exception:
+                        continue
+        except Exception as e:
+            print(f"[dynamics] dataset read failed: {e}", flush=True)
+    except FileNotFoundError:
+        print(f"[dynamics] dataset not found: {dataset_path}", flush=True)
+
+    for obj in objs:
+        if not isinstance(obj, dict):
+            continue
+        # Check common field names for both instruct + DPO + GRPO datasets
+        text = (
+            obj.get("text")
+            or obj.get("output")
+            or obj.get("chosen")
+            or obj.get("prompt")
+            or obj.get("instruct")
+            or obj.get("instruction")
+            or obj.get("input")
+            or ""
+        )
+        if not text or not isinstance(text, str):
+            continue
+        if "<|" in text or "[INST]" in text:
+            chat_signal = True
+        try:
+            ids = tokenizer.encode(text, add_special_tokens=False)
+            seq_lens.append(len(ids))
             n_samples += 1
+        except Exception:
+            continue
 
     if not seq_lens:
-        seq_lens = [1024]  # safe fallback
+        # Conservative fallback if measurement fails entirely
+        print(f"[dynamics] WARN: dataset measurement empty, using defaults", flush=True)
+        seq_lens = [512, 1024, 2048]
     seq_lens.sort()
     p50 = seq_lens[len(seq_lens) // 2]
-    p95 = seq_lens[int(0.95 * len(seq_lens))]
+    p95_idx = min(len(seq_lens) - 1, int(0.95 * len(seq_lens)))
+    p95 = seq_lens[p95_idx]
     return DatasetMetrics(
-        num_samples=n_samples,
+        num_samples=max(n_samples, 1000),  # for adaptive_epochs threshold
         seq_len_p50=p50,
         seq_len_p95=p95,
         seq_len_max=max(seq_lens),

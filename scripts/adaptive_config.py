@@ -149,16 +149,33 @@ def build_adaptive_run_config(
         param_count = 1_000_000_000
         print(f"[adaptive] WARN: param_count unknown, defaulting to 1B", flush=True)
 
-    # Sensor 2: dataset (post-tokenize path)
-    from transformers import AutoTokenizer
-    tokenizer = AutoTokenizer.from_pretrained(model_path)
-    if tokenizer.pad_token is None:
-        tokenizer.pad_token = tokenizer.eos_token
+    # Sensor 2: dataset (post-tokenize path) — graceful fallback chain
+    ds_metrics = None
+    tokenizer = None
+    try:
+        from transformers import AutoTokenizer
+        tokenizer = AutoTokenizer.from_pretrained(model_path, local_files_only=True)
+        if tokenizer.pad_token is None:
+            tokenizer.pad_token = tokenizer.eos_token
+    except Exception as e1:
+        # Try without local_files_only (HF fallback)
+        try:
+            tokenizer = AutoTokenizer.from_pretrained(model_path)
+            if tokenizer.pad_token is None:
+                tokenizer.pad_token = tokenizer.eos_token
+        except Exception as e2:
+            print(f"[adaptive] tokenizer load failed: {e1} / {e2}", flush=True)
+            tokenizer = None
 
     ds_path = resolve_dataset_path(task_type_lc, task_id)
-    if ds_path:
-        ds_metrics = measure_dataset(ds_path, tokenizer, max_samples=500)
-    else:
+    if ds_path and tokenizer is not None:
+        try:
+            ds_metrics = measure_dataset(ds_path, tokenizer, max_samples=500)
+            print(f"[adaptive] dataset metrics: n={ds_metrics.num_samples} p95={ds_metrics.seq_len_p95}", flush=True)
+        except Exception as e:
+            print(f"[adaptive] WARN: measure_dataset failed ({e}), using defaults", flush=True)
+
+    if ds_metrics is None:
         # Conservative fallback: assume medium-size, medium-length
         ds_metrics = DatasetMetrics(
             num_samples=10000,
@@ -166,7 +183,7 @@ def build_adaptive_run_config(
             seq_len_p95=1024,
             seq_len_max=2048,
         )
-        print(f"[adaptive] WARN: dataset path not found, using conservative defaults", flush=True)
+        print(f"[adaptive] WARN: using conservative dataset defaults (no path or no tokenizer)", flush=True)
 
     # Sensor 3: GPU
     gpu = measure_gpu()
