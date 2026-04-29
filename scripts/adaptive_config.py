@@ -114,12 +114,12 @@ def _select_max_length(seq_len_p95: int, validator_max: int = 4096) -> int:
 def _select_grpo_max_completion(seq_len_p95: int) -> int:
     """For GRPO: max_completion_length = task-aware.
 
-    Source: lotob v1 wandb 2026-04-28 — max_completion=256 + slow reward
-    caused clipped_ratio=1.0 forever (model hits cap, never terminates,
-    rewards stuck around -5). Bump floor to 256, ceiling to 1024 so model
-    has room to learn natural EOS.
+    Source: Dr.GRPO (Liu 2025 arxiv 2510.06870) + REFA (arxiv 2412.16378)
+    + lotob v1/v3/v4 wandb 2026-04-28/29 — max_completion=256 caused
+    clipped_ratio=1.0 forever. Bump floor to 512 (paper recommends
+    breathing room for EOS learning), ceiling 1024 (validator-aligned).
     """
-    return min(1024, max(256, int(seq_len_p95 * 1.0)))
+    return min(1024, max(512, int(seq_len_p95 * 1.2)))
 
 
 def _grpo_vanilla_batch_cap(param_count: int) -> int:
@@ -291,9 +291,14 @@ def build_adaptive_run_config(
         while batch % num_gen != 0 and num_gen > 2:
             num_gen -= 1
         run_config["num_generations"] = num_gen
-        run_config["beta"] = 0.04  # TRL default
+        run_config["beta"] = 0.04  # TRL default; verified validator BETA_GRPO=0.5 at eval
         run_config["scale_rewards"] = "True"  # Dr.GRPO False hurt us
         run_config["max_completion_length"] = _select_grpo_max_completion(ds_metrics.seq_len_p95)
+        # Phase 1 sampling tuning (Dr.GRPO + REFA): force diversity, encourage EOS
+        # Source: research 2026-04-29 — clipped_ratio=1.0 root cause is too-greedy sampling
+        run_config["min_completion_length"] = 64
+        run_config["temperature"] = 0.8
+        run_config["top_p"] = 0.9
         run_config["vllm_gpu_memory_utilization"] = 0.4
         run_config["eval_batch_size"] = 1
         # Recompute total_steps + warmup with capped batch
