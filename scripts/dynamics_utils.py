@@ -360,15 +360,38 @@ def adaptive_dpo_beta(dataset_size: int) -> float:
         return 0.3
 
 
-def adaptive_grpo_num_generations(batch_size: int, gpu_vram_gb: float) -> int:
-    """Choose num_generations as divisor of batch_size that fits VRAM."""
-    # Find divisors of batch_size in [4, 32]
-    divisors = [d for d in range(4, min(33, batch_size + 1)) if batch_size % d == 0]
+def is_slow_reward_function(dataset_type: dict) -> bool:
+    """Reward functions using slow libraries need conservative batch/num_gen.
+
+    Mirrors scripts/grpo_config.py:if_contain_slow_reward_function — duplicated
+    here to keep dynamics_utils self-contained (no legacy imports).
+    """
+    reward_functions = dataset_type.get("reward_functions", []) if dataset_type else []
+    slow_keywords = [
+        "import langcheck", "from langcheck",
+        "import detoxify", "from detoxify",
+        "import textstat", "from textstat",
+    ]
+    for rf in reward_functions:
+        func_def = rf.get("reward_func", "")
+        if any(kw in func_def for kw in slow_keywords):
+            return True
+    return False
+
+
+def adaptive_grpo_num_generations(batch_size: int, gpu_vram_gb: float, slow_reward: bool = False) -> int:
+    """Choose num_generations as divisor of batch_size that fits VRAM + reward complexity.
+
+    DeepSeekMath GRPO paper (Shao 2024 arxiv 2402.03300 §3.1): G=8 sweet spot.
+    Slow reward functions (textstat/langcheck/detoxify) add per-completion overhead
+    so cap is reduced. Lotob v1 2026-04-28 wandb showed crash at G=16 batch=64
+    on H100 1× (effective gen batch 1024).
+    """
+    cap = 4 if slow_reward else 8
+    cap = min(cap, max(2, int(gpu_vram_gb * 0.1)))  # VRAM safety floor
+
+    # Divisors of batch_size in [2, cap]
+    divisors = [d for d in range(2, cap + 1) if batch_size % d == 0]
     if not divisors:
-        return 8  # safe default
-    # Pick highest divisor that's ≤ vram-aware cap
-    cap = int(min(20, gpu_vram_gb * 0.5))  # rough heuristic
-    valid = [d for d in divisors if d <= cap]
-    if not valid:
-        return divisors[0]
-    return max(valid)
+        return 2  # safe minimum
+    return max(divisors)

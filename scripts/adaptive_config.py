@@ -43,6 +43,7 @@ from dynamics_utils import (
     adaptive_epochs_from_init_loss,
     adaptive_dpo_beta,
     adaptive_grpo_num_generations,
+    is_slow_reward_function,
 )
 
 
@@ -113,11 +114,28 @@ def _select_max_length(seq_len_p95: int, validator_max: int = 4096) -> int:
 def _select_grpo_max_completion(seq_len_p95: int) -> int:
     """For GRPO: max_completion_length = task-aware.
 
-    Source: our wandb finding 2026-04-27 — all GRPO runs hit
-    completions/clipped_ratio: 1.0 at default 256 → reward gaming.
-    Adaptive cap reduces ramble pathology.
+    Source: lotob v1 wandb 2026-04-28 — max_completion=256 + slow reward
+    caused clipped_ratio=1.0 forever (model hits cap, never terminates,
+    rewards stuck around -5). Bump floor to 256, ceiling to 1024 so model
+    has room to learn natural EOS.
     """
-    return min(512, max(64, int(seq_len_p95 * 0.5)))
+    return min(1024, max(256, int(seq_len_p95 * 1.0)))
+
+
+def _grpo_vanilla_batch_cap(param_count: int) -> int:
+    """Vanilla bucket batch ceilings from scripts/grpo_config.py:GRPO_CONFIG.
+
+    Lotob v1 2026-04-28: adaptive picked batch=64 vs vanilla batch=10
+    (slow reward detected) → effective gen batch 50× vanilla → crash.
+    Cap adaptive batch at vanilla bucket value to stay within known-safe.
+    """
+    if param_count < 2e9:
+        return 40
+    if param_count < 4e9:
+        return 42
+    if param_count < 9e9:
+        return 32
+    return 16
 
 
 # ---------------------------------------------------------------------------
@@ -257,10 +275,20 @@ def build_adaptive_run_config(
         run_config["loss_type"] = "sigmoid"  # vanilla wins per our 2026-04-23 tournament
 
     elif task_type_lc == "grpo":
-        # num_gen must divide batch
-        num_gen = adaptive_grpo_num_generations(batch, gpu.vram_gb_per_gpu)
-        # Adjust to divide batch
-        while batch % num_gen != 0 and num_gen > 1:
+        # Cap batch by vanilla bucket (known-safe upper bound).
+        # Slow reward funcs (textstat/langcheck/detoxify) need extra reduction.
+        dataset_type = train_info.get("dataset_type", {}) or {}
+        slow_reward = is_slow_reward_function(dataset_type)
+        vanilla_cap = _grpo_vanilla_batch_cap(param_count)
+        if slow_reward:
+            vanilla_cap = max(8, vanilla_cap // 4)
+            print(f"[adaptive] slow reward function detected → batch cap {vanilla_cap}", flush=True)
+        batch = min(batch, vanilla_cap)
+        run_config["batch_size"] = batch  # update with capped value
+
+        num_gen = adaptive_grpo_num_generations(batch, gpu.vram_gb_per_gpu, slow_reward=slow_reward)
+        # num_gen must divide batch (TRL constraint)
+        while batch % num_gen != 0 and num_gen > 2:
             num_gen -= 1
         run_config["num_generations"] = num_gen
         run_config["beta"] = 0.04  # TRL default
@@ -268,6 +296,9 @@ def build_adaptive_run_config(
         run_config["max_completion_length"] = _select_grpo_max_completion(ds_metrics.seq_len_p95)
         run_config["vllm_gpu_memory_utilization"] = 0.4
         run_config["eval_batch_size"] = 1
+        # Recompute total_steps + warmup with capped batch
+        total_steps = max(100, ds_metrics.num_samples * epochs // (batch * gpu_count))
+        warmup = adaptive_warmup_steps(total_steps)
 
     print(f"[adaptive] arch={arch} param={param_count:,} ds_n={ds_metrics.num_samples} seq_p95={ds_metrics.seq_len_p95}", flush=True)
     print(f"[adaptive] PLAN: lr={init_lr:.2e} batch={batch} epochs={epochs} max_len={max_length} lora={use_lora} grad_accum={grad_accum}", flush=True)
