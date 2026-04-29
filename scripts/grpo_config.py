@@ -222,6 +222,8 @@ def get_run_cmd(config: dict, gpu_nums: int):
     --min_completion_length {min_completion_length} \
     --temperature {temperature} \
     --top_p {top_p} \
+    --vllm_enforce_eager True \
+    --auto_find_batch_size False \
     --dataloader_drop_last True \
     --disable_fa {disable_fa}"""
     )
