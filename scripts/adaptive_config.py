@@ -291,13 +291,21 @@ def build_adaptive_run_config(
         while batch % num_gen != 0 and num_gen > 2:
             num_gen -= 1
         run_config["num_generations"] = num_gen
-        run_config["beta"] = 0.04  # TRL default; verified validator BETA_GRPO=0.5 at eval
+        # Option B (2026-04-29): raise β 0.04→0.06 to anchor stronger to ref model.
+        # Validator BETA_GRPO=0.5 (verified VPS 221 /root/G.O.D-eval-text/validator/
+        # core/constants.py:277) → KL drift directly subtracted at eval. Top miner
+        # 5DfdHDKN test_loss=0.195 implies KL≤0.6 across batch (~0.012/sample).
+        # Our v1 -6.9 + v4 -24.5 imply KL ~14-50 across batch (~0.3-1.0/sample) —
+        # 50× drift vs winner. Raise β to dampen drift.
+        run_config["beta"] = float(os.getenv("ADAPTIVE_BETA_OVERRIDE", "0.06"))
         run_config["scale_rewards"] = "True"  # Dr.GRPO False hurt us
         run_config["max_completion_length"] = _select_grpo_max_completion(ds_metrics.seq_len_p95)
+        # Option B: cap max_steps to limit drift accumulation. Top miner trained
+        # minimal steps; over-training causes KL blowup. 300 = ~30 logged steps
+        # at logging_steps=5, enough for reward signal without runaway drift.
+        run_config["max_steps"] = int(os.getenv("ADAPTIVE_MAX_STEPS_OVERRIDE", "300"))
         # Phase 1 sampling tuning (Dr.GRPO inspired): encourage natural EOS
-        # Source: research 2026-04-29 — clipped_ratio=1.0 root cause is too-greedy sampling
-        # NOTE: min_completion_length + vllm_enforce_eager NOT supported by TRL GRPOConfig
-        # in current docker image; relying on temperature + top_p sampling only.
+        # NOTE: min_completion_length + vllm_enforce_eager NOT supported by TRL.
         run_config["temperature"] = 0.8
         run_config["top_p"] = 0.9
         run_config["vllm_gpu_memory_utilization"] = 0.4
