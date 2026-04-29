@@ -218,6 +218,7 @@ def get_run_cmd(config: dict, gpu_nums: int):
     --gradient_checkpointing {gradient_checkpointing} \
     --optim {optimizer} \
     --use_liger {use_liger} --num_generations {num_generations} --vllm_mode colocate --vllm_gpu_memory_utilization {vllm_gpu_memory_utilization} \
+    --max_completion_length {max_completion_length} \
     --dataloader_drop_last True \
     --disable_fa {disable_fa}"""
     )
@@ -273,6 +274,7 @@ def get_training_json(train_info: dict) -> dict:
         "gradient_accumulation_steps": 4,
         "vllm_gpu_memory_utilization": config.get("vllm_gpu_memory_utilization", 0.4),
         "num_generations": 2,
+        "max_completion_length": 256,
         "use_vllm": get_use_vllm(model_architecture, model_name),
         "tensor_parallel": config.get("tensor_parallel", False),
         "use_4bit": config.get("use_4bit", False),
