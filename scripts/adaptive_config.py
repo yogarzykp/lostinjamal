@@ -294,9 +294,10 @@ def build_adaptive_run_config(
         run_config["beta"] = 0.04  # TRL default; verified validator BETA_GRPO=0.5 at eval
         run_config["scale_rewards"] = "True"  # Dr.GRPO False hurt us
         run_config["max_completion_length"] = _select_grpo_max_completion(ds_metrics.seq_len_p95)
-        # Phase 1 sampling tuning (Dr.GRPO + REFA): force diversity, encourage EOS
+        # Phase 1 sampling tuning (Dr.GRPO inspired): encourage natural EOS
         # Source: research 2026-04-29 — clipped_ratio=1.0 root cause is too-greedy sampling
-        run_config["min_completion_length"] = 64
+        # NOTE: min_completion_length + vllm_enforce_eager NOT supported by TRL GRPOConfig
+        # in current docker image; relying on temperature + top_p sampling only.
         run_config["temperature"] = 0.8
         run_config["top_p"] = 0.9
         run_config["vllm_gpu_memory_utilization"] = 0.4

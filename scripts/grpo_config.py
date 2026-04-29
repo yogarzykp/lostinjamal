@@ -219,10 +219,8 @@ def get_run_cmd(config: dict, gpu_nums: int):
     --optim {optimizer} \
     --use_liger {use_liger} --num_generations {num_generations} --vllm_mode colocate --vllm_gpu_memory_utilization {vllm_gpu_memory_utilization} \
     --max_completion_length {max_completion_length} \
-    --min_completion_length {min_completion_length} \
     --temperature {temperature} \
     --top_p {top_p} \
-    --vllm_enforce_eager True \
     --auto_find_batch_size False \
     --dataloader_drop_last True \
     --disable_fa {disable_fa}"""
@@ -280,7 +278,6 @@ def get_training_json(train_info: dict) -> dict:
         "vllm_gpu_memory_utilization": config.get("vllm_gpu_memory_utilization", 0.4),
         "num_generations": 2,
         "max_completion_length": 256,
-        "min_completion_length": 0,  # legacy default
         "temperature": 1.0,  # TRL default
         "top_p": 1.0,  # TRL default
         "use_vllm": get_use_vllm(model_architecture, model_name),
