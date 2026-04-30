@@ -196,6 +196,7 @@ def get_run_cmd(config: dict, gpu_nums: int):
     --gradient_checkpointing {gradient_checkpointing} \
     --optim {optimizer} \
     --use_liger {use_liger} \
+    --neftune_noise_alpha {neftune_noise_alpha} \
     --packing {packing} --disable_fa {disable_fa}"""
     )
     if run_type == "ds":
@@ -249,6 +250,11 @@ def get_training_json(train_info: dict) -> dict:
         "gradient_accumulation_steps": 4,
         "weight_decay": 0.01,
         "label_smoothing": 0.0,
+        # NEFTune noise (lotob-neftune branch): default 5.0 (paper recommendation
+        # for 7B+; smaller models tolerate similar values). Adds noise to input
+        # embeddings during forward pass. Source: arxiv 2310.05914 (Jain 2023).
+        # Set 0.0 to disable. Env override NEFTUNE_NOISE_ALPHA.
+        "neftune_noise_alpha": float(os.getenv("NEFTUNE_NOISE_ALPHA", "5.0")),
         "use_attn_implementation": (
             "kernels-community/vllm-flash-attn3"
             if train_info.get("is_openai", False)

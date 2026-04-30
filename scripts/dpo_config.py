@@ -1,4 +1,5 @@
 """bruhh 2"""
+import os
 from model_utility import get_model_architecture, get_model_num_params, get_use_liger, disable_flash_attention, get_gradient_checkpointing, get_gpu_count
 from copy import deepcopy
 from lrs_lookup import get_dpo_lr
@@ -165,7 +166,7 @@ def get_run_cmd(config: dict, gpu_nums: int):
     --tf32 True \
     --gradient_checkpointing {gradient_checkpointing} \
     --optim {optimizer} \
-    --use_liger {use_liger} --disable_fa {disable_fa}"""
+    --use_liger {use_liger} --neftune_noise_alpha {neftune_noise_alpha} --disable_fa {disable_fa}"""
     )
 
     if config.get("use_lora", False):
@@ -207,6 +208,10 @@ def get_training_json(train_info: dict) -> dict:
         "distributed": config.get("distributed", "ddp"),
         "gradient_checkpointing": get_gradient_checkpointing(model_name),
         "gradient_accumulation_steps": 1,
+        # NEFTune noise (lotob-neftune branch): default 5.0, env override NEFTUNE_NOISE_ALPHA.
+        # TRL DPOTrainer extends HF Trainer so this flag should be respected.
+        # Source: arxiv 2310.05914 (Jain 2023).
+        "neftune_noise_alpha": float(os.getenv("NEFTUNE_NOISE_ALPHA", "5.0")),
         "use_attn_implementation": "kernels-community/vllm-flash-attn3" if train_info.get("is_openai", False) else ""
     }
     
