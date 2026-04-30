@@ -1,3 +1,4 @@
+import os
 from model_utility import (
     get_model_architecture,
     get_model_num_params,
@@ -9,6 +10,17 @@ from model_utility import (
 )
 from copy import deepcopy
 from lrs_lookup import get_grpo_lr, get_grpo_python_lr
+
+# Japota branch: port reward_classifier from friend's hyper-text repo.
+# Provides landscape-aware β + LR suggestion based on GRPO reward function mix.
+# Source: hyper-text/scripts/reward_classifier.py (Mar 2026, 366 lines).
+# Env-gated: JAPOTA_REWARD_CLASSIFIER=1 to enable. Default off → vanilla path.
+try:
+    from reward_classifier import classify_reward_mix, suggest_params, describe
+    _CLASSIFIER_AVAILABLE = True
+except ImportError:
+    _CLASSIFIER_AVAILABLE = False
+
 allow_find_lk_lr = False
 
 GRPO_CONFIG = {
@@ -218,6 +230,7 @@ def get_run_cmd(config: dict, gpu_nums: int):
     --gradient_checkpointing {gradient_checkpointing} \
     --optim {optimizer} \
     --use_liger {use_liger} --num_generations {num_generations} --vllm_mode colocate --vllm_gpu_memory_utilization {vllm_gpu_memory_utilization} \
+    --beta {beta} \
     --disable_fa {disable_fa}"""
     )
 
@@ -272,6 +285,7 @@ def get_training_json(train_info: dict) -> dict:
         "gradient_accumulation_steps": 4,
         "vllm_gpu_memory_utilization": config.get("vllm_gpu_memory_utilization", 0.4),
         "num_generations": 2,
+        "beta": 0.04,  # TRL default; reward_classifier may override below
         "use_vllm": get_use_vllm(model_architecture, model_name),
         "tensor_parallel": config.get("tensor_parallel", False),
         "use_4bit": config.get("use_4bit", False),
@@ -331,6 +345,27 @@ def get_training_json(train_info: dict) -> dict:
 
     if not config.get("use_vllm", True):
         run_config["use_vllm"] = False
+
+    # === Japota: reward_classifier landscape-based β + LR override ===
+    # Source: ported from hyper-text/scripts/reward_classifier.py (Mar 2026)
+    # Empirically tuned on 7B GRPO across 38 tournament tasks. For "single"
+    # landscape returns same β=0.04 as default; for reward_hack/imbalanced
+    # raises β to 0.06-0.10 to reduce KL drift (validator BETA_GRPO=0.5 penalty).
+    # Verified validator formula at /root/G.O.D-eval-text/validator/core/constants.py:277
+    if _CLASSIFIER_AVAILABLE and os.getenv("JAPOTA_REWARD_CLASSIFIER", "0") == "1":
+        try:
+            reward_funcs = train_info.get("dataset_type", {}).get("reward_functions", [])
+            fingerprint = classify_reward_mix(reward_funcs)
+            classifier_params = suggest_params(fingerprint, model_size_b=param_nums / 1e9)
+            print(f"[reward_classifier] {describe(fingerprint)}", flush=True)
+            if classifier_params is not None:
+                print(f"[reward_classifier] OVERRIDE lr={classifier_params['learning_rate']:.2e} beta={classifier_params['beta']}", flush=True)
+                run_config["learning_rate"] = classifier_params["learning_rate"]
+                run_config["beta"] = classifier_params["beta"]
+            else:
+                print(f"[reward_classifier] no opinion (unknown reward funcs) — keeping defaults", flush=True)
+        except Exception as e:
+            print(f"[reward_classifier] disabled due to error: {e}", flush=True)
 
     if train_info["find_lk_lr"] and allow_find_lk_lr:
         # get lr from lrs_lookup.py
