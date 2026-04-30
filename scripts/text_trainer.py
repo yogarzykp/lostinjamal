@@ -439,6 +439,14 @@ def main():
         if args.task_type == TaskType.GRPOTASK.value:
             state["mode"] = "finish" # do not run this for GRPO task
             c_train_info["train_request"]["checking_mode"] = "none"
+            # State machine bug fix (2026-04-30): GRPO branch sets mode to
+            # "finish" but never breaks the while loop, causing infinite
+            # retraining (overwrites trained model with new run from base).
+            # Verified empirically: v9 ran 4 separate trainings, each
+            # overwriting the previous adapter at /root/text-jagger/outputs/.
+            # Break after first GRPO training completes.
+            if count > 0:
+                break
         else:
             if state["mode"] == "initial":
                 c_train_info["train_request"]["checking_mode"] = "first_time"
