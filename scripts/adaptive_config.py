@@ -139,6 +139,274 @@ def _grpo_vanilla_batch_cap(param_count: int) -> int:
 
 
 # ---------------------------------------------------------------------------
+# Family-aware adaptive HP profiles (Phase 1: Instruct, focus SmolLM2-1.7B)
+# ---------------------------------------------------------------------------
+# Design philosophy:
+# - PRIMARY: arch_family from config (anonymization-safe, survives Gradients roadmap)
+# - ENHANCEMENT: model_name family signal (current tournaments still expose name)
+# - GOES BEYOND master-text: multi-signal resolver (arch+name), seq_p95-aware
+#   max_length bucketing, continuous data-size interpolation for warmup, family-
+#   specific NEFTune scaling.
+# Reference (NOT direct copy): master-text instruct_advisor.py
+#   FAMILY_LR_PRIORS + _family_min_lr_rate + _apply_family_profile_overrides.
+# Cross-validated against 5C5FB (PENCURI deploying master-text-style code) winning
+# runs on tasks ded7e684 (test_loss 0.0502) + 05933c53 (0.0143).
+
+LENGTH_BUCKETS = [512, 768, 1024, 1536, 2048, 3072, 4096]
+
+
+_FAMILY_PROFILES = {
+    # SmolLM family validated against 5C5FB winning run on ded7e684:
+    # epoch=4 + min_lr=0.075 + wd=0.001 + packing=False + max_len=2048
+    # → test_loss 0.0502 (vs our text-jagger 0.0989, +97% gap).
+    "smollm": {
+        "min_lr_rate": 0.075,
+        "weight_decay_small_data": 0.001,
+        "weight_decay_default": 0.005,
+        "packing": False,
+        "max_packed_size": 1,
+        "max_length_cap": 2048,
+        "neftune_alpha_small_data": 5,
+        "neftune_alpha_default": 3,
+        "warmup_steps_small_data": 15,
+        "warmup_steps_default": 35,
+        "lr_default": 6.2e-4,    # master-text smollm family median (count=9)
+        "lr_floor": 2.4e-4,
+        "reg_ratio_small_data": 0.60,
+        "reg_ratio_default": 0.70,
+    },
+    "qwen": {
+        "min_lr_rate": 0.18,
+        "weight_decay_small_data": 0.0,
+        "weight_decay_default": 0.0,
+        "packing": True,
+        "max_packed_size": 4,
+        "max_length_cap": 4096,
+        "neftune_alpha_small_data": 0,
+        "neftune_alpha_default": 0,
+        "warmup_steps_small_data": 35,
+        "warmup_steps_default": 35,
+        "lr_default": 8.6e-5,
+        "lr_floor": 5.7e-5,
+        "reg_ratio_small_data": 1.08,
+        "reg_ratio_default": 1.00,
+    },
+    "tinyllama": {
+        "min_lr_rate": 0.20,
+        "weight_decay_small_data": 0.0,
+        "weight_decay_default": 0.0,
+        "packing": True,
+        "max_packed_size": 4,
+        "max_length_cap": 4096,
+        "neftune_alpha_small_data": 0,
+        "neftune_alpha_default": 0,
+        "warmup_steps_small_data": 35,
+        "warmup_steps_default": 35,
+        "lr_default": 7.2e-5,
+        "lr_floor": 3.9e-5,
+        "reg_ratio_small_data": 1.03,
+        "reg_ratio_default": 1.00,
+    },
+    "phi": {
+        "min_lr_rate": 0.15,
+        "weight_decay_small_data": 0.0,
+        "weight_decay_default": 0.0,
+        "packing": True,
+        "max_packed_size": 4,
+        "max_length_cap": 4096,
+        "neftune_alpha_small_data": 0,
+        "neftune_alpha_default": 0,
+        "warmup_steps_small_data": 35,
+        "warmup_steps_default": 35,
+        "lr_default": 9.6e-5,
+        "lr_floor": 7.5e-5,
+        "reg_ratio_small_data": 1.06,
+        "reg_ratio_default": 1.00,
+    },
+    "gemma": {
+        "min_lr_rate": 0.15,
+        "weight_decay_small_data": 0.0,
+        "weight_decay_default": 0.0,
+        "packing": True,
+        "max_packed_size": 4,
+        "max_length_cap": 4096,
+        "neftune_alpha_small_data": 0,
+        "neftune_alpha_default": 0,
+        "warmup_steps_small_data": 35,
+        "warmup_steps_default": 35,
+        "lr_default": 8.5e-5,
+        "lr_floor": 6.5e-5,
+        "reg_ratio_small_data": 1.03,
+        "reg_ratio_default": 1.00,
+    },
+    # Fallback when family unknown/unmappable (anonymization scenario or unseen arch)
+    "unknown": {
+        "min_lr_rate": 0.20,
+        "weight_decay_small_data": 0.0,
+        "weight_decay_default": 0.01,
+        "packing": True,
+        "max_packed_size": 2,
+        "max_length_cap": 4096,
+        "neftune_alpha_small_data": 5,
+        "neftune_alpha_default": 0,
+        "warmup_steps_small_data": 35,
+        "warmup_steps_default": 35,
+        "lr_default": None,   # fall back to param-based heuristic
+        "lr_floor": None,
+        "reg_ratio_small_data": 1.00,
+        "reg_ratio_default": 1.00,
+    },
+}
+
+
+def _classify_model_family_safe(model_name: Optional[str]) -> str:
+    """Family from model_name string. Returns 'unknown' when name unavailable.
+
+    Used as ENHANCEMENT layer on top of arch detection (anonymization-safe primary).
+    Order matters — check most specific first (tinyllama before llama, etc).
+    """
+    if not model_name:
+        return "unknown"
+    name = model_name.lower()
+    if "tinyllama" in name:
+        return "tinyllama"
+    if "smollm" in name:
+        return "smollm"
+    if "qwen" in name:
+        return "qwen"
+    if "phi" in name and "gpt" not in name:
+        return "phi"
+    if "gemma" in name:
+        return "gemma"
+    if "llama" in name:
+        # Generic llama (non-tiny) → use tinyllama HP profile (similar dynamics)
+        return "tinyllama"
+    return "unknown"
+
+
+def _resolve_family(arch_family: str, model_name: Optional[str]) -> str:
+    """Resolve effective family from BOTH structural arch + name signals.
+
+    Priority order:
+    1. Name maps to specific profile family → use it (most specific wins)
+    2. Arch maps to known profile → use it
+    3. Arch maps via aliasing (llama→tinyllama, mistral→tinyllama, deepseek→qwen)
+    4. Fall back to "unknown" profile
+    """
+    name_family = _classify_model_family_safe(model_name)
+    if name_family in _FAMILY_PROFILES and name_family != "unknown":
+        return name_family
+
+    if arch_family in _FAMILY_PROFILES:
+        return arch_family
+    arch_aliases = {
+        "llama": "tinyllama",
+        "mistral": "tinyllama",
+        "deepseek": "qwen",
+    }
+    if arch_family in arch_aliases:
+        return arch_aliases[arch_family]
+
+    return "unknown"
+
+
+def _compute_instruct_adaptive_hp(
+    arch_family: str,
+    param_count: int,
+    data_size: int,
+    seq_p95: int,
+    model_name: Optional[str] = None,
+) -> Dict:
+    """Build family-aware adaptive HP for Instruct task.
+
+    RICHER than master-text:
+    - master-text: (param_count, data_size, family_name)
+    - ours: (arch_family, family_name, param_count, data_size, seq_p95)
+
+    Multi-signal: when model_name available, use it for family resolution.
+    When not (anonymization), fall back to arch_family from config.
+
+    Returns dict mergable into run_config.
+    """
+    family = _resolve_family(arch_family, model_name)
+    profile = _FAMILY_PROFILES[family]
+
+    is_small_data = data_size < 3_000
+    is_medium_data = 3_000 <= data_size < 20_000
+
+    # Epoch by data_size — smoother bucketing than master-text
+    # Sources: master-text empirical (data<3K → 4 epoch); our 2026-04-22 exp
+    # showed best ckpt ≤ epoch 2 for medium-large (overfit at epoch 3).
+    if is_small_data:
+        epoch = 4
+    elif is_medium_data:
+        epoch = 4 if param_count < 4e9 else 3
+    elif data_size < 50_000:
+        epoch = 3
+    else:
+        epoch = 2
+
+    wd = profile["weight_decay_small_data"] if is_small_data else profile["weight_decay_default"]
+    min_lr_rate = profile["min_lr_rate"]
+
+    # NEFTune: family-aware + small-data scaling
+    neftune = (
+        profile["neftune_alpha_small_data"] if is_small_data
+        else profile["neftune_alpha_default"]
+    )
+    if data_size > 50_000:
+        neftune = 0  # large data doesn't benefit from regularization noise
+
+    warmup = profile["warmup_steps_small_data"] if is_small_data else profile["warmup_steps_default"]
+
+    # Max length: bucket from seq_p95 + family cap (RICHER than master-text:
+    # master-text profile.suggested_max_length is dataset-only. We combine with family cap.)
+    target_len = max(256, int(seq_p95 * 1.15))
+    bucketed = next((b for b in LENGTH_BUCKETS if target_len <= b), LENGTH_BUCKETS[-1])
+    max_length = min(bucketed, profile["max_length_cap"])
+
+    packing = profile["packing"]
+    if family == "smollm" and param_count < 2e9:
+        packing = False  # validated: SmolLM<2B harmed by packing
+
+    reg_ratio = (
+        profile["reg_ratio_small_data"] if is_small_data
+        else profile["reg_ratio_default"]
+    )
+
+    # LR: family median if available, else param-based heuristic
+    if profile["lr_default"] is not None:
+        lr = profile["lr_default"]
+    elif param_count < 1.5e9:
+        lr = 1e-4
+    elif param_count < 5e9:
+        lr = 5e-5
+    else:
+        lr = 2e-5
+
+    if profile["lr_floor"] is not None:
+        lr = max(lr, profile["lr_floor"])
+
+    return {
+        "epoch_num": epoch,
+        "weight_decay": wd,
+        "min_lr_rate": min_lr_rate,
+        "neftune_noise_alpha": neftune,
+        "warmup_steps": warmup,
+        "max_length": max_length,
+        "packing": packing,
+        "reg_ratio": reg_ratio,
+        "learning_rate": lr,
+        "_meta": {
+            "family_resolved": family,
+            "family_arch_signal": arch_family,
+            "family_name_signal": _classify_model_family_safe(model_name),
+            "profile_source": "rich_hybrid_v1",
+        },
+    }
+
+
+# ---------------------------------------------------------------------------
 # Main: build run_config dict (matches legacy interface)
 # ---------------------------------------------------------------------------
 
@@ -235,9 +503,36 @@ def build_adaptive_run_config(
     init_loss_estimate = float(os.getenv("ADAPTIVE_INIT_LOSS_OVERRIDE", "2.5"))
     epochs = adaptive_epochs_from_init_loss(init_loss_estimate, ds_metrics.num_samples)
 
+    # ----------------------------------------------------------------------
+    # Phase 1 (2026-05-02): Family-aware Instruct HP — RICHER than master-text
+    # ----------------------------------------------------------------------
+    # When ADAPTIVE_INSTRUCT_FAMILY=1 (default ON for instruct), override generic
+    # HP defaults with family-aware profile. Falls back to generic when family
+    # is "unknown" (anonymization-safe). See _compute_instruct_adaptive_hp.
+    # Background: prior ADAPTIVE_MODE for instruct used init_lr=8e-6 for 1-5B
+    # models — way below SmolLM family median 6.2e-4 (master-text). Caused
+    # 3-6× worse eval per memory experiment_results_log. This block fixes that.
+    instruct_hp = None
+    if task_type_lc == "instruct" and os.getenv("ADAPTIVE_INSTRUCT_FAMILY", "1") == "1":
+        instruct_hp = _compute_instruct_adaptive_hp(
+            arch_family=arch,
+            param_count=param_count,
+            data_size=ds_metrics.num_samples,
+            seq_p95=ds_metrics.seq_len_p95,
+            model_name=train_info.get("model_name") or train_info.get("model"),
+        )
+        # Override learnings — PRIMARY (these affect convergence)
+        init_lr = float(os.getenv("ADAPTIVE_LR_OVERRIDE", str(instruct_hp["learning_rate"])))
+        epochs = instruct_hp["epoch_num"]
+        max_length = instruct_hp["max_length"]
+        # warmup recomputed below after total_steps
+
     # Total steps for warmup
     total_steps = max(100, ds_metrics.num_samples * epochs // (batch * gpu_count))
     warmup = adaptive_warmup_steps(total_steps)
+    # If instruct adaptive provides explicit warmup_steps, use it instead
+    if instruct_hp is not None:
+        warmup = instruct_hp["warmup_steps"]
 
     # Gradient accumulation: same logic as legacy (ensure total_batch ≥ 64)
     grad_accum = 1
@@ -250,7 +545,7 @@ def build_adaptive_run_config(
         "epoch_num": epochs,
         "batch_size": batch,
         "learning_rate": init_lr,
-        "min_lr_rate": 0.25,
+        "min_lr_rate": instruct_hp["min_lr_rate"] if instruct_hp else 0.25,
         "use_liger": False,  # arch-dependent, conservative default
         "optimizer": _select_optimizer(param_count),
         "use_lora": use_lora,
@@ -261,13 +556,39 @@ def build_adaptive_run_config(
         "distributed": "ds" if param_count > 9e9 and gpu_count >= 4 else "ddp",
         "gradient_checkpointing": "True",
         "gradient_accumulation_steps": grad_accum,
+        "warmup_steps": warmup,
         "use_attn_implementation": "",
         # Adaptive extras (legacy doesn't have but harmless)
         "max_length": max_length,
-        "weight_decay": 0.01 if task_type_lc == "instruct" else 0.0,
+        "weight_decay": (
+            instruct_hp["weight_decay"] if instruct_hp
+            else (0.01 if task_type_lc == "instruct" else 0.0)
+        ),
         "label_smoothing": 0.0,
-        "packing": True if task_type_lc == "instruct" else False,
+        "packing": (
+            ("True" if instruct_hp["packing"] else "False") if instruct_hp
+            else ("True" if task_type_lc == "instruct" else "False")
+        ),
+        # NEFTune (lotob-neftune branch added template support).
+        # Family-aware: SmolLM small data → 5; large data → 0.
+        "neftune_noise_alpha": (
+            instruct_hp["neftune_noise_alpha"] if instruct_hp
+            else float(os.getenv("NEFTUNE_NOISE_ALPHA", "5.0" if task_type_lc == "instruct" else "0.0"))
+        ),
     }
+
+    # Log family resolution + key HP for traceability
+    if instruct_hp is not None:
+        meta = instruct_hp["_meta"]
+        print(
+            f"[adaptive-instruct] family={meta['family_resolved']} "
+            f"(arch={meta['family_arch_signal']}, name={meta['family_name_signal']}) "
+            f"epoch={epochs} lr={init_lr:.2e} min_lr_rate={run_config['min_lr_rate']} "
+            f"wd={run_config['weight_decay']} max_len={max_length} "
+            f"packing={run_config['packing']} neftune={run_config['neftune_noise_alpha']} "
+            f"warmup={warmup} reg_ratio={instruct_hp['reg_ratio']}",
+            flush=True,
+        )
 
     # Task-specific
     if task_type_lc == "dpo":

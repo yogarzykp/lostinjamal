@@ -189,7 +189,7 @@ def get_run_cmd(config: dict, gpu_nums: int):
     --learning_rate {learning_rate} \
     --weight_decay {weight_decay} \
     --label_smoothing_factor {label_smoothing} \
-    --warmup_steps 35 \
+    --warmup_steps {warmup_steps} \
     --lr_scheduler_type cosine_with_min_lr \
     --lr_scheduler_kwargs "{\\"min_lr_rate\\": {min_lr_rate}}" \
     --tf32 True \
@@ -248,6 +248,7 @@ def get_training_json(train_info: dict) -> dict:
         "distributed": config.get("distributed", "ddp"),
         "gradient_checkpointing": "True",
         "gradient_accumulation_steps": 4,
+        "warmup_steps": int(os.getenv("INSTRUCT_WARMUP_STEPS", "35")),
         "weight_decay": 0.01,
         "label_smoothing": 0.0,
         # NEFTune noise (lotob-neftune branch): default 5.0 (paper recommendation
