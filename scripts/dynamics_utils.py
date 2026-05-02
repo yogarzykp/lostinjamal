@@ -210,24 +210,38 @@ def measure_dataset(dataset_path: str, tokenizer, max_samples: int = 1000) -> Da
 
     For seq_len_p95 → use to set max_length adaptively (no validator-blind 4096).
     Robust to: malformed JSON, missing fields, both JSON-array and JSONL formats.
+
+    BUGFIX 2026-05-02: previously returned `max(n_samples, 1000)` which clipped
+    to the SAMPLED count (capped by max_samples=500). For 4000-record TOFU
+    dataset this returned num_samples=1000, triggering adaptive's small_data
+    HP branch incorrectly. Now reports ACTUAL total dataset count (counted
+    before sampling) so adaptive can pick correct medium/large branch.
     """
     seq_lens: List[int] = []
     n_samples = 0
     chat_signal = False
     objs: List = []
+    actual_total = 0  # NEW: track full dataset size before sampling
 
     # Try full JSON load first (most tournament datasets are JSON arrays)
     try:
         with open(dataset_path, "r") as f:
             data = json.load(f)
         if isinstance(data, list):
+            actual_total = len(data)  # full count
             objs = data[:max_samples]
         elif isinstance(data, dict) and "data" in data:
             # Some datasets nested as {"data": [...]}
-            objs = data["data"][:max_samples] if isinstance(data["data"], list) else []
+            if isinstance(data["data"], list):
+                actual_total = len(data["data"])
+                objs = data["data"][:max_samples]
+            else:
+                objs = []
     except (json.JSONDecodeError, ValueError):
-        # Fallback: JSONL line-by-line
+        # Fallback: JSONL line-by-line — count total lines first
         try:
+            with open(dataset_path, "r") as f:
+                actual_total = sum(1 for _ in f)
             with open(dataset_path, "r") as f:
                 for i, line in enumerate(f):
                     if len(objs) >= max_samples:
@@ -274,8 +288,11 @@ def measure_dataset(dataset_path: str, tokenizer, max_samples: int = 1000) -> Da
     p50 = seq_lens[len(seq_lens) // 2]
     p95_idx = min(len(seq_lens) - 1, int(0.95 * len(seq_lens)))
     p95 = seq_lens[p95_idx]
+    # Use actual_total when known (post-bugfix); fall back to sampled count
+    # (legacy behavior) only when file couldn't be parsed at all.
+    final_num_samples = actual_total if actual_total > 0 else max(n_samples, 1000)
     return DatasetMetrics(
-        num_samples=max(n_samples, 1000),  # for adaptive_epochs threshold
+        num_samples=final_num_samples,
         seq_len_p50=p50,
         seq_len_p95=p95,
         seq_len_max=max(seq_lens),

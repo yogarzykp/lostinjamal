@@ -62,7 +62,16 @@ class CustomEvalSaveCallback(TrainerCallback):
         self.total_steps_all_epochs = total_steps_all_epochs
         self.checking_mode = checking_mode
         self.end_time = end_time
-        
+        # Phase 1 BUGFIX 2026-05-02: early-stop on plateau/regression.
+        # When eval_loss rises for `early_stop_patience` consecutive evals,
+        # stop training and keep best checkpoint. Saves compute on overfit
+        # cases (e.g. TOFU 03f6b01c trained for 4 epochs but best at epoch 1).
+        # Defaults are conservative; only kicks in when actively regressing.
+        # Disable via INSTRUCT_EARLY_STOP_PATIENCE=0.
+        self.early_stop_patience = int(os.getenv("INSTRUCT_EARLY_STOP_PATIENCE", "2"))
+        self.early_stop_min_delta = float(os.getenv("INSTRUCT_EARLY_STOP_MIN_DELTA", "0.0"))
+        self.no_improve_count = 0
+
     def compute_loss(self, state: TrainerState, metrics):
         return metrics.get("eval_loss", None)
 
@@ -193,19 +202,35 @@ class CustomEvalSaveCallback(TrainerCallback):
         # Append eval_loss to file
         eval_loss = self.compute_loss(state, metrics)
         if state.global_step < 2:
-            return 
+            return
         print(f"GO INTO CUSTOMIZED EVALUATE AT STEP: {state.global_step}", flush=True)
-        if self.best_checkpoint_info is None or eval_loss < self.best_checkpoint_info["loss"]:
+        if self.best_checkpoint_info is None or eval_loss < self.best_checkpoint_info["loss"] - self.early_stop_min_delta:
             print(f"Updating the best checkpoint info at step: {state.global_step} with eval_loss: {eval_loss}", flush=True)
             self.best_checkpoint_info = {
                 "loss": eval_loss,
                 "step": state.global_step
             }
             self.update_best_checkpoint = True
+            self.no_improve_count = 0  # reset on improvement
         else:
+            self.no_improve_count += 1
             if self.best_checkpoint_info is not None:
-                print(f" At step: {state.global_step} The eval_loss: {eval_loss} is not smaller than the current best eval_loss: {self.best_checkpoint_info['loss']}, update_best_checkpoint={self.update_best_checkpoint}", flush=True)
-            
+                print(
+                    f" At step: {state.global_step} eval_loss={eval_loss:.4f} not < best {self.best_checkpoint_info['loss']:.4f} "
+                    f"no_improve={self.no_improve_count}/{self.early_stop_patience}",
+                    flush=True,
+                )
+            # Early stop when patience exceeded (Phase 1 BUGFIX for overfit-prone tasks)
+            if self.early_stop_patience > 0 and self.no_improve_count >= self.early_stop_patience:
+                print(
+                    f"[early_stop] Patience {self.early_stop_patience} exhausted at step "
+                    f"{state.global_step}; stopping training. Best ckpt step="
+                    f"{self.best_checkpoint_info['step']} loss={self.best_checkpoint_info['loss']:.4f}",
+                    flush=True,
+                )
+                control.should_training_stop = True
+
+
 
     def on_save(self, args, state: TrainerState, control: TrainerControl, **kwargs):
         
