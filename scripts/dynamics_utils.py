@@ -192,6 +192,118 @@ def compute_init_loss(model, dataloader, max_batches: int = 8, device: str = "cu
 
 
 # ---------------------------------------------------------------------------
+# Phase C (2026-05-02): Init loss probe — RICHER than master-text approach.
+# ---------------------------------------------------------------------------
+# Master-text picks HP from (param_count, data_size, family) lookup table.
+# We add: actual measurement of task difficulty for current model+dataset.
+# Pre-training forward pass on small batches → init_loss → calibrate HP.
+#
+# Design:
+# - Self-contained: caller passes model_path + dataset_path; we load briefly
+# - Memory-safe: bf16 + no_grad + immediate cleanup after probe
+# - Fast: 4-8 batches, small max_length probe (256-512), early return
+# - Robust: graceful degradation if load fails (return None → caller falls back)
+
+
+def probe_init_loss(
+    model_path: str,
+    dataset_path: str,
+    *,
+    max_length: int = 512,
+    batch_size: int = 4,
+    num_batches: int = 4,
+    device: str = "cuda",
+) -> Optional[float]:
+    """Quick init_loss probe BEFORE training. Returns avg cross-entropy loss.
+
+    Loads model briefly (bf16 + no_grad), builds tiny dataloader, runs forward
+    on `num_batches`, returns mean loss. Memory cleaned up before return.
+
+    Args:
+        model_path: HF model path (local cache OK)
+        dataset_path: JSON file with `instruct`/`output` records
+        max_length: tokenization cap (default 512 for fast probe)
+        batch_size: micro-batch (default 4)
+        num_batches: forward pass count (default 4 → 16 samples total)
+
+    Returns:
+        Float init_loss, or None if probe fails (graceful fallback).
+    """
+    try:
+        import gc
+        from transformers import AutoModelForCausalLM, AutoTokenizer
+        from torch.utils.data import DataLoader, Dataset
+
+        # Light-weight Dataset — tokenize on-the-fly
+        class _ProbeDataset(Dataset):
+            def __init__(self, items, tok, max_len):
+                self.items = items
+                self.tok = tok
+                self.max_len = max_len
+
+            def __len__(self):
+                return len(self.items)
+
+            def __getitem__(self, i):
+                item = self.items[i]
+                instr = str(item.get("instruct") or item.get("instruction") or item.get("prompt") or "")
+                out = str(item.get("output") or item.get("text") or item.get("chosen") or "")
+                # Build prompt + completion text (causal LM training format)
+                full = f"{instr}\n{out}".strip()
+                if not full:
+                    return None
+                enc = self.tok(
+                    full,
+                    truncation=True,
+                    max_length=self.max_len,
+                    padding="max_length",
+                    return_tensors="pt",
+                )
+                return {
+                    "input_ids": enc["input_ids"].squeeze(0),
+                    "attention_mask": enc["attention_mask"].squeeze(0),
+                    "labels": enc["input_ids"].squeeze(0).clone(),
+                }
+
+        # Load tokenizer + dataset items
+        with open(dataset_path, "r") as f:
+            data = json.load(f)
+        if not isinstance(data, list):
+            data = data.get("data", []) if isinstance(data, dict) else []
+        items = [x for x in data[: batch_size * num_batches * 2] if isinstance(x, dict)]
+        if not items:
+            print(f"[probe_init_loss] no usable items in dataset", flush=True)
+            return None
+
+        tokenizer = AutoTokenizer.from_pretrained(model_path)
+        if tokenizer.pad_token is None:
+            tokenizer.pad_token = tokenizer.eos_token
+
+        ds = _ProbeDataset(items, tokenizer, max_length)
+        dl = DataLoader(ds, batch_size=batch_size, shuffle=False)
+
+        # Load model in bf16 for memory + speed
+        model = AutoModelForCausalLM.from_pretrained(
+            model_path,
+            torch_dtype=torch.bfloat16,
+            low_cpu_mem_usage=True,
+        ).to(device)
+
+        init_loss = compute_init_loss(model, dl, max_batches=num_batches, device=device)
+
+        # Cleanup model from VRAM
+        del model
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
+        return init_loss
+    except Exception as exc:
+        print(f"[probe_init_loss] failed: {type(exc).__name__}: {exc}", flush=True)
+        return None
+
+
+# ---------------------------------------------------------------------------
 # Dataset stats
 # ---------------------------------------------------------------------------
 

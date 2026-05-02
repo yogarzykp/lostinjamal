@@ -521,6 +521,45 @@ def build_adaptive_run_config(
             seq_p95=ds_metrics.seq_len_p95,
             model_name=train_info.get("model_name") or train_info.get("model"),
         )
+
+        # ----------------------------------------------------------------------
+        # Phase C (2026-05-02): Init loss probe — measures task difficulty
+        # for THIS model+dataset combo, then refines family HP. RICHER than
+        # master-text which only uses (param, data_size, family) lookups.
+        # Enable via ADAPTIVE_INIT_LOSS_PROBE=1 (default OFF; ~30-60s overhead).
+        # ----------------------------------------------------------------------
+        if os.getenv("ADAPTIVE_INIT_LOSS_PROBE", "0") == "1" and ds_path:
+            try:
+                from dynamics_utils import probe_init_loss
+                init_loss = probe_init_loss(
+                    model_path=model_path,
+                    dataset_path=ds_path,
+                    max_length=min(512, instruct_hp["max_length"]),
+                    batch_size=4,
+                    num_batches=4,
+                )
+                if init_loss is not None:
+                    print(f"[adaptive-instruct] init_loss probe: {init_loss:.4f}", flush=True)
+                    # Refine HP based on measured task difficulty
+                    if init_loss < 1.5:
+                        # Model already strong — reduce regularization+epoch
+                        old_epoch = instruct_hp["epoch_num"]
+                        instruct_hp["epoch_num"] = max(2, old_epoch - 1)
+                        instruct_hp["neftune_noise_alpha"] = max(0, instruct_hp["neftune_noise_alpha"] - 2)
+                        instruct_hp["learning_rate"] = instruct_hp["learning_rate"] * 0.85
+                        print(f"[adaptive-instruct] init_loss<1.5: epoch {old_epoch}→{instruct_hp['epoch_num']}, neftune-2, lr*0.85", flush=True)
+                    elif init_loss > 3.5:
+                        # Hard task — bump epochs + keep neftune for regularization
+                        old_epoch = instruct_hp["epoch_num"]
+                        instruct_hp["epoch_num"] = min(6, old_epoch + 1)
+                        instruct_hp["neftune_noise_alpha"] = min(8, instruct_hp["neftune_noise_alpha"] + 1)
+                        print(f"[adaptive-instruct] init_loss>3.5: epoch {old_epoch}→{instruct_hp['epoch_num']}, neftune+1", flush=True)
+                    else:
+                        print(f"[adaptive-instruct] init_loss in [1.5, 3.5]: family HP unchanged", flush=True)
+                    instruct_hp["_meta"]["init_loss"] = init_loss
+            except Exception as exc:
+                print(f"[adaptive-instruct] init_loss probe error: {exc}", flush=True)
+
         # Override learnings — PRIMARY (these affect convergence)
         init_lr = float(os.getenv("ADAPTIVE_LR_OVERRIDE", str(instruct_hp["learning_rate"])))
         epochs = instruct_hp["epoch_num"]
