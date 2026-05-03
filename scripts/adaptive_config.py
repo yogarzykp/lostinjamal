@@ -611,6 +611,22 @@ def build_adaptive_run_config(
         gpu_metrics=gpu,
         use_lora=use_lora,
     )
+    # Plan D-v2 (2026-05-03): hard cap for 5-9B Instruct (bucket batch=28).
+    # OOM observed on Qwen2-7B 2-GPU + LoRA + batch=64 + max_len=768.
+    # estimate_max_batch_size optimistic for LoRA, but DDP overhead +
+    # gradient checkpointing memory makes 64 unsafe for 7B+. Cap at bucket
+    # baseline. Also respect INSTRUCT_BATCH_OVERRIDE env for manual override.
+    if 5e9 <= param_count < 9e9:
+        batch = min(batch, 28)
+    elif param_count >= 9e9:
+        batch = min(batch, 16)
+    env_batch = os.getenv("INSTRUCT_BATCH_OVERRIDE")
+    if env_batch:
+        try:
+            batch = int(env_batch)
+            print(f"[adaptive] batch overridden via env: {batch}", flush=True)
+        except ValueError:
+            pass
     gpu_count = max(1, gpu.num_gpus)
 
     # Init LR — heuristic from arch+param (LRRT can refine in Phase 2)
