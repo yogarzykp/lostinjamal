@@ -402,16 +402,34 @@ def _apply_task_character_overrides(
         hp["plateau_tolerance"] = round(0.02 + 0.06 * train_dev_j, 4)
 
     elif task_class == "code":
-        # Code: lower LR, NEFTune off, more epochs (code patterns need precise updates)
+        # Code: lower LR, NEFTune off. Epochs DATA-SIZE-AWARE (fix 2026-05-03):
+        # - small data <10K: 3 epochs (need passes)
+        # - medium 10K-50K: 2 epochs (enough)
+        # - large >50K: 1 epoch (one pass through 50K+ samples already plenty)
+        # Previously hardcoded epoch>=3 which meant 100K Magicoder = 5.5hr training,
+        # blowing past 2hr task budget.
+        data_size = profile.get("actual_total", 10000)
         hp["learning_rate"] = min(hp["learning_rate"], 8e-5)
         hp["neftune_noise_alpha"] = 0
-        hp["epoch_num"] = max(hp.get("epoch_num", 3), 3)
+        if data_size < 10_000:
+            hp["epoch_num"] = max(hp.get("epoch_num", 3), 3)
+        elif data_size < 50_000:
+            hp["epoch_num"] = min(hp.get("epoch_num", 2), 2)
+        else:
+            hp["epoch_num"] = 1  # huge code dataset, single epoch sufficient
 
     elif task_class == "reasoning":
         # Reasoning: keep moderate LR, NEFTune helps generalize, more epochs
+        # Same data-size-aware adjustment for budget safety
         hp["learning_rate"] = min(hp["learning_rate"], 3e-4)
         hp["neftune_noise_alpha"] = max(hp.get("neftune_noise_alpha", 0), 3)
-        hp["epoch_num"] = max(hp.get("epoch_num", 3), 4)
+        data_size = profile.get("actual_total", 10000)
+        if data_size < 10_000:
+            hp["epoch_num"] = max(hp.get("epoch_num", 3), 4)
+        elif data_size < 50_000:
+            hp["epoch_num"] = min(hp.get("epoch_num", 3), 3)
+        else:
+            hp["epoch_num"] = 2
 
     # translation, skill: keep family HP (NEFTune + family default LR)
     return hp
