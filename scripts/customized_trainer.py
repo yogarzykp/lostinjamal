@@ -105,11 +105,28 @@ class CustomEvalSaveCallback(TrainerCallback):
         self.no_improve_count = 0
         # Track all eval_losses for window smoothing
         self.eval_history: list[float] = []
+        # Phase D-v2 (2026-05-03): CV-aware convergence detector
+        # Source: arxiv 2502.00089 (ICLR 2025 "Provably tuned LR schedules")
+        # Track training_loss CV (std/mean) over rolling window. If CV below
+        # threshold (loss has converged numerically) AND no_improve >= K → stop.
+        # If CV still high (loss actively descending), keep training even if
+        # eval bumps up — late-dip recovery likely.
+        #
+        # Replaces fixed patience for tasks where eval is non-monotonic but
+        # train is still descending (Qwen 7B CodeM signature pattern).
+        # Default OFF (env-flag gated). Use INSTRUCT_USE_CV_EARLY_STOP=1.
+        self.cv_early_stop_enabled = os.getenv("INSTRUCT_USE_CV_EARLY_STOP", "0") == "1"
+        self.cv_window = int(os.getenv("INSTRUCT_CV_WINDOW", "20"))
+        # CV threshold: code/reasoning typically 0.05, memorization 0.02
+        self.cv_threshold = float(os.getenv("INSTRUCT_CV_THRESHOLD", "0.05"))
+        self.train_loss_history: list[float] = []
+
         if not self.early_stop_disabled:
             print(
                 f"[early_stop] dynamic config: patience={self.early_stop_patience} "
                 f"(adaptive from total_steps={total_steps_all_epochs}, derived_epochs={derived_epochs}), "
-                f"window={self.early_stop_window}, min_delta={self.early_stop_min_delta}",
+                f"window={self.early_stop_window}, min_delta={self.early_stop_min_delta}, "
+                f"cv_enabled={self.cv_early_stop_enabled} cv_window={self.cv_window} cv_thresh={self.cv_threshold}",
                 flush=True,
             )
 
@@ -236,6 +253,15 @@ class CustomEvalSaveCallback(TrainerCallback):
         return control
 
 
+    def on_log(self, args, state: TrainerState, control: TrainerControl, logs=None, **kwargs):
+        # Phase D-v2: track training loss for CV convergence detector
+        if logs and isinstance(logs, dict) and "loss" in logs:
+            try:
+                self.train_loss_history.append(float(logs["loss"]))
+            except (TypeError, ValueError):
+                pass
+        return control
+
     def on_evaluate(
         self, args, state: TrainerState, control: TrainerControl, metrics, **kwargs
     ):
@@ -277,6 +303,29 @@ class CustomEvalSaveCallback(TrainerCallback):
                 return
             if self.early_stop_patience <= 0:
                 return
+
+            # Phase D-v2 (2026-05-03): CV-aware convergence override
+            # Source: arxiv 2502.00089 (ICLR 2025)
+            # If training_loss is still ACTIVELY DESCENDING (CV high), keep
+            # training even if eval bumped up — late-dip recovery very likely.
+            # Only kicks in when INSTRUCT_USE_CV_EARLY_STOP=1 (env-flag gated).
+            if self.cv_early_stop_enabled and len(self.train_loss_history) >= self.cv_window:
+                import statistics as _stats
+                window_losses = self.train_loss_history[-self.cv_window:]
+                mean = _stats.mean(window_losses)
+                stdev = _stats.stdev(window_losses) if len(window_losses) > 1 else 0.0
+                cv = stdev / max(abs(mean), 1e-9)
+                if cv > self.cv_threshold:
+                    # Loss still actively varying = still learning. Don't stop yet.
+                    print(
+                        f"[early_stop CV-override] step {state.global_step}: "
+                        f"train_loss CV={cv:.3f} > {self.cv_threshold} → "
+                        f"loss actively descending, IGNORE patience hit. "
+                        f"Likely cosine-schedule late-dip incoming.",
+                        flush=True,
+                    )
+                    return  # don't even check patience
+
             if self.no_improve_count < self.early_stop_patience:
                 return  # not yet at patience limit
 
