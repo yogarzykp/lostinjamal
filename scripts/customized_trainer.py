@@ -63,14 +63,55 @@ class CustomEvalSaveCallback(TrainerCallback):
         self.checking_mode = checking_mode
         self.end_time = end_time
         # Phase 1 BUGFIX 2026-05-02: early-stop on plateau/regression.
-        # When eval_loss rises for `early_stop_patience` consecutive evals,
-        # stop training and keep best checkpoint. Saves compute on overfit
-        # cases (e.g. TOFU 03f6b01c trained for 4 epochs but best at epoch 1).
-        # Defaults are conservative; only kicks in when actively regressing.
-        # Disable via INSTRUCT_EARLY_STOP_PATIENCE=0.
-        self.early_stop_patience = int(os.getenv("INSTRUCT_EARLY_STOP_PATIENCE", "2"))
+        # Phase D refinement 2026-05-03: window-smoothed + adaptive patience.
+        #
+        # Bug found via 0304997e Qwen2-7B CodeM (+31.6% loss vs winner BOSS):
+        # winner's eval was non-monotonic: 0.1624 → 0.1664 (rise) → 0.1580 (BEST
+        # at epoch 1.99) → 0.1748 (overfit). Our patience=2 stopped at the rise
+        # and missed the late-epoch dip. Static patience can't handle cosine
+        # schedule late drops.
+        #
+        # Idea 1 (window smoothing): compare moving-avg of last N evals to
+        #   prev-N avg. Stop only when SMOOTHED trend is rising.
+        #   Source: Prechelt 1998 "Early stopping — but when?"
+        # Idea 2 (adaptive patience): patience scales with planned epochs.
+        #   patience = max(2, int(epoch_num * 0.4)) — short runs aggressive,
+        #   long runs patient. Counters cosine_with_min_lr late dip.
+        #
+        # Combined: stop only when (no_improve_count >= patience) AND
+        # (smoothed last window worse than prev window). This handles
+        # non-monotonic trajectories without missing late minima.
+        #
+        # Env overrides:
+        # - INSTRUCT_EARLY_STOP_PATIENCE: hard patience override (default auto)
+        # - INSTRUCT_EARLY_STOP_WINDOW: smoothing window size (default 3)
+        # - INSTRUCT_EARLY_STOP_MIN_DELTA: minimum improvement to reset count
+        # - INSTRUCT_EARLY_STOP_DISABLE=1: disable entirely
+        self.early_stop_disabled = os.getenv("INSTRUCT_EARLY_STOP_DISABLE", "0") == "1"
+        # Adaptive patience: derive from total_steps_all_epochs (proxy for epoch_num).
+        # Each "epoch" boundary creates one eval (save_strategy=epoch). Patience
+        # = max(2, int(epochs * 0.4)) — see Idea 2 in plan.
+        # If total_steps_all_epochs unknown, fall back to 2.
+        steps_per_epoch_hint = max(1, total_steps_all_epochs // max(1, total_steps_all_epochs // 100))
+        derived_epochs = max(1, total_steps_all_epochs // max(1, steps_per_epoch_hint)) if total_steps_all_epochs > 0 else 2
+        # Simpler: total_steps_all_epochs / checking_step (approximate)
+        if total_steps_all_epochs > 0 and checking_step > 0:
+            derived_epochs = max(2, int(total_steps_all_epochs / max(60, checking_step / 0.5)))
+        adaptive_patience = max(2, int(derived_epochs * 0.4))
+        env_patience = os.getenv("INSTRUCT_EARLY_STOP_PATIENCE")
+        self.early_stop_patience = int(env_patience) if env_patience else adaptive_patience
+        self.early_stop_window = int(os.getenv("INSTRUCT_EARLY_STOP_WINDOW", "3"))
         self.early_stop_min_delta = float(os.getenv("INSTRUCT_EARLY_STOP_MIN_DELTA", "0.0"))
         self.no_improve_count = 0
+        # Track all eval_losses for window smoothing
+        self.eval_history: list[float] = []
+        if not self.early_stop_disabled:
+            print(
+                f"[early_stop] dynamic config: patience={self.early_stop_patience} "
+                f"(adaptive from total_steps={total_steps_all_epochs}, derived_epochs={derived_epochs}), "
+                f"window={self.early_stop_window}, min_delta={self.early_stop_min_delta}",
+                flush=True,
+            )
 
     def compute_loss(self, state: TrainerState, metrics):
         return metrics.get("eval_loss", None)
@@ -199,11 +240,13 @@ class CustomEvalSaveCallback(TrainerCallback):
         self, args, state: TrainerState, control: TrainerControl, metrics, **kwargs
     ):
         self.save_only = False
-        # Append eval_loss to file
         eval_loss = self.compute_loss(state, metrics)
-        if state.global_step < 2:
+        if state.global_step < 2 or eval_loss is None:
             return
         print(f"GO INTO CUSTOMIZED EVALUATE AT STEP: {state.global_step}", flush=True)
+        # Track for window smoothing
+        self.eval_history.append(float(eval_loss))
+
         if self.best_checkpoint_info is None or eval_loss < self.best_checkpoint_info["loss"] - self.early_stop_min_delta:
             print(f"Updating the best checkpoint info at step: {state.global_step} with eval_loss: {eval_loss}", flush=True)
             self.best_checkpoint_info = {
@@ -211,7 +254,7 @@ class CustomEvalSaveCallback(TrainerCallback):
                 "step": state.global_step
             }
             self.update_best_checkpoint = True
-            self.no_improve_count = 0  # reset on improvement
+            self.no_improve_count = 0
         else:
             self.no_improve_count += 1
             if self.best_checkpoint_info is not None:
@@ -220,15 +263,60 @@ class CustomEvalSaveCallback(TrainerCallback):
                     f"no_improve={self.no_improve_count}/{self.early_stop_patience}",
                     flush=True,
                 )
-            # Early stop when patience exceeded (Phase 1 BUGFIX for overfit-prone tasks)
-            if self.early_stop_patience > 0 and self.no_improve_count >= self.early_stop_patience:
+
+            # Phase D dynamic early-stop (2026-05-03):
+            # Stop only when BOTH conditions:
+            #   (1) consecutive_no_improve >= adaptive_patience
+            #   (2) WINDOW-SMOOTHED trend is rising (last W avg > prev W avg)
+            # This handles non-monotonic cosine schedules where eval temporarily
+            # rises before dropping again at epoch boundaries.
+            # Source: Prechelt 1998 "Early stopping — but when?" + cosine schedule
+            # observation from 0304997e Qwen2-7B winner log (epoch 1→1.36 rises,
+            # epoch 1.99 drops to BEST).
+            if self.early_stop_disabled:
+                return
+            if self.early_stop_patience <= 0:
+                return
+            if self.no_improve_count < self.early_stop_patience:
+                return  # not yet at patience limit
+
+            # Apply window smoothing only if we have enough history
+            W = self.early_stop_window
+            if len(self.eval_history) < 2 * W:
+                # Fall back to old patience-only logic (not enough data yet)
                 print(
-                    f"[early_stop] Patience {self.early_stop_patience} exhausted at step "
-                    f"{state.global_step}; stopping training. Best ckpt step="
+                    f"[early_stop] patience {self.early_stop_patience} exhausted at step "
+                    f"{state.global_step} (history<{2*W}, fallback). Best ckpt step="
                     f"{self.best_checkpoint_info['step']} loss={self.best_checkpoint_info['loss']:.4f}",
                     flush=True,
                 )
                 control.should_training_stop = True
+                return
+
+            recent_avg = sum(self.eval_history[-W:]) / W
+            prev_avg = sum(self.eval_history[-2*W:-W]) / W
+            # Stop only if smoothed trend is RISING (recent worse than prev by min_delta+0.5%)
+            rising = recent_avg > prev_avg * 1.005 + self.early_stop_min_delta
+            if rising:
+                print(
+                    f"[early_stop] STOPPING at step {state.global_step}: "
+                    f"patience {self.no_improve_count}/{self.early_stop_patience} + "
+                    f"smoothed rising (recent_avg={recent_avg:.4f} > prev_avg={prev_avg:.4f}). "
+                    f"Best ckpt step={self.best_checkpoint_info['step']} loss={self.best_checkpoint_info['loss']:.4f}",
+                    flush=True,
+                )
+                control.should_training_stop = True
+            else:
+                print(
+                    f"[early_stop] continue at step {state.global_step}: "
+                    f"patience hit but smoothed FALLING/FLAT "
+                    f"(recent_avg={recent_avg:.4f} <= prev_avg={prev_avg:.4f}*1.005). "
+                    f"Late convergence dip likely (cosine schedule). no_improve reset.",
+                    flush=True,
+                )
+                # Reset counter to allow further training (the smoothed trend is good)
+                self.no_improve_count = 0
+
 
 
 
