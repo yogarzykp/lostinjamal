@@ -217,7 +217,7 @@ def get_run_cmd(config: dict, gpu_nums: int):
     --tf32 True \
     --gradient_checkpointing {gradient_checkpointing} \
     --optim {optimizer} \
-    --use_liger {use_liger} --num_generations {num_generations} --vllm_mode colocate --vllm_gpu_memory_utilization {vllm_gpu_memory_utilization} \
+    --use_liger {use_liger} --num_generations {num_generations} --vllm_gpu_memory_utilization {vllm_gpu_memory_utilization} \
     --max_completion_length {max_completion_length} \
     --max_steps {max_steps} \
     --beta {beta} \
