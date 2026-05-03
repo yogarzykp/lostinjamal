@@ -474,8 +474,9 @@ def _heuristic_flags(items: list, n_check: int = 100) -> dict:
     cot_markers = ["step", "first,", "then,", "therefore", "because", "let's", "let us", "thinking"]
     # Math markers
     math_markers = ["=", "\\frac", "\\sum", "\\int", "+", "-", "*", "/", "%", "calculate", "solve"]
-    # Code markers
-    code_markers = ["def ", "function", "class ", "return", "import", "{", "}", "()", "//", "/*", "console.log", "print("]
+    # Code markers — STRICTER (avoid math false positives like Numini-20k):
+    # require code-syntax keywords, not generic punctuation `{`/`}`/`()`/`*`
+    code_markers_strict = ["def ", "class ", "import ", "function ", "console.log", "print(", "return ", "elif ", "lambda ", "var ", "let ", "const "]
     cot_n = math_n = code_n = 0
     for it in items[:n]:
         if not isinstance(it, dict):
@@ -488,7 +489,7 @@ def _heuristic_flags(items: list, n_check: int = 100) -> dict:
         math_density = sum(text.count(m) for m in math_markers[:6]) / max(1, len(text))
         if math_density > 0.02:
             math_n += 1
-        if any(m in text_l for m in code_markers):
+        if any(m in text_l for m in code_markers_strict):
             code_n += 1
     return {
         "cot": round(cot_n / n, 3),
