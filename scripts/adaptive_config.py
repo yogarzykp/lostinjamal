@@ -830,6 +830,9 @@ def build_adaptive_run_config(
         run_config["loss_type"] = "sigmoid"  # vanilla wins per our 2026-04-23 tournament
 
     elif task_type_lc == "grpo":
+        # vLLM optional override (image variants without vllm installed).
+        if os.getenv("DISABLE_VLLM_OVERRIDE", "0") == "1":
+            run_config["use_vllm"] = False
         # Cap batch by vanilla bucket (known-safe upper bound).
         # Slow reward funcs (textstat/langcheck/detoxify) need extra reduction.
         dataset_type = train_info.get("dataset_type", {}) or {}
