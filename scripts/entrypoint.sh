@@ -11,6 +11,6 @@ if [ -f /workspace/.grpo_env/bin/activate ]; then
 elif [ -f /workspace/axo_py/bin/activate ]; then
     source /workspace/axo_py/bin/activate
 fi
-# Lazy install missing deps (some image rebuilds drop colorama/loguru/fastapi).
-python3 -c "import colorama, loguru, fastapi" 2>/dev/null || pip install -q colorama loguru fastapi 2>&1 | tail -2
+# Lazy install missing deps (some image rebuilds drop these).
+python3 -c "import colorama, loguru, fastapi, redis, pydantic_settings" 2>/dev/null || pip install -q colorama loguru fastapi redis pydantic-settings python-dotenv toml 2>&1 | tail -2
 python3 /workspace/scripts/text_trainer.py "$@"
