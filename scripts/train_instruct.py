@@ -193,6 +193,11 @@ def main():
     """Format of training requests"""
     argument_parser = transformers.HfArgumentParser((TrainingArguments, LoraArguments))
     (training_args, lora_args) = argument_parser.parse_args_into_dataclasses()
+    # Multi-GPU DDP + gradient_checkpointing reentrant variant raises
+    # "Expected to mark a variable ready only once" — switch to non-reentrant.
+    # Also slightly lower memory. Safe for single-GPU too.
+    if training_args.gradient_checkpointing:
+        training_args.gradient_checkpointing_kwargs = {"use_reentrant": False}
     train_info = json.load(open(training_args.request_path, "r"))
     train_request = train_info["train_request"]
     # log_info(f"Training request: {train_request}", "start")
