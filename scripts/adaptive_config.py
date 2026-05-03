@@ -780,7 +780,10 @@ def build_adaptive_run_config(
         "use_liger": False,  # arch-dependent, conservative default
         "optimizer": _select_optimizer(param_count),
         "use_lora": use_lora,
-        "disable_fa": "False" if arch_supports_fa(arch) else "True",
+        "disable_fa": (
+            "True" if os.getenv("DISABLE_FA_OVERRIDE", "0") == "1"
+            else ("False" if arch_supports_fa(arch) else "True")
+        ),
         "gpu_nums": gpu_count,
         "output_dir": train_info.get("output_dir", "/workspace/data/trained_model"),
         "request_path": train_info.get("request_path", ""),
