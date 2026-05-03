@@ -413,6 +413,211 @@ def measure_dataset(dataset_path: str, tokenizer, max_samples: int = 1000) -> Da
 
 
 # ---------------------------------------------------------------------------
+# Plan D (2026-05-03): Advanced dataset profiler — winner-inspired.
+# ---------------------------------------------------------------------------
+# Source: hyper-text winner log on task 03f6b01c (test_loss=1.4464 sweep top 4)
+# pulled from Grafana 2026-05-03. Their `[dataset-profile-p1/p2]` lines reveal:
+# - char_len stats (instruct/output, p50/p95/p99/max)
+# - est_token p99 (for max_length sizing)
+# - io_jaccard (input/output token overlap → task character signal)
+# - train_dev_jaccard (overfit risk: high overlap = some memorization expected)
+# - heuristic flags: cot/math/code (task character routing)
+# - script + lang_ratio (multilingual detection)
+# - near_dup_ratio (data cleanliness)
+#
+# We use these to ROUTE task to correct HP profile (memorization vs translation
+# vs reasoning vs code). Insight: master-text style (high LR + neftune) WORKS
+# for translation/skill tasks, HURTS for memorization (TOFU 03f6b01c).
+
+
+def _word_set(text: str, max_words: int = 200) -> set:
+    """Tokenize-ish: lowercase, alphanumeric words, capped for speed."""
+    if not text:
+        return set()
+    import re
+    words = re.findall(r"[a-zA-Z一-鿿぀-ヿ؀-ۿ]+", text.lower())
+    return set(words[:max_words])
+
+
+def _jaccard(a: set, b: set) -> float:
+    if not a or not b:
+        return 0.0
+    return len(a & b) / max(1, len(a | b))
+
+
+def _detect_script(text: str) -> str:
+    """Detect dominant script: latin/cjk/arabic/cyrillic/mixed."""
+    if not text:
+        return "unknown"
+    import re
+    counts = {
+        "latin": len(re.findall(r"[a-zA-Z]", text)),
+        "cjk": len(re.findall(r"[一-鿿぀-ヿ]", text)),
+        "arabic": len(re.findall(r"[؀-ۿ]", text)),
+        "cyrillic": len(re.findall(r"[Ѐ-ӿ]", text)),
+    }
+    total = sum(counts.values())
+    if total == 0:
+        return "unknown"
+    dominant = max(counts, key=counts.get)
+    if counts[dominant] / total > 0.7:
+        return dominant
+    return "mixed"
+
+
+def _heuristic_flags(items: list, n_check: int = 100) -> dict:
+    """Detect task character via simple keyword heuristics (winner-style)."""
+    n = min(len(items), n_check)
+    if n == 0:
+        return {"cot": 0.0, "math": 0.0, "code": 0.0}
+    # CoT markers: step-by-step reasoning
+    cot_markers = ["step", "first,", "then,", "therefore", "because", "let's", "let us", "thinking"]
+    # Math markers
+    math_markers = ["=", "\\frac", "\\sum", "\\int", "+", "-", "*", "/", "%", "calculate", "solve"]
+    # Code markers
+    code_markers = ["def ", "function", "class ", "return", "import", "{", "}", "()", "//", "/*", "console.log", "print("]
+    cot_n = math_n = code_n = 0
+    for it in items[:n]:
+        if not isinstance(it, dict):
+            continue
+        text = " ".join(str(it.get(k, "")) for k in ("instruct", "output", "instruction", "answer", "text") if it.get(k))
+        text_l = text.lower()
+        if any(m in text_l for m in cot_markers):
+            cot_n += 1
+        # Math: count of math symbols / length
+        math_density = sum(text.count(m) for m in math_markers[:6]) / max(1, len(text))
+        if math_density > 0.02:
+            math_n += 1
+        if any(m in text_l for m in code_markers):
+            code_n += 1
+    return {
+        "cot": round(cot_n / n, 3),
+        "math": round(math_n / n, 3),
+        "code": round(code_n / n, 3),
+    }
+
+
+def profile_dataset_advanced(dataset_path: str, max_samples: int = 256) -> dict:
+    """Winner-inspired rich dataset profiler.
+
+    Returns dict with task-character signals used by adaptive HP router:
+    - char_len p50/p95/p99 for instruct + output
+    - io_jaccard p50/mean (low → generative; high → reformat/translation)
+    - train_dev_jaccard (overfit risk signal; higher = more memorization)
+    - heuristic_flags: cot/math/code densities
+    - script + lang_ratio
+    - near_dup_ratio (deduplication signal)
+    - actual_total samples count
+
+    All optional — robust to missing fields, JSON-list or JSONL formats.
+    Returns dict with available stats; missing stats default to safe values.
+    """
+    import json as _json
+    out = {
+        "actual_total": 0,
+        "char_len_instruct_p50": 0, "char_len_instruct_p95": 0, "char_len_instruct_p99": 0,
+        "char_len_output_p50": 0, "char_len_output_p95": 0, "char_len_output_p99": 0,
+        "io_jaccard_p50": 0.0, "io_jaccard_mean": 0.0,
+        "train_dev_jaccard": 0.0,
+        "heuristic_flags": {"cot": 0.0, "math": 0.0, "code": 0.0},
+        "script_overall": "unknown", "lang_ratio": 1.0,
+        "near_dup_ratio": 0.0,
+    }
+    try:
+        with open(dataset_path, "r") as f:
+            content = f.read().strip()
+        if content.startswith("["):
+            data = _json.loads(content)
+        else:
+            data = [_json.loads(l) for l in content.splitlines() if l.strip()]
+        if isinstance(data, dict) and "data" in data:
+            data = data["data"]
+        if not isinstance(data, list):
+            return out
+        out["actual_total"] = len(data)
+    except Exception as exc:
+        print(f"[profile_dataset_advanced] read failed: {exc}", flush=True)
+        return out
+
+    n = min(len(data), max_samples)
+    sample = data[:n] if n > 0 else []
+
+    # Char lengths
+    instruct_lens, output_lens = [], []
+    io_jaccards = []
+    instruct_sets, output_sets = [], []
+    output_texts_for_dup = []
+
+    for it in sample:
+        if not isinstance(it, dict):
+            continue
+        instr = str(it.get("instruct") or it.get("instruction") or it.get("prompt") or it.get("input") or "")
+        outp = str(it.get("output") or it.get("answer") or it.get("text") or it.get("chosen") or "")
+        if instr:
+            instruct_lens.append(len(instr))
+        if outp:
+            output_lens.append(len(outp))
+            output_texts_for_dup.append(outp[:200])
+        if instr and outp:
+            iset = _word_set(instr)
+            oset = _word_set(outp)
+            instruct_sets.append(iset)
+            output_sets.append(oset)
+            io_jaccards.append(_jaccard(iset, oset))
+
+    def _percentile(lst, q):
+        if not lst:
+            return 0
+        lst_sorted = sorted(lst)
+        idx = min(len(lst_sorted) - 1, max(0, int(q * len(lst_sorted)) - 1))
+        return lst_sorted[idx]
+
+    if instruct_lens:
+        out["char_len_instruct_p50"] = _percentile(instruct_lens, 0.50)
+        out["char_len_instruct_p95"] = _percentile(instruct_lens, 0.95)
+        out["char_len_instruct_p99"] = _percentile(instruct_lens, 0.99)
+    if output_lens:
+        out["char_len_output_p50"] = _percentile(output_lens, 0.50)
+        out["char_len_output_p95"] = _percentile(output_lens, 0.95)
+        out["char_len_output_p99"] = _percentile(output_lens, 0.99)
+    if io_jaccards:
+        out["io_jaccard_p50"] = round(_percentile(io_jaccards, 0.50), 3)
+        out["io_jaccard_mean"] = round(sum(io_jaccards) / len(io_jaccards), 3)
+
+    # Train-dev jaccard: split sample into proxy train/dev, compute overlap
+    if len(output_sets) >= 20:
+        split = len(output_sets) // 2
+        train_set = set().union(*output_sets[:split])
+        dev_set = set().union(*output_sets[split:])
+        out["train_dev_jaccard"] = round(_jaccard(train_set, dev_set), 4)
+
+    # Heuristic flags (task character)
+    out["heuristic_flags"] = _heuristic_flags(sample)
+
+    # Script + lang ratio (instruct text)
+    if sample:
+        joined = " ".join(str(it.get("instruct") or it.get("instruction") or "") for it in sample[:50])
+        out["script_overall"] = _detect_script(joined)
+        # lang_ratio: fraction of latin chars (rough multilingual signal)
+        import re as _re
+        latin_chars = len(_re.findall(r"[a-zA-Z]", joined))
+        total_alpha = max(1, len(_re.findall(r"[\w]", joined)))
+        out["lang_ratio"] = round(latin_chars / total_alpha, 3)
+
+    # Near-dup: rough hash collision rate on output prefix
+    if output_texts_for_dup:
+        seen = set()
+        dups = 0
+        for t in output_texts_for_dup:
+            if t in seen:
+                dups += 1
+            seen.add(t)
+        out["near_dup_ratio"] = round(dups / len(output_texts_for_dup), 4)
+
+    return out
+
+
+# ---------------------------------------------------------------------------
 # VRAM-aware batch size estimation
 # ---------------------------------------------------------------------------
 

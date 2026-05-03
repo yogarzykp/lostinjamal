@@ -310,6 +310,95 @@ def _resolve_family(arch_family: str, model_name: Optional[str]) -> str:
     return "unknown"
 
 
+# ---------------------------------------------------------------------------
+# Plan D (2026-05-03): Task character router — winner-inspired.
+# ---------------------------------------------------------------------------
+# Source: hyper-text winner log on task 03f6b01c. They route HP based on
+# dataset signals (io_jaccard, heuristic flags, script) — NOT just (param,
+# data_size, family). This is RICHER than master-text's static lookup.
+#
+# Categories:
+# - "memorization": low io_jaccard + no cot/math/code → factual QA (TOFU-like)
+#   Memorization tasks need LOWER LR + LESS regularization (NEFTune kills memorization)
+# - "translation": high lang_ratio < 0.6 (multilingual) OR translation pairs
+#   Translation benefits from family default (NEFTune helps generalization)
+# - "code": code heuristic flag > 0.3
+# - "reasoning": cot or math flag > 0.2
+# - "skill" (default): use family HP as-is
+
+def classify_task_character(profile: Dict, model_name: Optional[str] = None) -> str:
+    """Route task to character class based on dataset profile + model name.
+
+    Returns: "memorization" | "translation" | "code" | "reasoning" | "skill"
+    """
+    flags = profile.get("heuristic_flags", {})
+    cot = flags.get("cot", 0.0)
+    math = flags.get("math", 0.0)
+    code = flags.get("code", 0.0)
+    io_j = profile.get("io_jaccard_p50", 0.0)
+    lang_ratio = profile.get("lang_ratio", 1.0)
+    script = profile.get("script_overall", "unknown")
+
+    # Code detection: highest priority
+    if code > 0.3:
+        return "code"
+    # Reasoning (CoT/math)
+    if cot > 0.3 or math > 0.2:
+        return "reasoning"
+    # Translation: multilingual signal OR low io_jaccard with mixed/CJK script
+    if lang_ratio < 0.6 or script in ("cjk", "arabic", "cyrillic", "mixed"):
+        return "translation"
+    # Memorization: LOW io overlap + no cot/math/code → factual QA pattern
+    if io_j < 0.3 and cot < 0.1 and code < 0.1 and math < 0.1:
+        return "memorization"
+    # Default
+    return "skill"
+
+
+def _apply_task_character_overrides(
+    hp: Dict,
+    task_class: str,
+    profile: Dict,
+    param_count: int,
+) -> Dict:
+    """Adjust family-aware HP based on detected task character.
+
+    Memorization tasks: LR 3× lower, NEFTune off, fewer epochs, looser plateau.
+    Reasoning/code: medium-low LR, more epochs.
+    Translation: keep family HP (already tuned for it).
+    Skill: keep family HP.
+    """
+    hp = dict(hp)
+    hp["_meta"] = dict(hp.get("_meta", {}))
+    hp["_meta"]["task_class"] = task_class
+
+    if task_class == "memorization":
+        # Lower LR (winner used ~1.4e-4 vs our family 6.2e-4 = 4× too high)
+        hp["learning_rate"] = min(hp["learning_rate"], 1.5e-4)
+        # NEFTune hurts memorization (noise prevents fact retention)
+        hp["neftune_noise_alpha"] = 0
+        # Shorter epochs (memorization plateaus fast)
+        hp["epoch_num"] = min(hp.get("epoch_num", 4), 2)
+        # Looser plateau tolerance — memorization eval may bounce
+        train_dev_j = profile.get("train_dev_jaccard", 0.0)
+        hp["plateau_tolerance"] = round(0.02 + 0.06 * train_dev_j, 4)
+
+    elif task_class == "code":
+        # Code: lower LR, NEFTune off, more epochs (code patterns need precise updates)
+        hp["learning_rate"] = min(hp["learning_rate"], 8e-5)
+        hp["neftune_noise_alpha"] = 0
+        hp["epoch_num"] = max(hp.get("epoch_num", 3), 3)
+
+    elif task_class == "reasoning":
+        # Reasoning: keep moderate LR, NEFTune helps generalize, more epochs
+        hp["learning_rate"] = min(hp["learning_rate"], 3e-4)
+        hp["neftune_noise_alpha"] = max(hp.get("neftune_noise_alpha", 0), 3)
+        hp["epoch_num"] = max(hp.get("epoch_num", 3), 4)
+
+    # translation, skill: keep family HP (NEFTune + family default LR)
+    return hp
+
+
 def _compute_instruct_adaptive_hp(
     arch_family: str,
     param_count: int,
@@ -523,10 +612,53 @@ def build_adaptive_run_config(
         )
 
         # ----------------------------------------------------------------------
+        # Plan D (2026-05-03): Advanced dataset profiling + task character router
+        # Pulled from hyper-text winner log analysis on 03f6b01c. Key signals:
+        # - io_jaccard < 0.3 + no cot/math/code → memorization task (TOFU-like)
+        # - lang_ratio < 0.6 or non-latin script → translation
+        # - cot/math flag → reasoning
+        # - code flag → code task
+        # Memorization tasks need LR 3× lower + NEFTune off (winner used ~1.4e-4
+        # not master-text 6.2e-4 family default).
+        # Enable via ADAPTIVE_TASK_ROUTER (default ON for instruct).
+        # ----------------------------------------------------------------------
+        if os.getenv("ADAPTIVE_TASK_ROUTER", "1") == "1" and ds_path:
+            try:
+                from dynamics_utils import profile_dataset_advanced
+                profile = profile_dataset_advanced(ds_path, max_samples=256)
+                task_class = classify_task_character(profile, model_name=train_info.get("model_name"))
+                print(
+                    f"[adaptive-instruct] profile: io_jaccard={profile['io_jaccard_p50']:.3f} "
+                    f"train_dev_jaccard={profile['train_dev_jaccard']:.3f} "
+                    f"flags=cot:{profile['heuristic_flags']['cot']:.2f} "
+                    f"math:{profile['heuristic_flags']['math']:.2f} "
+                    f"code:{profile['heuristic_flags']['code']:.2f} "
+                    f"script={profile['script_overall']} lang_ratio={profile['lang_ratio']:.2f}",
+                    flush=True,
+                )
+                print(f"[adaptive-instruct] task_class={task_class}", flush=True)
+                old_lr = instruct_hp["learning_rate"]
+                old_epoch = instruct_hp["epoch_num"]
+                old_neftune = instruct_hp["neftune_noise_alpha"]
+                instruct_hp = _apply_task_character_overrides(
+                    instruct_hp, task_class, profile, param_count
+                )
+                if (instruct_hp["learning_rate"] != old_lr
+                    or instruct_hp["epoch_num"] != old_epoch
+                    or instruct_hp["neftune_noise_alpha"] != old_neftune):
+                    print(
+                        f"[adaptive-instruct] task_class={task_class} OVERRIDE: "
+                        f"lr {old_lr:.2e}→{instruct_hp['learning_rate']:.2e}, "
+                        f"epoch {old_epoch}→{instruct_hp['epoch_num']}, "
+                        f"neftune {old_neftune}→{instruct_hp['neftune_noise_alpha']}",
+                        flush=True,
+                    )
+                instruct_hp["_meta"]["dataset_profile"] = profile
+            except Exception as exc:
+                print(f"[adaptive-instruct] task router error: {exc}", flush=True)
+
+        # ----------------------------------------------------------------------
         # Phase C (2026-05-02): Init loss probe — measures task difficulty
-        # for THIS model+dataset combo, then refines family HP. RICHER than
-        # master-text which only uses (param, data_size, family) lookups.
-        # Enable via ADAPTIVE_INIT_LOSS_PROBE=1 (default OFF; ~30-60s overhead).
         # ----------------------------------------------------------------------
         if os.getenv("ADAPTIVE_INIT_LOSS_PROBE", "0") == "1" and ds_path:
             try:
@@ -540,22 +672,17 @@ def build_adaptive_run_config(
                 )
                 if init_loss is not None:
                     print(f"[adaptive-instruct] init_loss probe: {init_loss:.4f}", flush=True)
-                    # Refine HP based on measured task difficulty
+                    # NOTE: Phase C heuristic for init_loss>3.5 was REVERTED on 2026-05-03
+                    # because it INCREASED neftune+epoch on memorization tasks (TOFU)
+                    # which actually HURT eval. Now Plan D task router handles that
+                    # via io_jaccard signal. Keep init_loss probe for "easy task"
+                    # signal (init_loss < 1.5) to reduce compute when model already knows.
                     if init_loss < 1.5:
-                        # Model already strong — reduce regularization+epoch
                         old_epoch = instruct_hp["epoch_num"]
                         instruct_hp["epoch_num"] = max(2, old_epoch - 1)
                         instruct_hp["neftune_noise_alpha"] = max(0, instruct_hp["neftune_noise_alpha"] - 2)
                         instruct_hp["learning_rate"] = instruct_hp["learning_rate"] * 0.85
                         print(f"[adaptive-instruct] init_loss<1.5: epoch {old_epoch}→{instruct_hp['epoch_num']}, neftune-2, lr*0.85", flush=True)
-                    elif init_loss > 3.5:
-                        # Hard task — bump epochs + keep neftune for regularization
-                        old_epoch = instruct_hp["epoch_num"]
-                        instruct_hp["epoch_num"] = min(6, old_epoch + 1)
-                        instruct_hp["neftune_noise_alpha"] = min(8, instruct_hp["neftune_noise_alpha"] + 1)
-                        print(f"[adaptive-instruct] init_loss>3.5: epoch {old_epoch}→{instruct_hp['epoch_num']}, neftune+1", flush=True)
-                    else:
-                        print(f"[adaptive-instruct] init_loss in [1.5, 3.5]: family HP unchanged", flush=True)
                     instruct_hp["_meta"]["init_loss"] = init_loss
             except Exception as exc:
                 print(f"[adaptive-instruct] init_loss probe error: {exc}", flush=True)

@@ -65,6 +65,43 @@ def extend_learning_rates(
     return lrs
 
 
+def lr_guardrail_interpolate(
+    candidate_lr: float,
+    tested_lrs: list[float],
+    best_lr: float,
+    second_best_lr: float = None,
+    tolerance: float = 0.05,
+) -> float:
+    """LR Guardrail (Plan D 2026-05-03): avoid duplicate LR sweeps.
+
+    Pulled from hyper-text winner log:
+      [LR Guardrail] duplicate LR 1.4281e-04 already tested
+                     - interpolating to 1.3402e-04
+                     (midpoint of best 1.4651e-04 and #2 1.2153e-04)
+
+    If `candidate_lr` is within `tolerance` (relative) of any `tested_lrs`,
+    interpolate to midpoint of best + 2nd-best (in log space) instead.
+    """
+    if not tested_lrs:
+        return candidate_lr
+    # Check duplicate (relative tolerance in log space)
+    log_cand = math.log10(candidate_lr) if candidate_lr > 0 else -10
+    for tested in tested_lrs:
+        if tested <= 0:
+            continue
+        log_tested = math.log10(tested)
+        if abs(log_cand - log_tested) < tolerance:
+            # Duplicate detected — interpolate
+            if second_best_lr is None or second_best_lr <= 0:
+                # No 2nd-best: nudge by tolerance
+                return candidate_lr * (10 ** tolerance)
+            log_best = math.log10(best_lr) if best_lr > 0 else log_cand
+            log_2nd = math.log10(second_best_lr)
+            interpolated = 10 ** ((log_best + log_2nd) / 2)
+            return interpolated
+    return candidate_lr
+
+
 def test():
     lr = 0.00014523947500000002
     for n in [3,4,5, 6]:
