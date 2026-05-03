@@ -611,15 +611,16 @@ def build_adaptive_run_config(
         gpu_metrics=gpu,
         use_lora=use_lora,
     )
-    # Plan D-v2 (2026-05-03): hard cap for 5-9B Instruct (bucket batch=28).
-    # OOM observed on Qwen2-7B 2-GPU + LoRA + batch=64 + max_len=768.
-    # estimate_max_batch_size optimistic for LoRA, but DDP overhead +
-    # gradient checkpointing memory makes 64 unsafe for 7B+. Cap at bucket
-    # baseline. Also respect INSTRUCT_BATCH_OVERRIDE env for manual override.
+    # Plan D-v2 (2026-05-03): hard cap for 5-9B Instruct.
+    # 1st attempt: cap=28 — still OOM (32 GB activation alloc) on Qwen2-7B 2-GPU.
+    # Empirical: batch=28 + max_len=768 + LoRA + DDP + grad-ckpt → 51 GB resident
+    # before the fwd, then a 32 GB activation tensor blows past the 80 GB budget.
+    # 2nd attempt: cap=14 (halves activations to ~16 GB), pair with
+    # PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True in entrypoint.
     if 5e9 <= param_count < 9e9:
-        batch = min(batch, 28)
+        batch = min(batch, 14)
     elif param_count >= 9e9:
-        batch = min(batch, 16)
+        batch = min(batch, 8)
     env_batch = os.getenv("INSTRUCT_BATCH_OVERRIDE")
     if env_batch:
         try:

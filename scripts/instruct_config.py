@@ -202,6 +202,16 @@ def get_run_cmd(config: dict, gpu_nums: int):
     if run_type == "ds":
         template = template + """ --deepspeed ds_config/zero3.json"""
 
+    # Multi-GPU DDP + gradient_checkpointing requires non-reentrant variant + find_unused
+    # to avoid: "Expected to mark a variable ready only once" RuntimeError.
+    # Triggered on Qwen 7B 2-GPU 2026-05-03; non-reentrant uses ~10% less memory too.
+    if gpu_nums > 1 and run_type == "ddp" and config.get("gradient_checkpointing", "True") == "True":
+        template = (
+            template
+            + """ --gradient_checkpointing_kwargs '{\\"use_reentrant\\": false}'"""
+            + """ --ddp_find_unused_parameters True"""
+        )
+
     if config["use_lora"]:
         template = template + """ --use_lora True"""
 
