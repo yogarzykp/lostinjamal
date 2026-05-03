@@ -663,11 +663,14 @@ def adaptive_warmup_steps(total_steps: int, frac: float = 0.10, cap: int = 200) 
     return min(cap, max(10, int(total_steps * frac)))
 
 
-def adaptive_epochs_from_init_loss(init_loss: float, dataset_size: int) -> int:
+def adaptive_epochs_from_init_loss(init_loss: float, dataset_size: int, param_count: int | None = None) -> int:
     """Convergence-aware epoch count.
 
     Rule: 1 if model already-trained (low init_loss), 3 if struggling.
     Scales down for large datasets (more samples = fewer passes needed).
+    Tiny models (<500M) on big datasets keep epochs >= 2 — they need extra passes
+    even with large data (fix 2026-05-03 from f5fbe40f GRPO 135M LOSE: winner used
+    2 epochs for 135M on 393K dataset, our shortened-to-1 was insufficient).
     """
     if init_loss < 1.0:
         base = 1
@@ -675,9 +678,12 @@ def adaptive_epochs_from_init_loss(init_loss: float, dataset_size: int) -> int:
         base = 2
     else:
         base = 3
-    # Large dataset → fewer epochs
+    # Large dataset → fewer epochs (but tiny models need protection)
     if dataset_size > 50000:
-        base = max(1, base - 1)
+        if param_count is not None and param_count < 5e8:
+            base = max(2, base)  # tiny model floor stays at 2
+        else:
+            base = max(1, base - 1)
     return base
 
 

@@ -410,6 +410,13 @@ def _apply_task_character_overrides(
         # blowing past 2hr task budget.
         data_size = profile.get("actual_total", 10000)
         hp["learning_rate"] = min(hp["learning_rate"], 8e-5)
+        # PARAM-SIZE-AWARE LR scale (fix 2026-05-03 from 0304997e Qwen 7B LOSE):
+        # Big-model code task overfits/diverges with high LR. Winner used 2.9e-5
+        # for 7B (3× lower than our 8e-5). Scale down for big models.
+        if param_count and param_count >= 4e9:
+            hp["learning_rate"] = min(hp["learning_rate"], 3e-5)
+            # Big-model code also wants gentler cooldown
+            hp["min_lr_rate"] = max(hp.get("min_lr_rate", 0.18), 0.25)
         hp["neftune_noise_alpha"] = 0
         if data_size < 10_000:
             hp["epoch_num"] = max(hp.get("epoch_num", 3), 3)
@@ -631,8 +638,13 @@ def build_adaptive_run_config(
     gpu_count = max(1, gpu.num_gpus)
 
     # Init LR — heuristic from arch+param (LRRT can refine in Phase 2)
-    # Range: log-scale based on param_count (smaller = higher LR)
-    if param_count < 1.5e9:
+    # Range: log-scale based on param_count (smaller = higher LR for non-Instruct path).
+    # Tiny bucket added 2026-05-03 from f5fbe40f GRPO 135M LOSE: winner used 8e-6
+    # (half of our 1.5e-5 for <1.5B). Tiny models on GRPO need extra-low LR to
+    # avoid KL drift (winner BETA_GRPO=0.5 penalises drift heavily).
+    if param_count < 5e8:
+        init_lr = 8e-6
+    elif param_count < 1.5e9:
         init_lr = 1.5e-5
     elif param_count < 5e9:
         init_lr = 8e-6
@@ -643,7 +655,7 @@ def build_adaptive_run_config(
     # Epochs from init_loss (placeholder: average expected loss)
     # TODO Phase 2: actual init_loss measurement
     init_loss_estimate = float(os.getenv("ADAPTIVE_INIT_LOSS_OVERRIDE", "2.5"))
-    epochs = adaptive_epochs_from_init_loss(init_loss_estimate, ds_metrics.num_samples)
+    epochs = adaptive_epochs_from_init_loss(init_loss_estimate, ds_metrics.num_samples, param_count)
 
     # ----------------------------------------------------------------------
     # Phase 1 (2026-05-02): Family-aware Instruct HP — RICHER than master-text
