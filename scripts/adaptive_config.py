@@ -330,28 +330,46 @@ def classify_task_character(profile: Dict, model_name: Optional[str] = None) -> 
     """Route task to character class based on dataset profile + model name.
 
     Returns: "memorization" | "translation" | "code" | "reasoning" | "skill"
+
+    Detection priority (refined 2026-05-03 after FairTranslate misclassification):
+    1. code: explicit code patterns
+    2. reasoning: cot/math density
+    3. translation_multilingual: non-Latin script or mixed
+    4. translation_pair: VERY low io_jaccard (<0.05) + similar input/output
+       lengths — covers EN↔FR/DE/ES translation pairs that share Latin script
+    5. memorization: low io_jaccard (0.05-0.3) + no cot/math/code → factual QA
+    6. skill: default
     """
     flags = profile.get("heuristic_flags", {})
     cot = flags.get("cot", 0.0)
     math = flags.get("math", 0.0)
     code = flags.get("code", 0.0)
     io_j = profile.get("io_jaccard_p50", 0.0)
+    io_j_mean = profile.get("io_jaccard_mean", 0.0)
     lang_ratio = profile.get("lang_ratio", 1.0)
     script = profile.get("script_overall", "unknown")
+    in_p50 = max(1, profile.get("char_len_instruct_p50", 0))
+    out_p50 = max(1, profile.get("char_len_output_p50", 0))
+    length_ratio = out_p50 / in_p50
 
-    # Code detection: highest priority
+    # 1. Code (highest priority — code patterns very distinctive)
     if code > 0.3:
         return "code"
-    # Reasoning (CoT/math)
+    # 2. Reasoning (CoT/math density)
     if cot > 0.3 or math > 0.2:
         return "reasoning"
-    # Translation: multilingual signal OR low io_jaccard with mixed/CJK script
+    # 3. Translation MULTILINGUAL: non-Latin script OR CJK/mixed
     if lang_ratio < 0.6 or script in ("cjk", "arabic", "cyrillic", "mixed"):
         return "translation"
-    # Memorization: LOW io overlap + no cot/math/code → factual QA pattern
+    # 4. Translation PAIR (Latin-Latin, e.g. EN→FR, EN→DE):
+    #    VERY low io_jaccard signals different vocabularies between input/output.
+    #    Length ratio near 1 = parallel translation pairs.
+    if io_j_mean < 0.05 and 0.5 < length_ratio < 2.0:
+        return "translation"
+    # 5. Memorization: moderate-low io_jaccard + no other signals → factual QA
     if io_j < 0.3 and cot < 0.1 and code < 0.1 and math < 0.1:
         return "memorization"
-    # Default
+    # 6. Default
     return "skill"
 
 
