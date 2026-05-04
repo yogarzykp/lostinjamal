@@ -391,18 +391,22 @@ def _apply_task_character_overrides(
     hp["_meta"]["task_class"] = task_class
 
     if task_class == "memorization":
-        # LR is dataset-size aware (fix 2026-05-04 from 05933c53 gpt-neo LOSE):
-        # - Big data (>100K samples): TARGET 3e-4 (boost if too low, cap if too high).
-        #   Winner gpt-neo 125M used 3e-4 on 379K dataset. With many samples, gradient
-        #   updates per LR step are diluted → tolerate higher LR without divergence.
-        #   Tiny models on big data NEED higher LR to learn anything in 2 epochs.
-        # - Smaller data (<100K): tight 1.5e-4 cap. Few samples + high LR → overfit.
+        # Big-data memorization (fix 2026-05-04 from 05933c53 gpt-neo +12889% LOSE):
+        # Set LR=3e-4 (winner empirical) AND DISABLE PACKING for short-sequence
+        # tasks (p95<128). Packing aggregates many short samples per fwd-pass →
+        # 14× fewer gradient updates than non-packed. Winner did 10,686 steps,
+        # we did 740 with packing — same data exposure but far less SGD events.
+        # Memorization task benefits from many small gradient updates not few large ones.
         data_size = profile.get("actual_total", 10000)
+        seq_p95 = profile.get("char_len_p95_tokens", 0) or profile.get("seq_p95_tokens", 0)
         if data_size > 100_000:
-            # Set TO 3e-4 directly (not just cap) — boost if family-default was too low
             hp["learning_rate"] = 3e-4
         else:
             hp["learning_rate"] = min(hp["learning_rate"], 1.5e-4)
+        # Force disable packing for short-sequence memorization (p95 < 128 tokens)
+        # → maximize gradient update count for tiny models on big datasets.
+        if seq_p95 and seq_p95 < 128:
+            hp["packing"] = False
         # NEFTune hurts memorization (noise prevents fact retention)
         hp["neftune_noise_alpha"] = 0
         # Shorter epochs (memorization plateaus fast)
