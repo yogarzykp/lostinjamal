@@ -391,8 +391,16 @@ def _apply_task_character_overrides(
     hp["_meta"]["task_class"] = task_class
 
     if task_class == "memorization":
-        # Lower LR (winner used ~1.4e-4 vs our family 6.2e-4 = 4× too high)
-        hp["learning_rate"] = min(hp["learning_rate"], 1.5e-4)
+        # LR cap is dataset-size aware (fix 2026-05-04 from 05933c53 gpt-neo LOSE):
+        # - Big data (>100K samples): relaxed 3e-4 cap. With many samples, gradient
+        #   updates per LR step are diluted across data → can tolerate higher LR
+        #   without divergence. Winner gpt-neo 125M used 3e-4 on 379K dataset.
+        # - Smaller data (<100K): tight 1.5e-4 cap. Few samples + high LR → overfit.
+        data_size = profile.get("actual_total", 10000)
+        if data_size > 100_000:
+            hp["learning_rate"] = min(hp["learning_rate"], 3e-4)
+        else:
+            hp["learning_rate"] = min(hp["learning_rate"], 1.5e-4)
         # NEFTune hurts memorization (noise prevents fact retention)
         hp["neftune_noise_alpha"] = 0
         # Shorter epochs (memorization plateaus fast)
