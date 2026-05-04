@@ -865,13 +865,12 @@ def build_adaptive_run_config(
         while batch % num_gen != 0 and num_gen > 2:
             num_gen -= 1
         run_config["num_generations"] = num_gen
-        # Option B (2026-04-29): raise β 0.04→0.06 to anchor stronger to ref model.
-        # Validator BETA_GRPO=0.5 (verified VPS 221 /root/G.O.D-eval-text/validator/
-        # core/constants.py:277) → KL drift directly subtracted at eval. Top miner
-        # 5DfdHDKN test_loss=0.195 implies KL≤0.6 across batch (~0.012/sample).
-        # Our v1 -6.9 + v4 -24.5 imply KL ~14-50 across batch (~0.3-1.0/sample) —
-        # 50× drift vs winner. Raise β to dampen drift.
-        run_config["beta"] = float(os.getenv("ADAPTIVE_BETA_OVERRIDE", "0.06"))
+        # BETA 0.04 — verified from f5fbe40f winner (5CmAQ61V) + d878f32d winner
+        # (5Ca32LwM) via HF training_args.bin extraction 2026-05-04. Both used
+        # beta=0.04 with max_steps=-1 (epoch-based). Earlier 0.06 was inflated
+        # to "dampen drift" but actual fix is to NOT cap max_steps prematurely
+        # (was 300, winners trained full 2 epochs).
+        run_config["beta"] = float(os.getenv("ADAPTIVE_BETA_OVERRIDE", "0.04"))
         run_config["scale_rewards"] = "True"  # Dr.GRPO False hurt us
         run_config["max_completion_length"] = _select_grpo_max_completion(ds_metrics.seq_len_p95)
         # Fix 2026-05-04: previous max_steps=300 was based on WRONG assumption that
