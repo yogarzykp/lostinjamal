@@ -874,10 +874,12 @@ def build_adaptive_run_config(
         run_config["beta"] = float(os.getenv("ADAPTIVE_BETA_OVERRIDE", "0.06"))
         run_config["scale_rewards"] = "True"  # Dr.GRPO False hurt us
         run_config["max_completion_length"] = _select_grpo_max_completion(ds_metrics.seq_len_p95)
-        # Option B: cap max_steps to limit drift accumulation. Top miner trained
-        # minimal steps; over-training causes KL blowup. 300 = ~30 logged steps
-        # at logging_steps=5, enough for reward signal without runaway drift.
-        run_config["max_steps"] = int(os.getenv("ADAPTIVE_MAX_STEPS_OVERRIDE", "300"))
+        # Fix 2026-05-04: previous max_steps=300 was based on WRONG assumption that
+        # winners trained minimal steps. Grafana check on f5fbe40f winner (5CmAQ61V)
+        # showed they trained ~25K steps with stable LR — full epoch range.
+        # Capping at 300 starves us of training; we LOSE all GRPO with 300-step cap.
+        # Default: -1 = epoch-based no cap. Trust cosine LR schedule + KL anchor.
+        run_config["max_steps"] = int(os.getenv("ADAPTIVE_MAX_STEPS_OVERRIDE", "-1"))
         # Phase 1 sampling tuning (Dr.GRPO inspired): encourage natural EOS
         # NOTE: min_completion_length + vllm_enforce_eager NOT supported by TRL.
         run_config["temperature"] = 0.8
