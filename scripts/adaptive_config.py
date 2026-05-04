@@ -398,14 +398,16 @@ def _apply_task_character_overrides(
         # we did 740 with packing — same data exposure but far less SGD events.
         # Memorization task benefits from many small gradient updates not few large ones.
         data_size = profile.get("actual_total", 10000)
-        seq_p95 = profile.get("char_len_p95_tokens", 0) or profile.get("seq_p95_tokens", 0)
+        # Use char-len p95 from profile as proxy for sequence length (~3-4 chars/token).
+        out_p95_chars = profile.get("char_len_output_p95", 0) or 0
         if data_size > 100_000:
             hp["learning_rate"] = 3e-4
         else:
             hp["learning_rate"] = min(hp["learning_rate"], 1.5e-4)
-        # Force disable packing for short-sequence memorization (p95 < 128 tokens)
-        # → maximize gradient update count for tiny models on big datasets.
-        if seq_p95 and seq_p95 < 128:
+        # Force disable packing for short-output memorization (output_p95 < 200 chars
+        # ≈ 50 tokens) → maximize gradient update count. Without packing 25 short
+        # samples per pack become 25 separate fwd passes = 25× more SGD updates.
+        if out_p95_chars > 0 and out_p95_chars < 200:
             hp["packing"] = False
         # NEFTune hurts memorization (noise prevents fact retention)
         hp["neftune_noise_alpha"] = 0
