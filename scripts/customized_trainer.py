@@ -373,6 +373,50 @@ class CustomEvalSaveCallback(TrainerCallback):
 
 
 class GRPOCustomEvalSaveCallback(CustomEvalSaveCallback):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # KL ceiling — safety net for runaway KL drift (hyper-text 289c5fc port).
+        # Default 8.0 calibrated for 2c4ccac2 (KL=13.7 catastrophic) while
+        # leaving f5fbe40f (peak ~5.6) untouched. Set 0 to disable.
+        from collections import deque
+        self._kl_window = deque(maxlen=50)
+        try:
+            self._kl_ceiling = float(os.environ.get("TRAINING_GRPO_KL_CEILING", "8.0"))
+        except (TypeError, ValueError):
+            self._kl_ceiling = 8.0
+        try:
+            self._kl_warmup = int(os.environ.get("TRAINING_GRPO_KL_WARMUP", "20"))
+        except (TypeError, ValueError):
+            self._kl_warmup = 20
+        self._kl_fired = False
+
+    def on_log(self, args, state: TrainerState, control: TrainerControl, logs=None, **kwargs):
+        # Track KL from training logs for ceiling check
+        if logs and isinstance(logs, dict) and "kl" in logs:
+            try:
+                self._kl_window.append(float(logs["kl"]))
+            except (TypeError, ValueError):
+                pass
+
+    def on_step_end(self, args, state: TrainerState, control: TrainerControl, **kwargs):
+        # KL ceiling — fires when rolling mean KL exceeds threshold post-warmup
+        if (not self._kl_fired
+                and self._kl_ceiling > 0
+                and state.global_step >= self._kl_warmup
+                and len(self._kl_window) >= 5):
+            mean_kl = sum(self._kl_window) / len(self._kl_window)
+            if mean_kl > self._kl_ceiling:
+                self._kl_fired = True
+                print(
+                    f"[KL Ceiling] mean_kl={mean_kl:.3f} > ceiling={self._kl_ceiling:.3f} "
+                    f"@ step={state.global_step} window={len(self._kl_window)} — eval+save+stop",
+                    flush=True,
+                )
+                control.should_evaluate = True
+                control.should_save = True
+                control.should_training_stop = True
+        return super().on_step_end(args, state, control, **kwargs)
+
     def compute_loss(self, state: TrainerState, metrics):
         eval_loss = None
         if state.log_history:
@@ -381,12 +425,12 @@ class GRPOCustomEvalSaveCallback(CustomEvalSaveCallback):
             print(f"choose eval_loss ({eval_loss}) as eval_reward from: last_log_entry: {last_log_entry}; \n metrics: {metrics}", flush=True)
         else:
             print(f"state.log_history is empty", flush=True)
-            
+
         if eval_loss is not None:
             eval_loss = - eval_loss
-            
+
         return eval_loss
-    
+
     def penalize_eval_loss(self, eval_loss: float):
         if eval_loss < 0:
             return eval_loss / 3

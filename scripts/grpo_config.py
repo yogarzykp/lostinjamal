@@ -1,3 +1,4 @@
+import os
 from model_utility import (
     get_model_architecture,
     get_model_num_params,
@@ -358,6 +359,23 @@ def get_training_json(train_info: dict) -> dict:
             run_config["learning_rate"] = lr
         else:
             print(f"Using lr from config: {run_config['learning_rate']}", flush=True)
+
+    # β floor for large GRPO (7B+). Empirical from hyper-text 5f243de:
+    # 0/3 GRPO 7B+ wins on tournament tourn_f4f456bc6d050b8b_20260430.
+    # Larger models drift faster from reference under same β. Bump β
+    # → stronger KL anchor → less drift → ckpt closer to ref.
+    # Env: TRAINING_GRPO_BETA_FLOOR_LARGE_7B (default 0.10),
+    #      TRAINING_GRPO_LARGE_THRESHOLD (default 7e9).
+    try:
+        _large_threshold = float(os.getenv("TRAINING_GRPO_LARGE_THRESHOLD", "7000000000"))
+        if param_nums >= _large_threshold:
+            _large_floor = float(os.getenv("TRAINING_GRPO_BETA_FLOOR_LARGE_7B", "0.10"))
+            _current_beta = run_config.get("beta", 0.04)
+            if _current_beta < _large_floor:
+                run_config["beta"] = _large_floor
+                print(f"[beta-floor-large] {param_nums/1e9:.1f}B model >= {_large_threshold/1e9:.0f}B threshold: beta {_current_beta:.3f} -> {_large_floor:.3f}", flush=True)
+    except (TypeError, ValueError) as exc:
+        print(f"[beta-floor-large] skipped (fail-soft): {exc}", flush=True)
 
     run_config["learning_rate"] *= train_info["reg_ratio"]
 
