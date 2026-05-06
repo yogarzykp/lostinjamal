@@ -413,10 +413,11 @@ def measure_dataset(dataset_path: str, tokenizer, max_samples: int = 1000) -> Da
 
 
 # ---------------------------------------------------------------------------
-# Plan D (2026-05-03): Advanced dataset profiler — winner-inspired.
+# Plan D (2026-05-03): Advanced dataset profiler — winner-log inspired.
 # ---------------------------------------------------------------------------
-# Source: hyper-text winner log on task 03f6b01c (test_loss=1.4464 sweep top 4)
-# pulled from Grafana 2026-05-03. Their `[dataset-profile-p1/p2]` lines reveal:
+# Reverse-engineered from a winning run on task 03f6b01c (test_loss=1.4464
+# sweep top 4) pulled from Grafana 2026-05-03. The `[dataset-profile-p1/p2]`
+# log lines we observed reveal the signal set worth tracking:
 # - char_len stats (instruct/output, p50/p95/p99/max)
 # - est_token p99 (for max_length sizing)
 # - io_jaccard (input/output token overlap → task character signal)
@@ -736,3 +737,134 @@ def adaptive_grpo_num_generations(batch_size: int, gpu_vram_gb: float, slow_rewa
     if not divisors:
         return 2  # safe minimum
     return max(divisors)
+
+
+# ---------------------------------------------------------------------------
+# GRPO reward-plateau guard — direct training-time mirror of validator score.
+# Validator's eval_loss formula:
+#   eval_loss = normalized_reward − BETA_GRPO × kl_divergence  (BETA_GRPO=0.5)
+# Tracking the same combination during training gives a 1:1 early-stop signal
+# without waiting for a slow eval pass. Higher proxy = better. Plateau →
+# eval+save+stop preserves the best snapshot before reward saturates / KL drifts.
+# ---------------------------------------------------------------------------
+
+
+def _parse_bool(value: Optional[str], default: bool = True) -> bool:
+    if value is None:
+        return default
+    return str(value).strip().lower() not in ("0", "false", "no", "off", "")
+
+
+def grpo_proxy_score(
+    rewards: List[float],
+    kls: List[float],
+    kl_coef: float = 0.5,
+) -> Optional[float]:
+    """Direct training-time mirror of validator's GRPO eval formula.
+
+    Validator final score (G.O.D docker_evaluation.py:192):
+        eval_loss = normalized_reward − BETA_GRPO × kl_divergence
+                  = normalized_reward − 0.5 × kl_divergence
+
+    Returns None when either window is empty (caller treats as not ready).
+    """
+    if not rewards or not kls:
+        return None
+    return (sum(rewards) / len(rewards)) - kl_coef * (sum(kls) / len(kls))
+
+
+def grpo_plateau_window(total_steps: int) -> Tuple[int, int]:
+    """Compute (warmup_steps, patience_steps) scaled per total training steps.
+
+    Pure-scaling formula:
+      - warmup   = 10% of total_steps
+      - patience = 15% of post-warmup window
+      - Adaptive floor min(50, total_steps//4) keeps Hook 3 active on short runs.
+
+    Env overrides (per-component, take precedence over scaling):
+      - TRAINING_GRPO_PLATEAU_WARMUP_STEPS
+      - TRAINING_GRPO_PLATEAU_PATIENCE_STEPS
+
+    Examples (worked through manually for sanity):
+      total=126   → warmup=31  patience=23
+      total=284   → warmup=50  patience=50  (both floored)
+      total=1000  → warmup=100 patience=135
+      total=39440 → warmup=3944 patience=5324
+    """
+    warmup_env = os.environ.get("TRAINING_GRPO_PLATEAU_WARMUP_STEPS")
+    patience_env = os.environ.get("TRAINING_GRPO_PLATEAU_PATIENCE_STEPS")
+
+    warmup_floor = min(50, max(10, total_steps // 4))
+    try:
+        if warmup_env:
+            warmup = max(1, int(warmup_env))
+        else:
+            warmup = max(warmup_floor, int(total_steps * 0.10))
+    except (TypeError, ValueError):
+        warmup = max(warmup_floor, int(total_steps * 0.10))
+
+    post_warmup = max(1, total_steps - warmup)
+    patience_floor = min(50, max(10, post_warmup // 4))
+    try:
+        if patience_env:
+            patience = max(1, int(patience_env))
+        else:
+            patience = max(patience_floor, int(post_warmup * 0.15))
+    except (TypeError, ValueError):
+        patience = max(patience_floor, int(post_warmup * 0.15))
+
+    return warmup, patience
+
+
+def maybe_grpo_plateau_stop(
+    current_step: int,
+    current_proxy: Optional[float],
+    best_proxy: Optional[float],
+    best_step: int,
+    *,
+    warmup_steps: Optional[int] = None,
+    patience_steps: Optional[int] = None,
+    enabled: Optional[bool] = None,
+) -> Tuple[Optional[float], int, bool]:
+    """Pure-function plateau decision. Caller updates state from first 2 returns.
+
+    Env knobs (only consulted when corresponding arg is None):
+      - TRAINING_GRPO_PLATEAU_ENABLED        (default 1)
+      - TRAINING_GRPO_PLATEAU_WARMUP_STEPS   (default 500)
+      - TRAINING_GRPO_PLATEAU_PATIENCE_STEPS (default 500)
+
+    Returns (new_best_proxy, new_best_step, should_stop).
+    Fail-soft: returns (best_proxy, best_step, False) on missing proxy.
+    """
+    if enabled is None:
+        enabled = _parse_bool(
+            os.environ.get("TRAINING_GRPO_PLATEAU_ENABLED"), default=True
+        )
+    if not enabled:
+        return best_proxy, best_step, False
+    if current_proxy is None:
+        return best_proxy, best_step, False
+
+    if warmup_steps is None:
+        try:
+            warmup_steps = int(os.environ.get("TRAINING_GRPO_PLATEAU_WARMUP_STEPS", "500"))
+        except (TypeError, ValueError):
+            warmup_steps = 500
+    if patience_steps is None:
+        try:
+            patience_steps = int(os.environ.get("TRAINING_GRPO_PLATEAU_PATIENCE_STEPS", "500"))
+        except (TypeError, ValueError):
+            patience_steps = 500
+
+    if current_step < warmup_steps:
+        return best_proxy, best_step, False
+
+    # First non-warmup observation seeds the best.
+    if best_proxy is None or current_proxy > best_proxy:
+        return current_proxy, current_step, False
+
+    # Plateau check: best hasn't moved in patience_steps.
+    if (current_step - best_step) > patience_steps:
+        return best_proxy, best_step, True
+
+    return best_proxy, best_step, False

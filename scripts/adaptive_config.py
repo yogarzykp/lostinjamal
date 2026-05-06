@@ -311,11 +311,11 @@ def _resolve_family(arch_family: str, model_name: Optional[str]) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Plan D (2026-05-03): Task character router — winner-inspired.
+# Plan D (2026-05-03): Task character router — winner-log inspired.
 # ---------------------------------------------------------------------------
-# Source: hyper-text winner log on task 03f6b01c. They route HP based on
-# dataset signals (io_jaccard, heuristic flags, script) — NOT just (param,
-# data_size, family). This is RICHER than master-text's static lookup.
+# Reverse-engineered from a winning run on task 03f6b01c. The winner routed
+# HP based on dataset signals (io_jaccard, heuristic flags, script) — NOT
+# just (param, data_size, family). RICHER than master-text's static lookup.
 #
 # Categories:
 # - "memorization": low io_jaccard + no cot/math/code → factual QA (TOFU-like)
@@ -694,7 +694,7 @@ def build_adaptive_run_config(
 
         # ----------------------------------------------------------------------
         # Plan D (2026-05-03): Advanced dataset profiling + task character router
-        # Pulled from hyper-text winner log analysis on 03f6b01c. Key signals:
+        # Reverse-engineered from a winning run on 03f6b01c. Key signals:
         # - io_jaccard < 0.3 + no cot/math/code → memorization task (TOFU-like)
         # - lang_ratio < 0.6 or non-latin script → translation
         # - cot/math flag → reasoning

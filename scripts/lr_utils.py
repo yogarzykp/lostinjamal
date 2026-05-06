@@ -74,7 +74,7 @@ def lr_guardrail_interpolate(
 ) -> float:
     """LR Guardrail (Plan D 2026-05-03): avoid duplicate LR sweeps.
 
-    Pulled from hyper-text winner log:
+    Pattern observed in a winning run's log:
       [LR Guardrail] duplicate LR 1.4281e-04 already tested
                      - interpolating to 1.3402e-04
                      (midpoint of best 1.4651e-04 and #2 1.2153e-04)

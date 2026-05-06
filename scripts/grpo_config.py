@@ -360,10 +360,10 @@ def get_training_json(train_info: dict) -> dict:
         else:
             print(f"Using lr from config: {run_config['learning_rate']}", flush=True)
 
-    # β floor for large GRPO (7B+). Empirical from hyper-text 5f243de:
-    # 0/3 GRPO 7B+ wins on tournament tourn_f4f456bc6d050b8b_20260430.
-    # Larger models drift faster from reference under same β. Bump β
-    # → stronger KL anchor → less drift → ckpt closer to ref.
+    # β floor for large GRPO (7B+). Empirical from tournament observation:
+    # 0/3 GRPO 7B+ wins on tourn_f4f456bc6d050b8b_20260430 — pattern shows
+    # larger models drift faster from reference under the same β.
+    # Bumping β → stronger KL anchor → less drift → ckpt closer to ref.
     # Env: TRAINING_GRPO_BETA_FLOOR_LARGE_7B (default 0.10),
     #      TRAINING_GRPO_LARGE_THRESHOLD (default 7e9).
     try:

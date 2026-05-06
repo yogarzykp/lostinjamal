@@ -373,49 +373,226 @@ class CustomEvalSaveCallback(TrainerCallback):
 
 
 class GRPOCustomEvalSaveCallback(CustomEvalSaveCallback):
+    """GRPO reward-plateau guard — preserves best ckpt before reward saturates.
+
+    Mirrors the validator's eval_loss formula at training time:
+      eval_loss = normalized_reward − BETA_GRPO × kl_divergence  (BETA_GRPO=0.5)
+    so plateau detection on (reward − 0.5×kl) is a direct early-stop signal.
+
+    Three independent fire mechanisms (all post-warmup, all fail-soft):
+      A. Reward proxy plateau (PRIMARY, default ON):
+         proxy = mean(reward) − 0.5 × mean(kl)  (mirror of validator formula)
+         Fires when proxy fails to improve for `patience` steps.
+      B. KL ceiling (mean-based, OPT-IN — default 0):
+         Fires when mean(kl_window) > TRAINING_GRPO_KL_CEILING.
+         Default disabled — wandb evidence (2c4ccac2-02, mean=0.7) shows
+         degraded runs that never fire on threshold 8.0; mean-only smooths
+         out transient spikes. Plateau already catches the reward symptom.
+      C. KL peak detection (OPT-IN — default 0):
+         Fires when max(window) > threshold AND violations >= max(2, len//8).
+         Calibrated against noisy-KL traces (peak 52, mean 6.2, threshold 8
+         + 2 violations) where mean stayed under ceiling but reward collapsed.
+
+    Env knobs:
+      TRAINING_GRPO_PLATEAU_ENABLED          (default 1)
+      TRAINING_GRPO_PLATEAU_WINDOW_LOGS      (default 50)
+      TRAINING_GRPO_PLATEAU_WARMUP_STEPS     (override scaling 10% total)
+      TRAINING_GRPO_PLATEAU_PATIENCE_STEPS   (override scaling 15% post-warmup)
+      TRAINING_GRPO_PLATEAU_SNAPSHOT_EVERY   (default 200, telemetry cadence)
+      TRAINING_GRPO_KL_CEILING               (mean-based, default 0=disabled)
+      TRAINING_GRPO_KL_PEAK_THRESHOLD        (peak-based, default 0=disabled)
+    """
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # KL ceiling — safety net for runaway KL drift (hyper-text 289c5fc port).
-        # Default 8.0 calibrated for 2c4ccac2 (KL=13.7 catastrophic) while
-        # leaving f5fbe40f (peak ~5.6) untouched. Set 0 to disable.
         from collections import deque
-        self._kl_window = deque(maxlen=50)
         try:
-            self._kl_ceiling = float(os.environ.get("TRAINING_GRPO_KL_CEILING", "8.0"))
+            _w = int(os.environ.get("TRAINING_GRPO_PLATEAU_WINDOW_LOGS", "50"))
         except (TypeError, ValueError):
-            self._kl_ceiling = 8.0
+            _w = 50
+        self._h3_rewards = deque(maxlen=max(1, _w))
+        self._h3_kls = deque(maxlen=max(1, _w))
+        self._h3_best_proxy: Optional[float] = None
+        self._h3_best_step: int = 0
+        self._h3_fired: bool = False
+        # Telemetry state — emit config once, warmup-end once, periodic
+        # snapshots, and best-proxy update events for post-hoc verification.
+        self._h3_config_logged: bool = False
+        self._h3_warmup_announced: bool = False
+        self._h3_last_snapshot_step: int = 0
         try:
-            self._kl_warmup = int(os.environ.get("TRAINING_GRPO_KL_WARMUP", "20"))
+            self._h3_snapshot_every = int(
+                os.environ.get("TRAINING_GRPO_PLATEAU_SNAPSHOT_EVERY", "200")
+            )
         except (TypeError, ValueError):
-            self._kl_warmup = 20
-        self._kl_fired = False
+            self._h3_snapshot_every = 200
+        # Default 0 = disabled. wandb evidence (2c4ccac2-02 mean=0.7) shows
+        # degraded runs that never fire on default 8.0 — mean-based misses
+        # transient spikes. Plateau on reward proxy catches the symptom.
+        try:
+            self._h3_kl_ceiling = float(os.environ.get("TRAINING_GRPO_KL_CEILING", "0"))
+        except (TypeError, ValueError):
+            self._h3_kl_ceiling = 0.0
+        # Peak-based detection — default 0 = disabled. Opt-in for noisy KL
+        # tasks. Calibrated against 2c4ccac2-02 trace (peak 52, valley 3-4,
+        # mean 6.2): threshold=8.0 + min_violations=2 → fires @ step 210.
+        try:
+            self._h3_kl_peak_threshold = float(
+                os.environ.get("TRAINING_GRPO_KL_PEAK_THRESHOLD", "0")
+            )
+        except (TypeError, ValueError):
+            self._h3_kl_peak_threshold = 0.0
 
     def on_log(self, args, state: TrainerState, control: TrainerControl, logs=None, **kwargs):
-        # Track KL from training logs for ceiling check
-        if logs and isinstance(logs, dict) and "kl" in logs:
-            try:
-                self._kl_window.append(float(logs["kl"]))
-            except (TypeError, ValueError):
-                pass
+        """Track reward + kl, compute plateau proxy, fire when stagnated."""
+        if self._h3_fired or not logs:
+            return
+        reward = logs.get("reward")
+        kl = logs.get("kl")
+        if reward is None or kl is None:
+            return
+        try:
+            self._h3_rewards.append(float(reward))
+            self._h3_kls.append(float(kl))
+        except (TypeError, ValueError):
+            return
 
-    def on_step_end(self, args, state: TrainerState, control: TrainerControl, **kwargs):
-        # KL ceiling — fires when rolling mean KL exceeds threshold post-warmup
-        if (not self._kl_fired
-                and self._kl_ceiling > 0
-                and state.global_step >= self._kl_warmup
-                and len(self._kl_window) >= 5):
-            mean_kl = sum(self._kl_window) / len(self._kl_window)
-            if mean_kl > self._kl_ceiling:
-                self._kl_fired = True
+        try:
+            from dynamics_utils import (
+                grpo_proxy_score,
+                grpo_plateau_window,
+                maybe_grpo_plateau_stop,
+            )
+            proxy = grpo_proxy_score(list(self._h3_rewards), list(self._h3_kls))
+            _total = max(1, int(getattr(state, "max_steps", 0) or 0))
+            _warmup, _patience = grpo_plateau_window(_total)
+
+            # ── Telemetry: log config once at first observation ──
+            if not self._h3_config_logged:
                 print(
-                    f"[KL Ceiling] mean_kl={mean_kl:.3f} > ceiling={self._kl_ceiling:.3f} "
-                    f"@ step={state.global_step} window={len(self._kl_window)} — eval+save+stop",
+                    f"[Hook 3] config: total_steps={_total}, warmup={_warmup} "
+                    f"({_warmup/_total*100:.1f}%), patience={_patience} "
+                    f"({_patience/_total*100:.1f}%), window_logs="
+                    f"{self._h3_rewards.maxlen}",
+                    flush=True,
+                )
+                self._h3_config_logged = True
+
+            # ── Telemetry: announce warmup completion (first eligible step) ──
+            if (not self._h3_warmup_announced
+                    and state.global_step >= _warmup):
+                print(
+                    f"[Hook 3] warmup ended @ step={state.global_step} "
+                    f"(warmup_steps={_warmup}); plateau detection now active "
+                    f"with patience={_patience}",
+                    flush=True,
+                )
+                self._h3_warmup_announced = True
+
+            _prev_best = self._h3_best_proxy
+            _prev_best_step = self._h3_best_step
+
+            new_best, new_best_step, should_stop = maybe_grpo_plateau_stop(
+                current_step=state.global_step,
+                current_proxy=proxy,
+                best_proxy=self._h3_best_proxy,
+                best_step=self._h3_best_step,
+                warmup_steps=_warmup,
+                patience_steps=_patience,
+            )
+            self._h3_best_proxy = new_best
+            self._h3_best_step = new_best_step
+
+            # ── Telemetry: announce best proxy updates (post-warmup only) ──
+            if (state.global_step >= _warmup
+                    and new_best is not None
+                    and (_prev_best is None or new_best > _prev_best)):
+                _prev_str = (
+                    "None" if _prev_best is None else f"{_prev_best:.4f}"
+                )
+                print(
+                    f"[Hook 3] new best proxy={new_best:.4f} @ "
+                    f"step={new_best_step} (prev best={_prev_str} @ "
+                    f"{_prev_best_step})",
+                    flush=True,
+                )
+
+            # ── Telemetry: periodic snapshot of current vs best ──
+            if (state.global_step >= _warmup
+                    and self._h3_best_proxy is not None
+                    and (state.global_step - self._h3_last_snapshot_step)
+                        >= self._h3_snapshot_every):
+                _gap = state.global_step - self._h3_best_step
+                _gap_pct = _gap / max(1, _patience) * 100
+                print(
+                    f"[Hook 3] snapshot step={state.global_step} "
+                    f"current_proxy={proxy:.4f} best_proxy="
+                    f"{self._h3_best_proxy:.4f} @ {self._h3_best_step} "
+                    f"(no-improve gap={_gap}, {_gap_pct:.0f}% of patience)",
+                    flush=True,
+                )
+                self._h3_last_snapshot_step = state.global_step
+
+            if should_stop:
+                self._h3_fired = True
+                print(
+                    f"[Hook 3 GRPO Plateau] proxy stagnated; best_proxy="
+                    f"{self._h3_best_proxy:.4f} @ step={self._h3_best_step}, "
+                    f"current_proxy={proxy:.4f} @ step={state.global_step} — "
+                    f"triggering eval+save+stop",
                     flush=True,
                 )
                 control.should_evaluate = True
                 control.should_save = True
                 control.should_training_stop = True
-        return super().on_step_end(args, state, control, **kwargs)
+                return
+
+            # ── KL ceiling — safety net for runaway drift (post-warmup) ──
+            # Two detection modes (independent, both opt-in):
+            #   a) Mean-based  (TRAINING_GRPO_KL_CEILING)
+            #   b) Peak-based  (TRAINING_GRPO_KL_PEAK_THRESHOLD)
+            if (state.global_step >= _warmup
+                    and len(self._h3_kls) >= max(5, self._h3_kls.maxlen // 4)):
+                if self._h3_kl_ceiling > 0:
+                    _mean_kl = sum(self._h3_kls) / len(self._h3_kls)
+                    if _mean_kl > self._h3_kl_ceiling:
+                        self._h3_fired = True
+                        print(
+                            f"[Hook 3 KL Ceiling] mean_kl={_mean_kl:.2f} > "
+                            f"ceiling={self._h3_kl_ceiling:.2f} @ "
+                            f"step={state.global_step} (window="
+                            f"{len(self._h3_kls)}) — triggering eval+save+stop",
+                            flush=True,
+                        )
+                        control.should_evaluate = True
+                        control.should_save = True
+                        control.should_training_stop = True
+                        return
+                if self._h3_kl_peak_threshold > 0 and not self._h3_fired:
+                    _peak_kl = max(self._h3_kls)
+                    _violations = sum(
+                        1 for k in self._h3_kls
+                        if k > self._h3_kl_peak_threshold
+                    )
+                    _min_violations = max(2, len(self._h3_kls) // 8)
+                    if (_peak_kl > self._h3_kl_peak_threshold
+                            and _violations >= _min_violations):
+                        self._h3_fired = True
+                        print(
+                            f"[Hook 3 KL Peak] peak_kl={_peak_kl:.2f} > "
+                            f"threshold={self._h3_kl_peak_threshold:.2f} "
+                            f"with {_violations}/{len(self._h3_kls)} "
+                            f"violations (min={_min_violations}) @ "
+                            f"step={state.global_step} — triggering "
+                            f"eval+save+stop",
+                            flush=True,
+                        )
+                        control.should_evaluate = True
+                        control.should_save = True
+                        control.should_training_stop = True
+        except Exception as exc:
+            # Fail-soft — Hook 3 must never break training.
+            print(f"[Hook 3] skipped (fail-soft): {exc}", flush=True)
 
     def compute_loss(self, state: TrainerState, metrics):
         eval_loss = None
