@@ -33,7 +33,7 @@ RUN bash -c "source /workspace/axo_py/bin/activate && \
     pip install -U packaging==23.2 setuptools==75.8.0 wheel ninja && \
     uv pip install --no-build-isolation axolotl==0.9.1 && \
     pip install requests==2.32.3 && \
-    pip install redis==7.0.1 && \
+    pip install redis==7.0.1 colorama loguru fastapi pydantic-settings python-dotenv toml textstat langcheck detoxify wandb && \
     deactivate"
 
 
