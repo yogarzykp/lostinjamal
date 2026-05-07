@@ -872,6 +872,56 @@ def build_adaptive_run_config(
         # (was 300, winners trained full 2 epochs).
         run_config["beta"] = float(os.getenv("ADAPTIVE_BETA_OVERRIDE", "0.04"))
         run_config["scale_rewards"] = "True"  # Dr.GRPO False hurt us
+
+        # Tier 1.5: GRPO reward classifier (lotob-grpo-hard).
+        # Static analysis of reward_functions → suggests LR + β by landscape.
+        # Active when ADAPTIVE_BETA_OVERRIDE/ADAPTIVE_LR_OVERRIDE not explicitly set.
+        # Opt-out: TRAINING_REWARD_CLASSIFIER_ENABLED=0
+        _classifier_lr_set_via_env = os.getenv("ADAPTIVE_LR_OVERRIDE") is not None
+        _classifier_beta_set_via_env = os.getenv("ADAPTIVE_BETA_OVERRIDE") is not None
+        if (os.getenv("TRAINING_REWARD_CLASSIFIER_ENABLED", "true").lower()
+                not in ("0", "false", "no")) and not (
+                _classifier_lr_set_via_env and _classifier_beta_set_via_env):
+            reward_fns = (train_info.get("dataset_type") or {}).get(
+                "reward_functions", []
+            )
+            if reward_fns:
+                try:
+                    from reward_classifier import (
+                        classify_reward_mix,
+                        describe,
+                        suggest_params,
+                    )
+                    fingerprint = classify_reward_mix(reward_fns)
+                    classifier_params = suggest_params(
+                        fingerprint,
+                        model_size_b=(param_count / 1e9) if param_count else None,
+                    )
+                    if classifier_params is not None:
+                        if not _classifier_lr_set_via_env:
+                            init_lr = classifier_params["learning_rate"]
+                            run_config["learning_rate"] = init_lr
+                        if not _classifier_beta_set_via_env:
+                            run_config["beta"] = classifier_params["beta"]
+                        print(
+                            f"[classifier] tier 1.5 hit: lr="
+                            f"{classifier_params['learning_rate']:.2e} "
+                            f"beta={classifier_params['beta']:.3f} "
+                            f"({describe(fingerprint)})",
+                            flush=True,
+                        )
+                    else:
+                        print(
+                            f"[classifier] no match (unknown reward funcs): "
+                            f"{describe(fingerprint)}",
+                            flush=True,
+                        )
+                except Exception as exc:
+                    print(
+                        f"[classifier] error, fail-soft: "
+                        f"{type(exc).__name__}: {exc}",
+                        flush=True,
+                    )
         run_config["max_completion_length"] = _select_grpo_max_completion(ds_metrics.seq_len_p95)
         # Fix 2026-05-04: previous max_steps=300 was based on WRONG assumption that
         # winners trained minimal steps. Grafana check on f5fbe40f winner (5CmAQ61V)
