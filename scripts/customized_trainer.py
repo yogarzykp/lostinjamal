@@ -121,6 +121,61 @@ class CustomEvalSaveCallback(TrainerCallback):
         self.cv_threshold = float(os.getenv("INSTRUCT_CV_THRESHOLD", "0.05"))
         self.train_loss_history: list[float] = []
 
+        # ── Live Divergence Detection (lotob-grpo-hard 2026-05-07) ──
+        # Catches catastrophic LR-too-high divergence. When train_loss exceeds
+        # threshold × init_loss after warmup, force eval+save+stop to capture
+        # the pre-divergence checkpoint. Active for Instruct/DPO; GRPO subclass
+        # disables (Hook 3 reward-proxy plateau already covers GRPO).
+        # Active in FINAL RUN ONLY (checking_mode=="none") to avoid stalling
+        # the orchestrator state machine during exploration probes.
+        self._divergence_enabled = (
+            os.environ.get("TRAINING_DIVERGENCE_DETECT", "1") == "1"
+        )
+        try:
+            self._divergence_threshold = float(
+                os.environ.get("TRAINING_DIVERGENCE_THRESHOLD", "3.0")
+            )
+        except (TypeError, ValueError):
+            self._divergence_threshold = 3.0
+        try:
+            self._divergence_min_step = int(
+                os.environ.get("TRAINING_DIVERGENCE_MIN_STEP", "50")
+            )
+        except (TypeError, ValueError):
+            self._divergence_min_step = 50
+        self._divergence_init_loss: Optional[float] = None
+        self._divergence_fired: bool = False
+
+        # ── Cross-instance best_ckpt persistence (lotob-grpo-hard) ──
+        # Each trainer subprocess (probe Run N → final run) starts with
+        # best_checkpoint_info=None. Without persistence, final run can push
+        # a WORSE ckpt than what an earlier run produced. Read state_manager
+        # global_best_checkpoint on init; comparison at on_evaluate then
+        # operates against global best across all subprocess instances.
+        # Disabled via env TRAINING_BEST_CKPT_PERSIST=0.
+        if os.environ.get("TRAINING_BEST_CKPT_PERSIST", "1") == "1":
+            try:
+                _state = get_state() or {}
+                _persisted = _state.get("global_best_checkpoint")
+                if (isinstance(_persisted, dict)
+                        and "loss" in _persisted and "step" in _persisted):
+                    self.best_checkpoint_info = {
+                        "step": int(_persisted["step"]),
+                        "loss": float(_persisted["loss"]),
+                    }
+                    self.current_best_loss = float(_persisted["loss"])
+                    print(
+                        f"[best_ckpt persist] restored from state: "
+                        f"step={self.best_checkpoint_info['step']}, "
+                        f"loss={self.best_checkpoint_info['loss']:.6e}",
+                        flush=True,
+                    )
+            except Exception as _exc:
+                print(
+                    f"[best_ckpt persist] restore skipped: {_exc}",
+                    flush=True,
+                )
+
         if not self.early_stop_disabled:
             print(
                 f"[early_stop] dynamic config: patience={self.early_stop_patience} "
@@ -260,6 +315,51 @@ class CustomEvalSaveCallback(TrainerCallback):
                 self.train_loss_history.append(float(logs["loss"]))
             except (TypeError, ValueError):
                 pass
+
+        # ── Live Divergence Detection (lotob-grpo-hard) ──
+        # Catches catastrophic LR-too-high divergence. Active in final run
+        # only (checking_mode=="none") to avoid stalling the orchestrator
+        # state machine during exploration probes.
+        if self._divergence_enabled and not self._divergence_fired \
+                and self.checking_mode == "none" \
+                and logs and isinstance(logs, dict):
+            train_loss = logs.get("loss")
+            if train_loss is not None:
+                try:
+                    train_loss_f = float(train_loss)
+                    # Skip non-finite (NaN/Inf transients)
+                    if train_loss_f == train_loss_f and train_loss_f != float("inf"):
+                        if self._divergence_init_loss is None:
+                            self._divergence_init_loss = train_loss_f
+                            print(
+                                f"[Divergence Detect] init_loss captured: "
+                                f"{train_loss_f:.4f} @ step {state.global_step}, "
+                                f"threshold={self._divergence_threshold}× = "
+                                f"{train_loss_f * self._divergence_threshold:.4f}, "
+                                f"min_step={self._divergence_min_step}",
+                                flush=True,
+                            )
+                        elif state.global_step >= self._divergence_min_step:
+                            threshold_value = (
+                                self._divergence_init_loss * self._divergence_threshold
+                            )
+                            if train_loss_f > threshold_value:
+                                self._divergence_fired = True
+                                print(
+                                    f"[Divergence Detect] DIVERGENCE @ step "
+                                    f"{state.global_step}: train_loss="
+                                    f"{train_loss_f:.4f} > "
+                                    f"{self._divergence_threshold}× init_loss="
+                                    f"{self._divergence_init_loss:.4f} "
+                                    f"(threshold={threshold_value:.4f}). "
+                                    f"Forcing eval+save+stop.",
+                                    flush=True,
+                                )
+                                control.should_evaluate = True
+                                control.should_save = True
+                                control.should_training_stop = True
+                except (TypeError, ValueError):
+                    pass
         return control
 
     def on_evaluate(
@@ -281,6 +381,20 @@ class CustomEvalSaveCallback(TrainerCallback):
             }
             self.update_best_checkpoint = True
             self.no_improve_count = 0
+            # ── Cross-instance persist (lotob-grpo-hard) ──
+            # Save new best to state_manager so subsequent subprocess
+            # instances can compare against it (prevents worse final-run
+            # ckpt from overwriting an earlier probe-run best).
+            if os.environ.get("TRAINING_BEST_CKPT_PERSIST", "1") == "1":
+                try:
+                    _state = get_state() or {}
+                    _state["global_best_checkpoint"] = {
+                        "loss": float(eval_loss),
+                        "step": int(state.global_step),
+                    }
+                    set_state(_state)
+                except Exception as _exc:
+                    print(f"[best_ckpt persist] save skipped: {_exc}", flush=True)
         else:
             self.no_improve_count += 1
             if self.best_checkpoint_info is not None:
@@ -454,6 +568,11 @@ class GRPOCustomEvalSaveCallback(CustomEvalSaveCallback):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        # Disable Live Divergence Detection for GRPO. GRPO loss is a surrogate
+        # (mean(advantage * ratio)) — can be negative or oscillate, making
+        # ratio-based divergence detection unreliable. Hook 3 reward-proxy
+        # plateau already covers the GRPO failure mode.
+        self._divergence_enabled = False
         from collections import deque
         try:
             _w = int(os.environ.get("TRAINING_GRPO_PLATEAU_WINDOW_LOGS", "50"))
