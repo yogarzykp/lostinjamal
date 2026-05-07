@@ -1,6 +1,7 @@
 #!/bin/bash
 set -e
-redis-server --daemonize yes
+# redis-server best-effort. state_manager.py has in-memory fallback if redis unavailable.
+redis-server --daemonize yes 2>/dev/null || echo "[entrypoint] redis-server unavailable, state will use in-memory fallback"
 sleep 2  # Give Redis a moment to start up
 # Reduce VRAM fragmentation on multi-GPU + gradient_checkpointing (Qwen 7B 2-GPU).
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
@@ -13,6 +14,11 @@ if [ -f /workspace/.grpo_env/bin/activate ]; then
 elif [ -f /workspace/axo_py/bin/activate ]; then
     source /workspace/axo_py/bin/activate
 fi
-# Lazy install missing deps (some image rebuilds drop these).
-python3 -c "import colorama, loguru, fastapi, redis, pydantic_settings, textstat" 2>/dev/null || pip install -q colorama loguru fastapi redis pydantic-settings python-dotenv toml textstat langcheck detoxify 2>&1 | tail -2
+# Lazy install missing deps (some image rebuilds drop these). Don't mask install errors.
+python3 -c "import colorama, loguru, fastapi, redis, pydantic_settings, textstat" 2>/dev/null \
+  || pip install -q colorama loguru fastapi redis pydantic-settings python-dotenv toml textstat langcheck detoxify \
+  || echo "[entrypoint] some deps failed to install — relying on fallbacks"
+# Verify redis Python module (state_manager has in-memory fallback if missing)
+python3 -c "import redis" 2>/dev/null \
+  || echo "[entrypoint] redis Python module missing — state_manager will use in-memory fallback"
 python3 /workspace/scripts/text_trainer.py "$@"
