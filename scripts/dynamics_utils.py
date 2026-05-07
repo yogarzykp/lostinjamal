@@ -868,3 +868,4 @@ def maybe_grpo_plateau_stop(
         return best_proxy, best_step, True
 
     return best_proxy, best_step, False
+# branch-rev:adaptive-instruct-1
