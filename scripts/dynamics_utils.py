@@ -870,3 +870,4 @@ def maybe_grpo_plateau_stop(
     return best_proxy, best_step, False
 # branch-rev:grpo-hard-1
 # branch-rev:grpo-hard-2
+# branch-rev:grpo-hard-3
