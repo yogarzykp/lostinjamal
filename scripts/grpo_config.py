@@ -345,8 +345,10 @@ def get_training_json(train_info: dict) -> dict:
     if not config.get("use_vllm", True):
         run_config["use_vllm"] = False
 
+    lookup_hit = False
+    classifier_hit = False
     if train_info["find_lk_lr"] and allow_find_lk_lr:
-        # get lr from lrs_lookup.py
+        # TIER 1: exact-match empirical lookup from lrs_lookup.py
         has_python_execution = contain_python_execution(train_info["dataset_type"])
         if not has_python_execution:
             lr = get_grpo_lr(model_name)
@@ -355,10 +357,57 @@ def get_training_json(train_info: dict) -> dict:
             lr = get_grpo_python_lr(model_name)
             print(f"Using lr from lk python: {lr}", flush=True)
         if lr is not None:
-            print(f"Using lr from lk: {lr}", flush=True)
+            print(f"Using lr from lk (tier 1): {lr}", flush=True)
             run_config["learning_rate"] = lr
+            lookup_hit = True
         else:
             print(f"Using lr from config: {run_config['learning_rate']}", flush=True)
+
+    # TIER 1.5: GRPO reward-function fingerprint classifier (lotob-grpo-hard).
+    # Static analysis of reward_functions list → suggests LR + β by reward
+    # mix landscape. Generic 13-function catalog covers ~90% of tournament
+    # tasks. Fail-soft + opt-out via TRAINING_REWARD_CLASSIFIER_ENABLED=0.
+    if not lookup_hit:
+        reward_fns = (train_info.get("dataset_type") or {}).get(
+            "reward_functions", []
+        )
+        if reward_fns and os.getenv(
+            "TRAINING_REWARD_CLASSIFIER_ENABLED", "true"
+        ).lower() not in ("0", "false", "no"):
+            try:
+                from reward_classifier import (
+                    classify_reward_mix,
+                    describe,
+                    suggest_params,
+                )
+                fingerprint = classify_reward_mix(reward_fns)
+                classifier_params = suggest_params(
+                    fingerprint,
+                    model_size_b=(param_nums / 1e9) if param_nums else None,
+                )
+                if classifier_params is not None:
+                    run_config["learning_rate"] = classifier_params["learning_rate"]
+                    run_config["beta"] = classifier_params["beta"]
+                    print(
+                        f"[classifier] tier 1.5 hit: lr="
+                        f"{classifier_params['learning_rate']:.2e} "
+                        f"beta={classifier_params['beta']:.3f} "
+                        f"({describe(fingerprint)})",
+                        flush=True,
+                    )
+                    classifier_hit = True
+                else:
+                    print(
+                        f"[classifier] no match (unknown reward funcs): "
+                        f"{describe(fingerprint)}",
+                        flush=True,
+                    )
+            except Exception as exc:
+                print(
+                    f"[classifier] error, fail-soft: "
+                    f"{type(exc).__name__}: {exc}",
+                    flush=True,
+                )
 
     # β floor for large GRPO (7B+). Empirical from tournament observation:
     # 0/3 GRPO 7B+ wins on tourn_f4f456bc6d050b8b_20260430 — pattern shows
