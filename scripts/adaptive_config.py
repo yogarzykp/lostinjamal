@@ -96,10 +96,16 @@ def _select_lora_config(param_count: int, task_type: str) -> Dict:
 
 
 def _select_optimizer(param_count: int) -> str:
-    """8bit optimizer for memory savings on large; torch native for small."""
-    if param_count is None or param_count > 4e9:
-        return "paged_adamw_8bit"
-    return "adamw_torch"
+    """paged_adamw_8bit across all sizes — empirical win signal.
+
+    Source: HF training_args.bin extraction 2026-05-03..05-08. Three winning
+    repos all used paged_adamw_8bit regardless of param_count (135M to 7B+):
+    ded7e684 (5C5FBvLa), 03f6b01c (5C7vE26G), 708e03d4 (5G1efLqq).
+    Legacy bucket also defaults paged_adamw_8bit. The earlier "torch native
+    for small" branch was unfounded — adapter v2 on 708e03d4 lost +0.85% to
+    legacy partly because of this divergence.
+    """
+    return "paged_adamw_8bit"
 
 
 def _select_max_length(seq_len_p95: int, validator_max: int = 4096) -> int:
