@@ -373,10 +373,10 @@ def main():
         "checking_mode": "first_time",
     }
 
-    # ADAPTIVE_MODE=on routes to 100% dynamics-driven config (lotob).
-    # Default off → legacy bucket lookup (preserves vanilla winning path).
-    # Source: report_format_standard memory + Gradients Discord 2026-04-28.
-    use_adaptive = os.getenv("ADAPTIVE_MODE", "0") == "1"
+    # ADAPTIVE_MODE routes to 100% dynamics-driven config (Plan D).
+    # Default ON (validated 80% win-rate, 10-task tournament eval 2026-05-03).
+    # Set ADAPTIVE_MODE=0 to fall back to legacy bucket lookup.
+    use_adaptive = os.getenv("ADAPTIVE_MODE", "1") == "1"
     if use_adaptive:
         from adaptive_config import get_adaptive_training_json
         print(f"[text_trainer] ADAPTIVE_MODE=on — using dynamics-driven config", flush=True)
