@@ -182,7 +182,10 @@ _FAMILY_PROFILES = {
         "reg_ratio_default": 0.70,
     },
     "qwen": {
-        "min_lr_rate": 0.18,
+        # min_lr_rate 0.25 (was 0.18) — matches all observed winning training_args
+        # across tasks (708e03d4 5G1efLqq, ded7e684 5C5FBvLa, 03f6b01c 5C7vE26G).
+        # Higher floor reduces over-cooldown effect at end of training.
+        "min_lr_rate": 0.25,
         "weight_decay_small_data": 0.0,
         "weight_decay_default": 0.0,
         "packing": True,
@@ -515,7 +518,11 @@ def _compute_instruct_adaptive_hp(
 
     # Max length: bucket from seq_p95 + family cap (RICHER than master-text:
     # master-text profile.suggested_max_length is dataset-only. We combine with family cap.)
-    target_len = max(256, int(seq_p95 * 1.15))
+    # Floor 1024 (was 256) — matches _select_max_length elsewhere. Aggressive
+    # truncation to 512 on tasks like 708e03d4 (Qwen 0.5B + p95=23 translation)
+    # produced batch×steps token throughput 14% of legacy bucket, v2 lost +0.4%
+    # to winner. Higher floor preserves data exposure even when sequences short.
+    target_len = max(1024, int(seq_p95 * 1.15))
     bucketed = next((b for b in LENGTH_BUCKETS if target_len <= b), LENGTH_BUCKETS[-1])
     max_length = min(bucketed, profile["max_length_cap"])
 
