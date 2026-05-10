@@ -1,3 +1,4 @@
+import json
 import os
 from math import ceil
 
@@ -45,6 +46,46 @@ FIXED_BS_CONFIG = {
     "facebook/opt-350m": {"batch_size": 36},
     "facebook/opt-125m": {"batch_size": 48},
 }
+
+# Anonymization-safe parallel: fingerprint → batch_size for the same models.
+# Format: "(hidden_size,num_hidden_layers,vocab_size,intermediate_size)" → batch
+# Used when model_name is anonymized (post G.O.D feature/model-prep-container
+# merge) — config.json fingerprint preserved by validator's scrub.
+# Add entries as encountered in tournament.
+FIXED_BS_BY_FINGERPRINT = {
+    # facebook/opt-350m: hidden=1024, layers=24, vocab=50272, intermediate=4096
+    "1024,24,50272,4096": {"batch_size": 36},
+    # facebook/opt-125m: hidden=768, layers=12, vocab=50272, intermediate=3072
+    "768,12,50272,3072": {"batch_size": 48},
+    # facebook/opt-1.3b: hidden=2048, layers=24, vocab=50272, intermediate=8192
+    "2048,24,50272,8192": {"batch_size": 38},
+    # bigscience/bloom-560m: hidden=1024, layers=24, vocab=250880, intermediate=4096
+    "1024,24,250880,4096": {"batch_size": 10},
+    # EleutherAI/gpt-neo-125m: hidden=768, layers=12, vocab=50257, intermediate=3072
+    "768,12,50257,3072": {"batch_size": 48},
+    # EleutherAI/gpt-neo-1.3B: hidden=2048, layers=24, vocab=50257, intermediate=8192
+    "2048,24,50257,8192": {"batch_size": 36},
+}
+
+
+def _read_config_safe(model_dir):
+    """Read config.json — fail-soft. Returns dict or None."""
+    if not model_dir:
+        return None
+    try:
+        cfg_path = os.path.join(model_dir, "config.json")
+        if not os.path.exists(cfg_path):
+            return None
+        with open(cfg_path) as f:
+            return json.load(f)
+    except Exception:
+        return None
+
+
+def _fingerprint_key(cfg):
+    """Build catalog fingerprint key from config dict."""
+    return ",".join(str(cfg.get(k, "")) for k in
+                    ("hidden_size", "num_hidden_layers", "vocab_size", "intermediate_size"))
 
 INSTRUCT_CONFIG = {
     "0_1_b": {
@@ -246,7 +287,7 @@ def get_training_json(train_info: dict) -> dict:
         "use_liger": get_use_liger(model_architecture),
         "optimizer": "paged_adamw_8bit",
         "use_lora": config.get("use_lora", False),
-        "disable_fa": disable_flash_attention(model_architecture, model_name),
+        "disable_fa": disable_flash_attention(model_architecture, model_name, model_dir=model_path),
         "packing": "True",
         "gpu_nums": config["gpu_count"],
         "output_dir": train_info["output_dir"],
@@ -306,8 +347,17 @@ def get_training_json(train_info: dict) -> dict:
     # if run_config["disable_fa"]: # if FA is not usable
     #     run_config["batch_size"] = run_config["batch_size"] * 2
 
+    # Tier 1: name-based (works pre-merge / direct model_name)
     if model_name in FIXED_BS_CONFIG:
         run_config["batch_size"] = FIXED_BS_CONFIG[model_name]["batch_size"]
+    else:
+        # Tier 2: fingerprint-based (anonymization-safe). Reads config.json
+        # at model_path and matches preserved architecture-defining fields.
+        cfg = _read_config_safe(model_path)
+        if cfg is not None:
+            fp = _fingerprint_key(cfg)
+            if fp in FIXED_BS_BY_FINGERPRINT:
+                run_config["batch_size"] = FIXED_BS_BY_FINGERPRINT[fp]["batch_size"]
 
     if model_architecture.strip().lower() in [
         "gptneoxforcausallm",
@@ -343,8 +393,10 @@ def get_training_json(train_info: dict) -> dict:
         run_config["use_lora"] = False  # currently, gptoss does not support lora
 
     if train_info["find_lk_lr"]:
-        # get lr from lrs_lookup.py
-        lr = get_instruct_lr(model_name)
+        # get lr from lrs_lookup.py — pass model_dir for post-anonymization
+        # detection fallback (recover original model_id via fingerprint match
+        # against model_fingerprint_catalog.json).
+        lr = get_instruct_lr(model_name, model_dir=model_path)
         if lr is not None:
             print(f"Using lr from lk: {lr}", flush=True)
             run_config["learning_rate"] = lr

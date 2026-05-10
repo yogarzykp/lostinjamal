@@ -1,3 +1,4 @@
+import json
 import os
 from model_utility import (
     get_model_architecture,
@@ -271,12 +272,12 @@ def get_training_json(train_info: dict) -> dict:
         "use_liger": get_use_liger(model_architecture),
         "optimizer": "paged_adamw_8bit",
         "use_lora": config.get("use_lora", False),
-        "disable_fa": disable_flash_attention(model_architecture, model_name),
+        "disable_fa": disable_flash_attention(model_architecture, model_name, model_dir=model_path),
         "gpu_nums": config["gpu_count"],
         "output_dir": train_info["output_dir"],
         "request_path": train_info["request_path"],
         "distributed": config.get("distributed", "ddp"),
-        "gradient_checkpointing": get_gradient_checkpointing(model_name),
+        "gradient_checkpointing": get_gradient_checkpointing(model_name, model_dir=model_path),
         "gradient_accumulation_steps": 4,
         "vllm_gpu_memory_utilization": config.get("vllm_gpu_memory_utilization", 0.4),
         "num_generations": 2,
@@ -285,7 +286,7 @@ def get_training_json(train_info: dict) -> dict:
         "beta": 0.04,  # legacy TRL default
         "temperature": 1.0,  # TRL default
         "top_p": 1.0,  # TRL default
-        "use_vllm": get_use_vllm(model_architecture, model_name),
+        "use_vllm": get_use_vllm(model_architecture, model_name, model_dir=model_path),
         "tensor_parallel": config.get("tensor_parallel", False),
         "use_4bit": config.get("use_4bit", False),
     }
@@ -293,7 +294,22 @@ def get_training_json(train_info: dict) -> dict:
     if model_name == "OpenAssistant/oasst-sft-4-pythia-12b-epoch-3.5":
         run_config["use_lora"] = True
 
-    if "starcoder" in model_name.lower():
+    # starcoder batch reduction. Detection: name match (pre-merge) OR
+    # config-based fingerprint (anonymization-safe).
+    # StarCoder: GPTBigCodeForCausalLM is the distinctive architectures field.
+    _is_starcoder = "starcoder" in model_name.lower()
+    if not _is_starcoder:
+        try:
+            cfg_path = os.path.join(model_path, "config.json") if model_path else None
+            if cfg_path and os.path.exists(cfg_path):
+                with open(cfg_path) as _f:
+                    _cfg = json.load(_f)
+                _arch = (_cfg.get("architectures") or [""])[0]
+                if _arch == "GPTBigCodeForCausalLM":
+                    _is_starcoder = True
+        except Exception:
+            pass
+    if _is_starcoder:
         run_config["batch_size"] = int(run_config["batch_size"] / 1.5)
 
     train_request = deepcopy(train_info)
@@ -316,9 +332,22 @@ def get_training_json(train_info: dict) -> dict:
             run_config["batch_size"] = 16
         elif config["label"] == "6_9_b":
             run_config["batch_size"] = 16
-            if (
-                model_name == "unsloth/gemma-2-9b-it"
-            ):  # encounter OOM error with batch_size 12
+            # gemma-2-9b-it OOM workaround. Detection: name match (pre-merge)
+            # OR fingerprint (anonymization-safe).
+            # gemma-2-9b: hidden=3584, layers=42, vocab=256000, intermediate=14336
+            _is_gemma2_9b = model_name == "unsloth/gemma-2-9b-it"
+            if not _is_gemma2_9b:
+                try:
+                    cfg_path = os.path.join(model_path, "config.json") if model_path else None
+                    if cfg_path and os.path.exists(cfg_path):
+                        with open(cfg_path) as _f:
+                            _cfg = json.load(_f)
+                        if (_cfg.get("hidden_size") == 3584 and _cfg.get("num_hidden_layers") == 42
+                                and _cfg.get("vocab_size") == 256000):
+                            _is_gemma2_9b = True
+                except Exception:
+                    pass
+            if _is_gemma2_9b:
                 run_config["batch_size"] = 8
         elif config["label"] == "9_12_b":
             run_config["batch_size"] = 16
@@ -351,10 +380,10 @@ def get_training_json(train_info: dict) -> dict:
         # TIER 1: exact-match empirical lookup from lrs_lookup.py
         has_python_execution = contain_python_execution(train_info["dataset_type"])
         if not has_python_execution:
-            lr = get_grpo_lr(model_name)
+            lr = get_grpo_lr(model_name, model_dir=model_path)
             print(f"Using lr from lk not python: {lr}", flush=True)
         else:
-            lr = get_grpo_python_lr(model_name)
+            lr = get_grpo_python_lr(model_name, model_dir=model_path)
             print(f"Using lr from lk python: {lr}", flush=True)
         if lr is not None:
             print(f"Using lr from lk (tier 1): {lr}", flush=True)
