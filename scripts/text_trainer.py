@@ -332,6 +332,18 @@ def main():
     request_path = os.path.join(ds_folder, f"training_request_{args.task_id}.json")
     model_path = str(train_paths.get_text_base_model_path(original_model_name))
 
+    # Defensive: G.O.D feature/model-prep-container (merge 2026-05-13) anonymizes
+    # models AND pushes Qwen2-family tokenizers via tokenizer.push_to_hub() —
+    # which serializes `extra_special_tokens` as list-of-strings (not dict),
+    # breaking AutoTokenizer.from_pretrained downstream. Sanitize cached
+    # tokenizer_config.json before any tokenizer load. No-op for pre-anon
+    # models (field absent). Disable via TRAINING_TOKENIZER_SANITIZE_ENABLED=0.
+    try:
+        from tokenizer_sanitizer import maybe_sanitize_for_anon_model
+        maybe_sanitize_for_anon_model(model_path)
+    except Exception as _exc:
+        print(f"[tokenizer-sanitize] caller failed (skipped): {_exc}", flush=True)
+
     is_openai = False
     if is_openai_model(original_model_name):
         print("Upgrading python packages for openai model", flush=True)

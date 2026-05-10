@@ -1,0 +1,105 @@
+"""
+Defensive tokenizer_config.json sanitizer for anonymized models.
+
+Background
+==========
+Validator's G.O.D `feature/model-prep-container` calls
+`tokenizer.push_to_hub()` after weight augmentation. For Qwen2-family
+tokenizers, HF transformers serializes `extra_special_tokens` as a
+**list of token strings** instead of a **dict** — a known transformers
+serialization quirk:
+
+    "extra_special_tokens": [
+        "<|im_start|>", "<|im_end|>", "<|object_ref_start|>", ...
+    ]
+
+When a downstream consumer calls `AutoTokenizer.from_pretrained()` on
+that repo, transformers crashes:
+
+    AttributeError: 'list' object has no attribute 'keys'
+    at tokenization_utils_base.py:1190
+        self.SPECIAL_TOKENS_ATTRIBUTES + list(special_tokens.keys())
+
+This module repairs the cached `tokenizer_config.json` BEFORE any
+tokenizer load, by removing the malformed `extra_special_tokens` field.
+The tokenizer rebuilds special tokens from `tokenizer.json` (which has
+correctly-formed `added_tokens` data).
+
+Idempotent: safe to call multiple times. Fail-soft: any error logged
+and skipped (won't block training).
+
+Trigger: G.O.D anonymized models (post `feature/model-prep-container`).
+Pre-anon models pass through unchanged (no `extra_special_tokens` field).
+"""
+
+from __future__ import annotations
+
+import json
+import os
+from pathlib import Path
+from typing import Any
+
+
+_SENTINEL_FIELD = "extra_special_tokens"
+
+
+def sanitize_tokenizer_config(model_dir: str) -> bool:
+    """Repair malformed tokenizer_config.json in place.
+
+    Returns True if a fix was applied, False if no-op (already clean).
+    Fail-soft on errors (logs + returns False).
+    """
+    cfg_path = Path(model_dir) / "tokenizer_config.json"
+    if not cfg_path.exists():
+        return False
+
+    try:
+        with open(cfg_path, "r", encoding="utf-8") as f:
+            cfg = json.load(f)
+    except Exception as exc:
+        print(f"[tokenizer-sanitize] read fail (skip): {cfg_path}: {exc}", flush=True)
+        return False
+
+    if not isinstance(cfg, dict):
+        return False
+
+    # Only repair if field exists AND is malformed (list)
+    raw = cfg.get(_SENTINEL_FIELD)
+    if raw is None:
+        return False
+    if not isinstance(raw, list):
+        # Already a dict — transformers happy, no-op
+        return False
+
+    # Repair: remove the field entirely. Tokenizer will rebuild special
+    # tokens from tokenizer.json's `added_tokens` (correctly structured).
+    del cfg[_SENTINEL_FIELD]
+
+    try:
+        with open(cfg_path, "w", encoding="utf-8") as f:
+            json.dump(cfg, f, indent=2, ensure_ascii=False)
+    except Exception as exc:
+        print(f"[tokenizer-sanitize] write fail (skip): {cfg_path}: {exc}", flush=True)
+        return False
+
+    print(
+        f"[tokenizer-sanitize] removed malformed `{_SENTINEL_FIELD}` "
+        f"(was list of {len(raw)} tokens) from {cfg_path}",
+        flush=True,
+    )
+    return True
+
+
+def maybe_sanitize_for_anon_model(model_path: str) -> None:
+    """Best-effort sanitizer entry point — call after model is in cache,
+    before any AutoTokenizer.from_pretrained().
+
+    Disable: TRAINING_TOKENIZER_SANITIZE_ENABLED=0
+    """
+    if os.getenv("TRAINING_TOKENIZER_SANITIZE_ENABLED", "1") != "1":
+        return
+    try:
+        sanitize_tokenizer_config(model_path)
+    except Exception as exc:
+        # Outer fail-soft (sanitize_tokenizer_config already fail-soft, but belt+suspenders)
+        print(f"[tokenizer-sanitize] outer fail (skip): {exc}", flush=True)
