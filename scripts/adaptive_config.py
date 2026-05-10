@@ -588,6 +588,35 @@ def build_adaptive_run_config(
     model_path = train_info["model_path"]
     task_id = train_info.get("task_id", "")
 
+    # Validator-provided BASELINE_STATS (post G.O.D feature/model-prep-container
+    # merge 2026-05-13). JSON env var with model weight stats, dataset stats,
+    # init_loss, grad norms. Empty/missing on pre-merge or non-augmented tasks.
+    # Spec: docs/tourn_miner.md (BASELINE_STATS env var, "Optional, safe to ignore")
+    baseline_stats: Dict = {}
+    try:
+        _bs_raw = os.getenv("BASELINE_STATS", "").strip()
+        if _bs_raw:
+            baseline_stats = json.loads(_bs_raw)
+            print(f"[adaptive] BASELINE_STATS env present: keys={list(baseline_stats.keys())}", flush=True)
+    except Exception as _exc:
+        print(f"[adaptive] BASELINE_STATS parse failed (skipped): {_exc}", flush=True)
+
+    # Recover original base model from anonymized model_dir via fingerprint.
+    # Validator scrubs `_name_or_path` from config.json but PRESERVES the
+    # architecture-defining fields (hidden_size, num_hidden_layers, vocab_size,
+    # intermediate_size). When fingerprint matches catalog entry, we recover
+    # the original model_id → can use existing lrs_lookup hash table for HP.
+    detected_base_model: Optional[str] = None
+    try:
+        from model_detection import identify_base_model
+        _det = identify_base_model(model_path)
+        if _det.get("base_model") and _det.get("confidence", 0.0) >= 0.9:
+            detected_base_model = _det["base_model"]
+            print(f"[adaptive] detected base_model={detected_base_model} via fingerprint "
+                  f"key={_det.get('fingerprint_key')} confidence={_det.get('confidence')}", flush=True)
+    except Exception as _exc:
+        print(f"[adaptive] base_model detection failed (skipped): {_exc}", flush=True)
+
     # Sensor 1: model from config (NO model_name)
     arch = detect_arch_family(model_path)
     param_count = get_param_count(model_path)
@@ -793,6 +822,63 @@ def build_adaptive_run_config(
     # If instruct adaptive provides explicit warmup_steps, use it instead
     if instruct_hp is not None:
         warmup = instruct_hp["warmup_steps"]
+
+    # ---------------------------------------------------------------------
+    # Augmentation-aware HP adjustment (post-merge BASELINE_STATS path)
+    # ---------------------------------------------------------------------
+    # When validator augments the base model (50% prob per AUGMENTATION_PROBABILITY),
+    # the BaselineStats payload contains weight_rms per layer group. Compare
+    # against canonical reference (canonical_weight_rms.json) to infer which
+    # of 4 augmentation types was applied + adjust HP accordingly.
+    # FAIL-SOFT: missing stats / unknown base model → no-op.
+    aug_info: Dict = {"detected_type": None, "confidence": 0.0}
+    if baseline_stats and detected_base_model:
+        try:
+            from model_detection import detect_augmentation
+            aug_info = detect_augmentation(baseline_stats, detected_base_model)
+            if aug_info.get("detected_type"):
+                print(f"[adaptive] augmentation detected: type={aug_info['detected_type']} "
+                      f"intensity={aug_info.get('intensity')} confidence={aug_info['confidence']} "
+                      f"groups={aug_info.get('affected_groups')}", flush=True)
+        except Exception as _exc:
+            print(f"[adaptive] augmentation detection failed (skipped): {_exc}", flush=True)
+
+    if aug_info.get("detected_type") == "MAGNITUDE_PRUNING":
+        # Pruned weights need slightly higher LR to recover lost capacity.
+        # Range: 5-15% weights zeroed; modest +15% LR bump.
+        init_lr *= 1.15
+        print(f"[adaptive] MAGNITUDE_PRUNING → init_lr×1.15 = {init_lr:.2e}", flush=True)
+    elif aug_info.get("detected_type") == "LAYER_REINIT":
+        # Random reinit needs longer warmup so reinit'd layer can converge with
+        # rest of network. Double existing warmup; floor 70 if previously zero.
+        warmup = max(70, warmup * 2)
+        print(f"[adaptive] LAYER_REINIT → warmup_steps={warmup}", flush=True)
+    elif aug_info.get("detected_type") == "GAUSSIAN_NOISE":
+        # Already noisy; turn off NEFTune to avoid stacking regularization.
+        # Only meaningful for Instruct (DPO/GRPO don't use NEFTune by default).
+        if instruct_hp is not None:
+            instruct_hp["neftune_alpha"] = 0
+            print(f"[adaptive] GAUSSIAN_NOISE → neftune_alpha=0 (avoid stacking)", flush=True)
+    # WEIGHT_SCALING: keep current HP — model is just rescaled, training dynamics
+    # still match the base model.
+
+    # Use validator-provided init_loss to refine epochs (replaces internal probe)
+    if "training" in baseline_stats and isinstance(baseline_stats["training"], dict):
+        _bs_init_loss = baseline_stats["training"].get("init_loss")
+        if isinstance(_bs_init_loss, (int, float)) and _bs_init_loss > 0:
+            try:
+                refined_epochs = adaptive_epochs_from_init_loss(
+                    float(_bs_init_loss), ds_metrics.num_samples, param_count
+                )
+                if refined_epochs != epochs:
+                    print(f"[adaptive] BASELINE_STATS init_loss={_bs_init_loss:.4f} → "
+                          f"epochs {epochs} → {refined_epochs}", flush=True)
+                    epochs = refined_epochs
+                    total_steps = max(100, ds_metrics.num_samples * epochs // (batch * gpu_count))
+                    if instruct_hp is None:
+                        warmup = adaptive_warmup_steps(total_steps)
+            except Exception as _exc:
+                print(f"[adaptive] init_loss epoch refine failed (skipped): {_exc}", flush=True)
 
     # Gradient accumulation: same logic as legacy (ensure total_batch ≥ 64)
     grad_accum = 1
