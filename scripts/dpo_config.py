@@ -201,12 +201,12 @@ def get_training_json(train_info: dict) -> dict:
         "use_liger": get_use_liger(model_architecture),
         "optimizer": "paged_adamw_8bit",
         "use_lora": config.get("use_lora", False),
-        "disable_fa": disable_flash_attention(model_architecture, model_name),
+        "disable_fa": disable_flash_attention(model_architecture, model_name, model_dir=model_path),
         "gpu_nums": config["gpu_count"],
         "output_dir": train_info["output_dir"],
         "request_path": train_info["request_path"],
         "distributed": config.get("distributed", "ddp"),
-        "gradient_checkpointing": get_gradient_checkpointing(model_name),
+        "gradient_checkpointing": get_gradient_checkpointing(model_name, model_dir=model_path),
         "gradient_accumulation_steps": 1,
         # NEFTune for DPO REVERTED (2026-04-30): empirical regression in
         # task 96421 v14 — eval_loss 0.66 vs v10 baseline 0.44 (+50% worse).
@@ -223,8 +223,9 @@ def get_training_json(train_info: dict) -> dict:
         run_config["gradient_accumulation_steps"] = min(4, int(64 / total_batch_size))
     
     if train_info["find_lk_lr"]:
-        # get lr from lrs_lookup.py
-        lr = get_dpo_lr(model_name)
+        # get lr from lrs_lookup.py — pass model_dir for post-anonymization
+        # detection-based recovery
+        lr = get_dpo_lr(model_name, model_dir=model_path)
         if lr is not None:
             print(f"Using lr from lk: {lr}", flush=True)
             run_config["learning_rate"] = lr

@@ -124,20 +124,71 @@ def get_model_num_params(model_id: str, model_path: str) -> int:
             return None
 
 
-def disable_flash_attention(architecture: str, model: str) -> str:
-    if model == "microsoft/phi-2":  
+def _read_config_safe(model_dir):
+    """Read config.json — fail-soft. Returns dict or None."""
+    if not model_dir:
+        return None
+    try:
+        cfg_path = os.path.join(model_dir, "config.json")
+        if not os.path.exists(cfg_path):
+            return None
+        with open(cfg_path) as f:
+            return json.load(f)
+    except Exception:
+        return None
+
+
+def disable_flash_attention(architecture: str, model: str, model_dir: str = None) -> str:
+    # Config-based (anonymization-safe) — preferred when model_dir available
+    cfg = _read_config_safe(model_dir)
+    if cfg is not None:
+        arch_field = (cfg.get("architectures") or [""])[0]
+        # Phi-2: PhiForCausalLM + hidden_size=2560 (distinct from Phi-3)
+        if arch_field == "PhiForCausalLM" and cfg.get("hidden_size") == 2560:
+            return "True"
+        # Falcon-RW: model_type=falcon + parallel_attn flag
+        if cfg.get("model_type") == "falcon" and cfg.get("parallel_attn"):
+            return "True"
+
+    # Legacy name-based (works pre-merge / when model_dir unavailable)
+    if model == "microsoft/phi-2":
         return "True"
     if "falcon-rw" in model.lower():  # ex, tiiuae/falcon-rw-1b
         return "True"
-    # if model == "databricks/dolly-v2-3b":
-    #    return "True"
+
+    # Architecture string — already anonymization-safe (comes from config)
     if architecture.strip().lower() in ["gptneoforcausallm", "bloomforcausallm", "gptossforcausallm"]:
         return "True"
     else:
         return "False"
 
 
-def get_use_vllm(architecture: str, model: str) -> str:
+# Fingerprint catalog for vllm blocklist (anonymization-safe lookup).
+# Source: hand-curated from main branch's get_use_vllm string blocklist.
+# Format: "(hidden_size,num_hidden_layers,vocab_size,intermediate_size)" → True/False
+_VLLM_BLOCKLIST_FINGERPRINTS = {
+    # microsoft/phi-2: PhiForCausalLM, hidden=2560, layers=32, vocab=51200
+    "2560,32,51200,10240": False,
+    # databricks/dolly-v2-3b: GPTNeoXForCausalLM, hidden=2560, layers=32, vocab=50280
+    "2560,32,50280,10240": False,
+    # openlm-research/open_llama_3b: LlamaForCausalLM, hidden=3200, layers=26, vocab=32000
+    "3200,26,32000,8640": False,
+}
+
+
+def get_use_vllm(architecture: str, model: str, model_dir: str = None) -> str:
+    # Config-based check (anonymization-safe)
+    cfg = _read_config_safe(model_dir)
+    if cfg is not None:
+        fp_key = ",".join(str(cfg.get(k, "")) for k in
+                          ("hidden_size", "num_hidden_layers", "vocab_size", "intermediate_size"))
+        if fp_key in _VLLM_BLOCKLIST_FINGERPRINTS:
+            return _VLLM_BLOCKLIST_FINGERPRINTS[fp_key]
+        # Falcon-RW pattern
+        if cfg.get("model_type") == "falcon" and cfg.get("parallel_attn"):
+            return False
+
+    # Legacy name-based blocklist (works pre-merge)
     if model in [
         "Eurdem/Defne_llama3_2x8B",
         "heegyu/WizardVicuna-open-llama-3b-v2",
@@ -158,7 +209,13 @@ def get_use_vllm(architecture: str, model: str) -> str:
         return True
 
 
-def get_gradient_checkpointing(model: str) -> str:
+def get_gradient_checkpointing(model: str, model_dir: str = None) -> str:
+    # Config-based: Falcon-RW has parallel_attn=True
+    cfg = _read_config_safe(model_dir)
+    if cfg is not None and cfg.get("model_type") == "falcon" and cfg.get("parallel_attn"):
+        return "False"
+
+    # Legacy name-based
     if "falcon-rw" in model.lower():
         return "False"
     return "True"
