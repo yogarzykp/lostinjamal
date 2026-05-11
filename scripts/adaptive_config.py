@@ -299,21 +299,43 @@ def _classify_model_family_safe(model_name: Optional[str]) -> str:
     return "unknown"
 
 
-def _resolve_family(arch_family: str, model_name: Optional[str]) -> str:
+def _resolve_family(
+    arch_family: str,
+    model_name: Optional[str],
+    detected_base_model: Optional[str] = None,
+) -> str:
     """Resolve effective family from BOTH structural arch + name signals.
 
-    Priority order:
-    1. Name maps to specific profile family → use it (most specific wins)
-    2. Arch maps to known profile → use it
-    3. Arch maps via aliasing (llama→tinyllama, mistral→tinyllama, deepseek→qwen)
-    4. Fall back to "unknown" profile
+    Priority order (UPDATED 2026-05-12 — critical bug fix):
+    1. detected_base_model (from fingerprint, anon-resilient) → classify it
+    2. model_name maps to specific profile family → use it
+    3. Arch maps to known profile → use it
+    4. Arch maps via aliasing (llama→tinyllama, mistral→tinyllama, deepseek→qwen)
+    5. Fall back to "unknown" profile
+
+    BUG FIX 2026-05-12: anonymized SmolLM2-360M reports arch=llama,
+    name=firzahdzm/augmented-XXX (no "smollm" substring). Previously fell
+    through to arch_aliases["llama"]→"tinyllama" — SmolLM profile patches
+    were dead code. Now consults detected_base_model (e.g.
+    "HuggingFaceTB/SmolLM2-360M" recovered via fingerprint) FIRST so
+    family resolution works on anonymized models.
     """
+    # Tier 1: fingerprint-recovered base_model (anon-resilient PRIMARY signal)
+    if detected_base_model:
+        det_family = _classify_model_family_safe(detected_base_model)
+        if det_family in _FAMILY_PROFILES and det_family != "unknown":
+            return det_family
+
+    # Tier 2: raw model_name (pre-anonymization fallback)
     name_family = _classify_model_family_safe(model_name)
     if name_family in _FAMILY_PROFILES and name_family != "unknown":
         return name_family
 
+    # Tier 3: arch family direct
     if arch_family in _FAMILY_PROFILES:
         return arch_family
+
+    # Tier 4: arch aliases (conservative — only when no better signal)
     arch_aliases = {
         "llama": "tinyllama",
         "mistral": "tinyllama",
@@ -479,19 +501,22 @@ def _compute_instruct_adaptive_hp(
     data_size: int,
     seq_p95: int,
     model_name: Optional[str] = None,
+    detected_base_model: Optional[str] = None,
 ) -> Dict:
     """Build family-aware adaptive HP for Instruct task.
 
     RICHER than master-text:
     - master-text: (param_count, data_size, family_name)
-    - ours: (arch_family, family_name, param_count, data_size, seq_p95)
+    - ours: (arch_family, family_name, detected_base_model, param_count, data_size, seq_p95)
 
-    Multi-signal: when model_name available, use it for family resolution.
-    When not (anonymization), fall back to arch_family from config.
+    Multi-signal priority (UPDATED 2026-05-12 — anon bug fix):
+    1. detected_base_model (fingerprint-recovered, anon-resilient) — PRIMARY
+    2. model_name string-match — fallback when fingerprint missed
+    3. arch_family from config (last resort)
 
     Returns dict mergable into run_config.
     """
-    family = _resolve_family(arch_family, model_name)
+    family = _resolve_family(arch_family, model_name, detected_base_model)
     profile = _FAMILY_PROFILES[family]
 
     is_small_data = data_size < 3_000
@@ -738,6 +763,7 @@ def build_adaptive_run_config(
             data_size=ds_metrics.num_samples,
             seq_p95=ds_metrics.seq_len_p95,
             model_name=train_info.get("model_name") or train_info.get("model"),
+            detected_base_model=detected_base_model,  # fingerprint-recovered for anon-resilient family resolution
         )
 
         # ----------------------------------------------------------------------
