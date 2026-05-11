@@ -991,6 +991,29 @@ def build_adaptive_run_config(
     print(f"[adaptive] arch={arch} param={param_count:,} ds_n={ds_metrics.num_samples} seq_p95={ds_metrics.seq_len_p95}", flush=True)
     print(f"[adaptive] PLAN: lr={init_lr:.2e} batch={batch} epochs={epochs} max_len={max_length} lora={use_lora} grad_accum={grad_accum}", flush=True)
 
+    # SUGGESTION TIER (advisory only — NOT applied):
+    # General HP resolver consults empirical_hp_rules.json (winner medians per
+    # family×size×task_type). Logs side-by-side comparison for human inspection.
+    # Decision NOT auto-applied because resolver lacks task_class disaggregation
+    # (translation/skill cluster differs ~4× — see research_aggregate output).
+    # Override per-task via env if resolver suggestion seems better:
+    #   ADAPTIVE_LR_OVERRIDE=<value> python ...
+    try:
+        from general_hp_resolver import resolve_hp
+        suggestion = resolve_hp(
+            model_path,
+            task_type_lc,
+            num_dataset_samples=ds_metrics.num_samples,
+        )
+        sug_lr = suggestion.get("learning_rate")
+        if sug_lr and sug_lr > 0:
+            ratio = sug_lr / init_lr if init_lr > 0 else 0
+            print(f"[resolver] SUGGESTION: lr={sug_lr:.2e} ({suggestion.get('_source_tier','?')} "
+                  f"n={suggestion.get('_empirical_n','?')} task_class={suggestion.get('_task_class','?')}) "
+                  f"vs adaptive_init_lr={init_lr:.2e} → ratio={ratio:.2f}x", flush=True)
+    except Exception as _exc:
+        print(f"[resolver] suggestion failed (skipped): {_exc}", flush=True)
+
     return run_config, arch
 
 
