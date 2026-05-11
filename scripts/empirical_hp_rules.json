@@ -270,17 +270,14 @@
     },
     "qwen|1_2b|instruct": {
       "_models_seen": [
-        "Qwen/Qwen2.5-1.5B",
         "Qwen/Qwen2.5-1.5B-Instruct",
         "gradients-io-tournaments/organic_12ef9675-98b7-4fc3-aadf-3e4698dd1458",
-        "gradients-io-tournaments/organic_c43f5765-45db-4630-996d-29c2f299b207",
-        "unsloth/Qwen2.5-1.5B",
-        "unsloth/Qwen2.5-1.5B-Instruct"
+        "gradients-io-tournaments/organic_c43f5765-45db-4630-996d-29c2f299b207"
       ],
       "learning_rate": {
-        "n": 9,
-        "min": 6.6e-05,
-        "p25": 8.071428571428571e-05,
+        "n": 5,
+        "min": 0.00012438300000000002,
+        "p25": 0.00012438300000000002,
         "median": 0.00012438300000000002,
         "p75": 0.00012438300000000002,
         "max": 0.00012438300000000002
@@ -335,24 +332,21 @@
       },
       "_source_breakdown": {
         "winner_data": 5,
-        "lrs_reverse": 4
+        "lrs_reverse": 0
       }
     },
     "qwen|5_9b|instruct": {
       "_models_seen": [
-        "Qwen/Qwen2.5-7B",
         "Qwen/Qwen2.5-7B-Instruct",
         "Qwen/Qwen2.5-Coder-7B-Instruct",
-        "Qwen/Qwen3-8B",
         "diagonalge/merged-tournament-tourn_ffad48bf06595191_20260330-3e50365b-b8b3-4134-889d-0a17169b8f4b-5HKqQVLK",
-        "gradients-io-tournaments/organic_4c914e87-a1e7-42a2-bcd3-3e68601459a5",
-        "unsloth/Qwen2.5-Coder-7B-Instruct"
+        "gradients-io-tournaments/organic_4c914e87-a1e7-42a2-bcd3-3e68601459a5"
       ],
       "learning_rate": {
-        "n": 23,
+        "n": 18,
         "min": 2.8762661600235083e-05,
         "p25": 3.791657247332752e-05,
-        "median": 5.333333333333334e-05,
+        "median": 6.299258433095981e-05,
         "p75": 9.15713791915204e-05,
         "max": 0.00010040602067426178
       },
@@ -406,7 +400,7 @@
       },
       "_source_breakdown": {
         "winner_data": 18,
-        "lrs_reverse": 5
+        "lrs_reverse": 0
       }
     },
     "qwen|35b+|instruct": {
@@ -816,18 +810,14 @@
     "llama|5_9b|dpo": {
       "_models_seen": [
         "codellama/CodeLlama-7b-Instruct-hf",
-        "codellama/CodeLlama-7b-hf",
-        "oopsung/llama2-7b-n-ox-test-v1",
-        "scb10x/llama-3-typhoon-v1.5-8b-instruct",
-        "unsloth/Meta-Llama-3.1-8B",
-        "unsloth/Meta-Llama-3.1-8B-Instruct"
+        "scb10x/llama-3-typhoon-v1.5-8b-instruct"
       ],
       "learning_rate": {
-        "n": 10,
-        "min": 6.633333333333333e-06,
-        "p25": 1.2487998821361307e-05,
-        "median": 2.0736318241277297e-05,
-        "p75": 3e-05,
+        "n": 4,
+        "min": 1.2487998821361307e-05,
+        "p25": 2.0805969815887928e-05,
+        "median": 2.9856651413582174e-05,
+        "p75": 4.096922839924099e-05,
         "max": 4.096922839924099e-05
       },
       "weight_decay": {
@@ -880,22 +870,21 @@
       },
       "_source_breakdown": {
         "winner_data": 4,
-        "lrs_reverse": 6
+        "lrs_reverse": 0
       }
     },
     "tinyllama|1_2b|instruct": {
       "_models_seen": [
-        "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
         "TinyLlama/TinyLlama_v1.1",
         "princeton-nlp/Sheared-LLaMA-1.3B"
       ],
       "learning_rate": {
-        "n": 8,
+        "n": 5,
         "min": 4.977903843331997e-05,
         "p25": 7.571706828623765e-05,
-        "median": 8.65903021302827e-05,
-        "p75": 9.986072150477496e-05,
-        "max": 0.0001263505220325438
+        "median": 9.152115620932127e-05,
+        "p75": 9.525991242957863e-05,
+        "max": 9.986072150477496e-05
       },
       "weight_decay": {
         "n": 5,
@@ -947,7 +936,7 @@
       },
       "_source_breakdown": {
         "winner_data": 5,
-        "lrs_reverse": 3
+        "lrs_reverse": 0
       }
     },
     "phi|2_4b|instruct": {
@@ -2705,8 +2694,8 @@
     },
     "confidence_dist": {
       "LOW": 48,
-      "MED": 20,
-      "HIGH": 7,
+      "MED": 22,
+      "HIGH": 5,
       "LOW-ok": 25,
       "MED-low": 1
     }
