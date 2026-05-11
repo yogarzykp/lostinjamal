@@ -1,0 +1,1447 @@
+{
+  "_meta": {
+    "lrs_total": 783,
+    "candidates_tried": 191,
+    "matched": 236,
+    "coverage_pct": 30.1,
+    "by_task": {
+      "instruct": 72,
+      "dpo": 66,
+      "grpo": 70,
+      "grpo_python": 28
+    },
+    "by_family": {
+      "gpt_neo": 13,
+      "llama": 45,
+      "mistral": 3,
+      "qwen": 68,
+      "tinyllama": 18,
+      "other": 10,
+      "starcoder": 2,
+      "bloom": 4,
+      "opt": 8,
+      "phi": 25,
+      "falcon": 8,
+      "smollm": 23,
+      "gemma": 9
+    }
+  },
+  "matches": [
+    {
+      "model_id": "EleutherAI/gpt-neo-1.3B",
+      "task_type": "instruct",
+      "lr": 9.285714285714285e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "EleutherAI/gpt-neo-1.3B",
+      "task_type": "dpo",
+      "lr": 2.175e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "EleutherAI/gpt-neo-1.3B",
+      "task_type": "grpo",
+      "lr": 0.0001,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "EleutherAI/gpt-neo-125m",
+      "task_type": "instruct",
+      "lr": 0.0003,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "EleutherAI/gpt-neo-125m",
+      "task_type": "dpo",
+      "lr": 2.3e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "EleutherAI/gpt-neo-125m",
+      "task_type": "grpo",
+      "lr": 0.000246,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "EleutherAI/gpt-neo-125m",
+      "task_type": "grpo_python",
+      "lr": 0.0008,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "EleutherAI/pythia-160m",
+      "task_type": "instruct",
+      "lr": 0.00012,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "EleutherAI/pythia-160m",
+      "task_type": "dpo",
+      "lr": 2.3472222222222223e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "EleutherAI/pythia-160m",
+      "task_type": "grpo",
+      "lr": 0.0006513333333333333,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "EleutherAI/pythia-1b",
+      "task_type": "instruct",
+      "lr": 7.999999999999999e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "EleutherAI/pythia-1b",
+      "task_type": "dpo",
+      "lr": 1.939574189111255e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "EleutherAI/pythia-1b",
+      "task_type": "grpo",
+      "lr": 0.00015166666666666668,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "Eurdem/Defne_llama3_2x8B",
+      "task_type": "instruct",
+      "lr": 2.8333333333333335e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "Eurdem/Defne_llama3_2x8B",
+      "task_type": "grpo",
+      "lr": 5.500000000000001e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "JackFram/llama-160m",
+      "task_type": "instruct",
+      "lr": 0.00057,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "JackFram/llama-160m",
+      "task_type": "dpo",
+      "lr": 2.5666666666666666e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "JackFram/llama-160m",
+      "task_type": "grpo",
+      "lr": 0.00014833333333333335,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "NousResearch/Nous-Hermes-2-Mistral-7B-DPO",
+      "task_type": "instruct",
+      "lr": 5e-06,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "NousResearch/Nous-Hermes-2-Mistral-7B-DPO",
+      "task_type": "dpo",
+      "lr": 8e-06,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "NousResearch/Nous-Hermes-2-Mistral-7B-DPO",
+      "task_type": "grpo",
+      "lr": 9e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "Qwen/Qwen2.5-0.5B",
+      "task_type": "instruct",
+      "lr": 9.250000000000001e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "Qwen/Qwen2.5-0.5B",
+      "task_type": "dpo",
+      "lr": 1.5e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "Qwen/Qwen2.5-0.5B",
+      "task_type": "grpo",
+      "lr": 0.000218,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "Qwen/Qwen2.5-0.5B",
+      "task_type": "grpo_python",
+      "lr": 0.000192,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "Qwen/Qwen2.5-0.5B-Instruct",
+      "task_type": "instruct",
+      "lr": 6.513849756216366e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "Qwen/Qwen2.5-0.5B-Instruct",
+      "task_type": "dpo",
+      "lr": 1.1753714233182608e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "Qwen/Qwen2.5-0.5B-Instruct",
+      "task_type": "grpo",
+      "lr": 0.0001392,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "Qwen/Qwen2.5-1.5B",
+      "task_type": "instruct",
+      "lr": 8.071428571428571e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "Qwen/Qwen2.5-1.5B",
+      "task_type": "dpo",
+      "lr": 1.45e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "Qwen/Qwen2.5-1.5B",
+      "task_type": "grpo",
+      "lr": 0.00020611111111111112,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "Qwen/Qwen2.5-1.5B",
+      "task_type": "grpo_python",
+      "lr": 0.00011142857142857142,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "Qwen/Qwen2.5-1.5B-Instruct",
+      "task_type": "instruct",
+      "lr": 0.0001,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "Qwen/Qwen2.5-1.5B-Instruct",
+      "task_type": "dpo",
+      "lr": 2.1875e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "Qwen/Qwen2.5-1.5B-Instruct",
+      "task_type": "grpo",
+      "lr": 8.5e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "Qwen/Qwen2.5-14B-Instruct",
+      "task_type": "dpo",
+      "lr": 2e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "Qwen/Qwen2.5-14B-Instruct",
+      "task_type": "grpo",
+      "lr": 9e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "Qwen/Qwen2.5-14B-Instruct",
+      "task_type": "grpo_python",
+      "lr": 2.7e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "Qwen/Qwen2.5-3B",
+      "task_type": "instruct",
+      "lr": 6.285737889599296e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "Qwen/Qwen2.5-3B",
+      "task_type": "dpo",
+      "lr": 3.0133333333333335e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "Qwen/Qwen2.5-3B",
+      "task_type": "grpo",
+      "lr": 8.5e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "Qwen/Qwen2.5-3B",
+      "task_type": "grpo_python",
+      "lr": 0.00013666666666666666,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "Qwen/Qwen2.5-3B-Instruct",
+      "task_type": "instruct",
+      "lr": 8.537885956879873e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "Qwen/Qwen2.5-3B-Instruct",
+      "task_type": "dpo",
+      "lr": 5.333333333333333e-06,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "Qwen/Qwen2.5-3B-Instruct",
+      "task_type": "grpo",
+      "lr": 0.00013904761904761905,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "Qwen/Qwen2.5-3B-Instruct",
+      "task_type": "grpo_python",
+      "lr": 8.466666666666667e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "Qwen/Qwen2.5-7B",
+      "task_type": "instruct",
+      "lr": 4.4000000000000006e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "Qwen/Qwen2.5-7B",
+      "task_type": "dpo",
+      "lr": 1.0829956107734027e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "Qwen/Qwen2.5-7B",
+      "task_type": "grpo",
+      "lr": 6.16e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "Qwen/Qwen2.5-7B",
+      "task_type": "grpo_python",
+      "lr": 0.0001,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "Qwen/Qwen2.5-7B-Instruct",
+      "task_type": "instruct",
+      "lr": 3.5000000000000004e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "Qwen/Qwen2.5-7B-Instruct",
+      "task_type": "dpo",
+      "lr": 8e-06,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "Qwen/Qwen2.5-7B-Instruct",
+      "task_type": "grpo",
+      "lr": 8.200000000000001e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "Qwen/Qwen2.5-7B-Instruct",
+      "task_type": "grpo_python",
+      "lr": 3.066666666666667e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "Qwen/Qwen2.5-Coder-32B-Instruct",
+      "task_type": "instruct",
+      "lr": 0.00012,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "Qwen/Qwen2.5-Coder-7B-Instruct",
+      "task_type": "instruct",
+      "lr": 5.333333333333334e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "Qwen/Qwen2.5-Coder-7B-Instruct",
+      "task_type": "dpo",
+      "lr": 2.64e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "Qwen/Qwen2.5-Coder-7B-Instruct",
+      "task_type": "grpo",
+      "lr": 6e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "Qwen/Qwen2.5-Coder-7B-Instruct",
+      "task_type": "grpo_python",
+      "lr": 5.916666666666667e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "Qwen/Qwen3-14B",
+      "task_type": "dpo",
+      "lr": 1.3000000000000001e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "Qwen/Qwen3-32B",
+      "task_type": "instruct",
+      "lr": 0.00020129159993503634,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "Qwen/Qwen3-32B",
+      "task_type": "dpo",
+      "lr": 2.2499999999999998e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "Qwen/Qwen3-4B",
+      "task_type": "instruct",
+      "lr": 5.5e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "Qwen/Qwen3-4B",
+      "task_type": "dpo",
+      "lr": 1.9225e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "Qwen/Qwen3-4B",
+      "task_type": "grpo",
+      "lr": 0.00010625000000000001,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "Qwen/Qwen3-4B",
+      "task_type": "grpo_python",
+      "lr": 7.000000000000001e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "Qwen/Qwen3-8B",
+      "task_type": "instruct",
+      "lr": 5.534265143109149e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "Qwen/Qwen3-8B",
+      "task_type": "dpo",
+      "lr": 1.4733333333333332e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "Qwen/Qwen3-8B",
+      "task_type": "grpo",
+      "lr": 8.666666666666668e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+      "task_type": "instruct",
+      "lr": 0.0001263505220325438,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+      "task_type": "dpo",
+      "lr": 1.9999999999999998e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+      "task_type": "grpo",
+      "lr": 8.90625e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+      "task_type": "grpo_python",
+      "lr": 0.00015714285714285713,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "TinyLlama/TinyLlama_v1.1",
+      "task_type": "instruct",
+      "lr": 8.165944805124412e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "TinyLlama/TinyLlama_v1.1",
+      "task_type": "dpo",
+      "lr": 1.9999999999999998e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "TinyLlama/TinyLlama_v1.1",
+      "task_type": "grpo",
+      "lr": 0.0003283333333333333,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "TinyLlama/TinyLlama_v1.1",
+      "task_type": "grpo_python",
+      "lr": 0.00014000000000000001,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "TitanML/tiny-mixtral",
+      "task_type": "instruct",
+      "lr": 0.001,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "TitanML/tiny-mixtral",
+      "task_type": "dpo",
+      "lr": 2.809777365443863e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "TitanML/tiny-mixtral",
+      "task_type": "grpo",
+      "lr": 0.0006513333333333333,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "bigcode/starcoder2-3b",
+      "task_type": "dpo",
+      "lr": 7.974762274046627e-06,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "bigcode/starcoder2-3b",
+      "task_type": "grpo",
+      "lr": 0.00010333333333333333,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "bigscience/bloom-560m",
+      "task_type": "instruct",
+      "lr": 6.470387920921663e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "bigscience/bloom-560m",
+      "task_type": "dpo",
+      "lr": 9.359217523013117e-06,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "bigscience/bloomz-560m",
+      "task_type": "instruct",
+      "lr": 4.866666666666666e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "bigscience/bloomz-560m",
+      "task_type": "dpo",
+      "lr": 8.805555555555555e-06,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "codellama/CodeLlama-7b-Instruct-hf",
+      "task_type": "instruct",
+      "lr": 8.491106350387504e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "codellama/CodeLlama-7b-Instruct-hf",
+      "task_type": "dpo",
+      "lr": 2.0666666666666666e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "codellama/CodeLlama-7b-Instruct-hf",
+      "task_type": "grpo",
+      "lr": 8.200000000000001e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "codellama/CodeLlama-7b-hf",
+      "task_type": "instruct",
+      "lr": 6.73727846478347e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "codellama/CodeLlama-7b-hf",
+      "task_type": "dpo",
+      "lr": 3e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "codellama/CodeLlama-7b-hf",
+      "task_type": "grpo",
+      "lr": 8.833333333333334e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "codellama/CodeLlama-7b-hf",
+      "task_type": "grpo_python",
+      "lr": 0.00015000000000000001,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "databricks/dolly-v2-3b",
+      "task_type": "instruct",
+      "lr": 7.2e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "databricks/dolly-v2-3b",
+      "task_type": "dpo",
+      "lr": 1.725e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "databricks/dolly-v2-3b",
+      "task_type": "grpo",
+      "lr": 0.000105,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "dunzhang/stella_en_1.5B_v5",
+      "task_type": "instruct",
+      "lr": 0.00036,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "dunzhang/stella_en_1.5B_v5",
+      "task_type": "dpo",
+      "lr": 1.0483418102391077e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "dunzhang/stella_en_1.5B_v5",
+      "task_type": "grpo",
+      "lr": 0.0002635,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "dunzhang/stella_en_1.5B_v5",
+      "task_type": "grpo_python",
+      "lr": 2.114285714285714e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "facebook/opt-1.3b",
+      "task_type": "instruct",
+      "lr": 6.4e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "facebook/opt-1.3b",
+      "task_type": "grpo",
+      "lr": 0.0002,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "facebook/opt-125m",
+      "task_type": "instruct",
+      "lr": 9.400000000000001e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "facebook/opt-125m",
+      "task_type": "dpo",
+      "lr": 2.6733333333333334e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "facebook/opt-125m",
+      "task_type": "grpo",
+      "lr": 0.00038514285714285717,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "facebook/opt-350m",
+      "task_type": "instruct",
+      "lr": 8.800000000000001e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "facebook/opt-350m",
+      "task_type": "dpo",
+      "lr": 3.126666666666666e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "facebook/opt-350m",
+      "task_type": "grpo",
+      "lr": 0.00047400000000000003,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "heegyu/WizardVicuna-open-llama-3b-v2",
+      "task_type": "instruct",
+      "lr": 6.285714285714286e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "heegyu/WizardVicuna-open-llama-3b-v2",
+      "task_type": "dpo",
+      "lr": 1.5616666666666666e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "heegyu/WizardVicuna-open-llama-3b-v2",
+      "task_type": "grpo",
+      "lr": 0.0001,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "microsoft/Phi-3-mini-128k-instruct",
+      "task_type": "instruct",
+      "lr": 0.0001392636945725434,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "microsoft/Phi-3-mini-128k-instruct",
+      "task_type": "dpo",
+      "lr": 1.7129635878049104e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "microsoft/Phi-3-mini-128k-instruct",
+      "task_type": "grpo",
+      "lr": 7.000000000000001e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "microsoft/Phi-3-mini-4k-instruct",
+      "task_type": "instruct",
+      "lr": 0.00011275020653786903,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "microsoft/Phi-3-mini-4k-instruct",
+      "task_type": "dpo",
+      "lr": 2.02e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "microsoft/Phi-3-mini-4k-instruct",
+      "task_type": "grpo",
+      "lr": 0.00011133333333333333,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "microsoft/Phi-3.5-mini-instruct",
+      "task_type": "instruct",
+      "lr": 0.00011287226121782814,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "microsoft/Phi-3.5-mini-instruct",
+      "task_type": "grpo",
+      "lr": 0.00016833333333333332,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "microsoft/phi-1_5",
+      "task_type": "instruct",
+      "lr": 0.00016864480126468348,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "microsoft/phi-1_5",
+      "task_type": "dpo",
+      "lr": 9.466666666666667e-06,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "microsoft/phi-1_5",
+      "task_type": "grpo",
+      "lr": 7.75e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "microsoft/phi-1_5",
+      "task_type": "grpo_python",
+      "lr": 0.00029428571428571427,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "microsoft/phi-2",
+      "task_type": "instruct",
+      "lr": 5.6000000000000006e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "microsoft/phi-2",
+      "task_type": "dpo",
+      "lr": 1.28e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "microsoft/phi-2",
+      "task_type": "grpo",
+      "lr": 8.8e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "microsoft/phi-2",
+      "task_type": "grpo_python",
+      "lr": 4.633333333333334e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "oopsung/llama2-7b-n-ox-test-v1",
+      "task_type": "instruct",
+      "lr": 7.12485286238747e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "oopsung/llama2-7b-n-ox-test-v1",
+      "task_type": "dpo",
+      "lr": 1.0999999999999998e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "oopsung/llama2-7b-n-ox-test-v1",
+      "task_type": "grpo",
+      "lr": 8.333333333333333e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "openlm-research/open_llama_3b",
+      "task_type": "instruct",
+      "lr": 9.793797068210041e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "openlm-research/open_llama_3b",
+      "task_type": "dpo",
+      "lr": 1.22e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "openlm-research/open_llama_3b",
+      "task_type": "grpo",
+      "lr": 9.5e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "openlm-research/open_llama_3b",
+      "task_type": "grpo_python",
+      "lr": 0.00013666666666666666,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "princeton-nlp/Sheared-LLaMA-1.3B",
+      "task_type": "instruct",
+      "lr": 6.285714285714286e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "princeton-nlp/Sheared-LLaMA-1.3B",
+      "task_type": "dpo",
+      "lr": 1.3999999999999998e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "princeton-nlp/Sheared-LLaMA-1.3B",
+      "task_type": "grpo",
+      "lr": 0.00021333333333333336,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "princeton-nlp/Sheared-LLaMA-1.3B",
+      "task_type": "grpo_python",
+      "lr": 0.00019999999999999998,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "scb10x/llama-3-typhoon-v1.5-8b-instruct",
+      "task_type": "instruct",
+      "lr": 3.5000000000000004e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "scb10x/llama-3-typhoon-v1.5-8b-instruct",
+      "task_type": "dpo",
+      "lr": 6.633333333333333e-06,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "scb10x/llama-3-typhoon-v1.5-8b-instruct",
+      "task_type": "grpo",
+      "lr": 2.5e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "tiiuae/falcon-7b",
+      "task_type": "instruct",
+      "lr": 5.66142479312838e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "tiiuae/falcon-7b",
+      "task_type": "dpo",
+      "lr": 1.818479642385418e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "tiiuae/falcon-7b",
+      "task_type": "grpo",
+      "lr": 0.000125,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "tiiuae/falcon-7b",
+      "task_type": "grpo_python",
+      "lr": 9e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "tiiuae/falcon-rw-1b",
+      "task_type": "instruct",
+      "lr": 3.5000000000000004e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "tiiuae/falcon-rw-1b",
+      "task_type": "dpo",
+      "lr": 8e-06,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "tiiuae/falcon-rw-1b",
+      "task_type": "grpo",
+      "lr": 0.0001,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "tiiuae/falcon-rw-1b",
+      "task_type": "grpo_python",
+      "lr": 1e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/Llama-3.2-1B",
+      "task_type": "instruct",
+      "lr": 7.214285714285714e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/Llama-3.2-1B",
+      "task_type": "dpo",
+      "lr": 9.2e-06,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/Llama-3.2-1B",
+      "task_type": "grpo",
+      "lr": 0.0001525,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/Llama-3.2-1B-Instruct",
+      "task_type": "instruct",
+      "lr": 5.178571428571428e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/Llama-3.2-1B-Instruct",
+      "task_type": "dpo",
+      "lr": 1.2008333333333333e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/Llama-3.2-1B-Instruct",
+      "task_type": "grpo",
+      "lr": 0.00023625000000000002,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/Llama-3.2-3B",
+      "task_type": "instruct",
+      "lr": 4.551252614879616e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/Llama-3.2-3B",
+      "task_type": "dpo",
+      "lr": 1.8750000000000002e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/Llama-3.2-3B",
+      "task_type": "grpo",
+      "lr": 0.00021533333333333335,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/Llama-3.2-3B-Instruct",
+      "task_type": "instruct",
+      "lr": 8.071428571428571e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/Llama-3.2-3B-Instruct",
+      "task_type": "dpo",
+      "lr": 9.200000000000002e-06,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/Llama-3.2-3B-Instruct",
+      "task_type": "grpo",
+      "lr": 8e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/Llama-3.2-3B-Instruct",
+      "task_type": "grpo_python",
+      "lr": 4.1666666666666665e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/Meta-Llama-3.1-8B",
+      "task_type": "instruct",
+      "lr": 2.0806034687285213e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/Meta-Llama-3.1-8B",
+      "task_type": "dpo",
+      "lr": 1.5e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/Meta-Llama-3.1-8B",
+      "task_type": "grpo",
+      "lr": 6.2e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/Meta-Llama-3.1-8B",
+      "task_type": "grpo_python",
+      "lr": 8e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/Meta-Llama-3.1-8B-Instruct",
+      "task_type": "instruct",
+      "lr": 2e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/Meta-Llama-3.1-8B-Instruct",
+      "task_type": "dpo",
+      "lr": 2.25e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/Meta-Llama-3.1-8B-Instruct",
+      "task_type": "grpo",
+      "lr": 7.4e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/Phi-3-medium-4k-instruct",
+      "task_type": "instruct",
+      "lr": 4e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/Phi-3-medium-4k-instruct",
+      "task_type": "grpo",
+      "lr": 9e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/Phi-3-mini-4k-instruct",
+      "task_type": "instruct",
+      "lr": 0.00010908571428571429,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/Phi-3-mini-4k-instruct",
+      "task_type": "dpo",
+      "lr": 2.1215956727573978e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/Phi-3-mini-4k-instruct",
+      "task_type": "grpo",
+      "lr": 0.00012875,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/Phi-3-mini-4k-instruct",
+      "task_type": "grpo_python",
+      "lr": 0.00013666666666666666,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/Phi-3.5-mini-instruct",
+      "task_type": "instruct",
+      "lr": 9.02857142857143e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/Phi-3.5-mini-instruct",
+      "task_type": "dpo",
+      "lr": 1e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/Phi-3.5-mini-instruct",
+      "task_type": "grpo",
+      "lr": 0.00011,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/Qwen2.5-0.5B",
+      "task_type": "instruct",
+      "lr": 8.004625924518115e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/Qwen2.5-0.5B",
+      "task_type": "dpo",
+      "lr": 3.714426215751752e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/Qwen2.5-0.5B",
+      "task_type": "grpo",
+      "lr": 4.8e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/Qwen2.5-0.5B-Instruct",
+      "task_type": "instruct",
+      "lr": 9.222222222222222e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/Qwen2.5-0.5B-Instruct",
+      "task_type": "dpo",
+      "lr": 2.0283333333333336e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/Qwen2.5-0.5B-Instruct",
+      "task_type": "grpo",
+      "lr": 0.0002262857142857143,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/Qwen2.5-1.5B",
+      "task_type": "instruct",
+      "lr": 7.999999999999999e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/Qwen2.5-1.5B",
+      "task_type": "dpo",
+      "lr": 1.9999999999999998e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/Qwen2.5-1.5B",
+      "task_type": "grpo",
+      "lr": 5.5e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/Qwen2.5-1.5B-Instruct",
+      "task_type": "instruct",
+      "lr": 6.6e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/Qwen2.5-1.5B-Instruct",
+      "task_type": "dpo",
+      "lr": 1.5875e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/Qwen2.5-1.5B-Instruct",
+      "task_type": "grpo",
+      "lr": 0.00019250000000000002,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/Qwen2.5-1.5B-Instruct",
+      "task_type": "grpo_python",
+      "lr": 8.857142857142857e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/Qwen2.5-14B",
+      "task_type": "instruct",
+      "lr": 1.6666666666666667e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/Qwen2.5-14B",
+      "task_type": "grpo",
+      "lr": 0.00018,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/Qwen2.5-3B",
+      "task_type": "instruct",
+      "lr": 5.6e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/Qwen2.5-3B",
+      "task_type": "grpo",
+      "lr": 0.00018857142857142857,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/Qwen2.5-Coder-7B-Instruct",
+      "task_type": "instruct",
+      "lr": 5.300000000000001e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/Qwen2.5-Coder-7B-Instruct",
+      "task_type": "dpo",
+      "lr": 3e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/Qwen2.5-Coder-7B-Instruct",
+      "task_type": "grpo",
+      "lr": 8.916666666666666e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/SmolLM-1.7B",
+      "task_type": "instruct",
+      "lr": 0.0005555925590873237,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/SmolLM-1.7B",
+      "task_type": "dpo",
+      "lr": 1.9999999999999998e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/SmolLM-1.7B",
+      "task_type": "grpo",
+      "lr": 0.00012,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/SmolLM-135M",
+      "task_type": "instruct",
+      "lr": 0.0006189590549693159,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/SmolLM-135M",
+      "task_type": "dpo",
+      "lr": 7.666666666666667e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/SmolLM-135M",
+      "task_type": "grpo",
+      "lr": 0.00043680000000000005,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/SmolLM-360M",
+      "task_type": "instruct",
+      "lr": 0.001195174005499836,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/SmolLM-360M",
+      "task_type": "dpo",
+      "lr": 0.00015250000000000002,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/SmolLM-360M",
+      "task_type": "grpo",
+      "lr": 0.0002,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/SmolLM-360M",
+      "task_type": "grpo_python",
+      "lr": 0.0016,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/SmolLM2-1.7B",
+      "task_type": "instruct",
+      "lr": 0.000416,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/SmolLM2-1.7B",
+      "task_type": "dpo",
+      "lr": 2.2499999999999998e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/SmolLM2-1.7B",
+      "task_type": "grpo",
+      "lr": 0.00018875,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/SmolLM2-1.7B",
+      "task_type": "grpo_python",
+      "lr": 0.0003628571428571429,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/SmolLM2-1.7B-Instruct",
+      "task_type": "instruct",
+      "lr": 0.00043282008412162855,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/SmolLM2-1.7B-Instruct",
+      "task_type": "grpo",
+      "lr": 0.00049,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/SmolLM2-1.7B-Instruct",
+      "task_type": "grpo_python",
+      "lr": 0.00051,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/SmolLM2-135M",
+      "task_type": "instruct",
+      "lr": 0.000949052462993776,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/SmolLM2-135M",
+      "task_type": "dpo",
+      "lr": 0.00011666666666666667,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/SmolLM2-135M",
+      "task_type": "grpo",
+      "lr": 0.00034625,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/SmolLM2-360M-Instruct",
+      "task_type": "instruct",
+      "lr": 0.0006575925925925925,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/SmolLM2-360M-Instruct",
+      "task_type": "dpo",
+      "lr": 0.0001,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/SmolLM2-360M-Instruct",
+      "task_type": "grpo",
+      "lr": 0.0005204000000000001,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/gemma-2-2b-it",
+      "task_type": "instruct",
+      "lr": 2.857142857142857e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/gemma-2-2b-it",
+      "task_type": "dpo",
+      "lr": 4.793063569723769e-06,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/gemma-2-2b-it",
+      "task_type": "grpo",
+      "lr": 7.6e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/gemma-2-2b-it",
+      "task_type": "grpo_python",
+      "lr": 0.00013666666666666666,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/gemma-2-9b-it",
+      "task_type": "instruct",
+      "lr": 1.6786734481912862e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/gemma-2-9b-it",
+      "task_type": "grpo",
+      "lr": 5.5e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/gemma-7b-it",
+      "task_type": "instruct",
+      "lr": 2.4389689940069638e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/gemma-7b-it",
+      "task_type": "dpo",
+      "lr": 1e-06,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/gemma-7b-it",
+      "task_type": "grpo",
+      "lr": 2.4e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/tinyllama",
+      "task_type": "instruct",
+      "lr": 7.999999999999999e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/tinyllama",
+      "task_type": "dpo",
+      "lr": 1.1666666666666666e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/tinyllama",
+      "task_type": "grpo",
+      "lr": 0.00042500000000000003,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/tinyllama-chat",
+      "task_type": "instruct",
+      "lr": 9.178571428571428e-05,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/tinyllama-chat",
+      "task_type": "dpo",
+      "lr": 8.799999999999999e-06,
+      "_source": "lrs_reverse"
+    },
+    {
+      "model_id": "unsloth/tinyllama-chat",
+      "task_type": "grpo",
+      "lr": 9.875e-05,
+      "_source": "lrs_reverse"
+    }
+  ]
+}
