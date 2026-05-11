@@ -478,7 +478,39 @@ def main():
                 if len(state["runs"]) < n_runs:
                     index = len(state["runs"])
                     current_lr = state["lrs"][index]
-                    train_cmd = replace_args_in_cmd(train_cmd, "learning_rate", str(state["lrs"][index]))
+
+                    # BO/GP-EI augmentation: with ≥3 prior (lr, loss) observations,
+                    # use Gaussian Process Expected Improvement to suggest next LR
+                    # instead of the pre-generated geometric sweep. Fail-soft on any
+                    # error (returns None → fall back to geometric).
+                    # Ported from hyper-text 2026-05-11. Enabled by default; disable
+                    # with TRAINING_BO_AUGMENT=0 env var.
+                    try:
+                        from bo_augmentation import is_available as _bo_avail
+                        from bo_augmentation import fit_gp_suggest as _bo_suggest
+                        from bo_augmentation import derive_bounds as _bo_bounds
+                        if _bo_avail() and len(state["runs"]) >= 3:
+                            _obs = [(float(r["lr"]), float(r["current_loss"]))
+                                    for r in state["runs"]
+                                    if r.get("current_loss") is not None]
+                            if len(_obs) >= 3:
+                                _base_lr = float(state["train"]["lr"])
+                                _lo, _hi = _bo_bounds(base_lr=_base_lr, observations=_obs)
+                                _bo_lr = _bo_suggest(
+                                    observations=_obs,
+                                    allowed_lower=_lo,
+                                    allowed_upper=_hi,
+                                    seed=42 + len(_obs),
+                                )
+                                if _bo_lr is not None and _bo_lr > 0:
+                                    print(f"[BO] override LR {current_lr:.3e} → {_bo_lr:.3e} "
+                                          f"from GP-EI on {len(_obs)} obs (bounds=[{_lo:.2e},{_hi:.2e}])",
+                                          flush=True)
+                                    current_lr = _bo_lr
+                    except Exception as _bo_exc:
+                        print(f"[BO] suggestion skipped (fallback to geometric): {_bo_exc}", flush=True)
+
+                    train_cmd = replace_args_in_cmd(train_cmd, "learning_rate", str(current_lr))
                 else: # the final run
                     # first find from runs the best loss
                     c_train_info["train_request"]["checking_mode"] = "none"
