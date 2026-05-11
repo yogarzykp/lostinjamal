@@ -212,6 +212,10 @@ config.ini
 secrets.json
 .env.local
 .env.production
+.telegram.env
+*/telegram.env
+**/secrets/
+**/.telegram.env
 
 # Large files
 *.zip
