@@ -242,6 +242,14 @@ outputs/
 secure_checkpoints/
 datasets/
 
+# Telegram integration (personal — credentials + relay + notify, never push)
+.telegram.env
+*/telegram.env
+**/.telegram.env
+scripts/telegram_relay.py
+scripts/telegram_notify.sh
+scripts/claude_response_to_telegram.sh
+
 # MCP server local venv
 mcp_server/.venv/
 mcp_server/*.egg-info/
