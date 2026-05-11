@@ -253,8 +253,10 @@ def process_task(task_id: str, out_dir: Path, top_k: int = 3) -> dict:
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--tasks", nargs="+", default=DEFAULT_TASKS,
-                    help="Task IDs to pull. Default: 16 user tasks + historical anchors")
+    ap.add_argument("--tasks", nargs="+", default=None,
+                    help="Task IDs to pull (space-separated). Default: 16 user tasks + historical anchors")
+    ap.add_argument("--tasks-file", default=None,
+                    help="File with one task ID per line (alternative to --tasks). Avoids shell arg-list collapsing.")
     ap.add_argument("--top-k", type=int, default=3,
                     help="Pull top-K winners per task (default 3)")
     ap.add_argument("--out-dir", default="/tmp/winner_data",
@@ -262,6 +264,13 @@ def main():
     ap.add_argument("--rate-limit", type=float, default=0.5,
                     help="Sleep seconds between repos (HF rate limit guard)")
     args = ap.parse_args()
+
+    # Resolve tasks: file > --tasks > DEFAULT_TASKS
+    if args.tasks_file:
+        with open(args.tasks_file) as f:
+            args.tasks = [line.strip() for line in f if line.strip()]
+    elif args.tasks is None:
+        args.tasks = DEFAULT_TASKS
 
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
