@@ -177,9 +177,20 @@ def aggregate_combined(winner_dir: Path, lrs_reverse_path: Path) -> dict:
                     by_cell[cell][k].append(float(v))
             source_counts[("winner_data", cell)] += 1
 
-    # Source 2: lrs reverse map — LR only
+    # Source 2: lrs reverse map — LR only, SUPPLEMENTARY ONLY
+    # User clarification 2026-05-11: lrs/*.json is BASE WINNER metadata,
+    # not all valid. Priority: winner_data >> lrs_reverse.
+    # We add lrs entries ONLY to cells that have FEW or NO winner_data records,
+    # to supplement coverage. Skip cells already strong from winner_data.
     if lrs_reverse_path.exists():
+        # Determine which cells are already strong from winner_data
+        winner_strength = {}
+        for k, src in source_counts.items():
+            if k[0] == "winner_data":
+                winner_strength[k[1]] = src
+
         rmap = json.loads(lrs_reverse_path.read_text())
+        skipped_strong = 0
         for m in rmap.get("matches", []):
             mid = m.get("model_id", "")
             task_type = m.get("task_type")
@@ -192,9 +203,16 @@ def aggregate_combined(winner_dir: Path, lrs_reverse_path: Path) -> dict:
             size_b = estimate_size_from_name(mid)
             bucket = size_bucket(size_b)
             cell = (family, bucket, task_type)
+
+            # Skip if cell already has ≥4 winner_data records (HIGH/MED conf already)
+            if winner_strength.get(cell, 0) >= 4:
+                skipped_strong += 1
+                continue
+
             cell_models[cell].add(mid)
             by_cell[cell]["learning_rate"].append(float(lr))
             source_counts[("lrs_reverse", cell)] += 1
+        print(f"  lrs_reverse: skipped {skipped_strong} entries (cell already strong from winner_data)", flush=True)
 
     # Build output cells
     cells_out = {}
