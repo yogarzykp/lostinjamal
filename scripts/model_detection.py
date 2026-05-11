@@ -123,6 +123,39 @@ def identify_base_model(model_dir: str) -> dict:
             "fingerprint_key": fp_key,
         }
 
+    # Tier 1.5: fuzzy fingerprint match (anonymization-tolerant) — 2026-05-12
+    # Anonymization may add 1-N special tokens → vocab_size differs by small Δ.
+    # Discovery: augmented SmolLM2-360M vocab_size=49153 vs catalog 49152.
+    # Match if (hidden_size, num_hidden_layers, intermediate_size) all match
+    # exact AND vocab_size differs by ≤ VOCAB_TOLERANCE tokens.
+    try:
+        h = int(cfg.get("hidden_size", -1))
+        L = int(cfg.get("num_hidden_layers", -1))
+        V = int(cfg.get("vocab_size", -1))
+        I = int(cfg.get("intermediate_size", -1))
+        VOCAB_TOLERANCE = 16  # most anonymization adds <10 tokens; 16 safe
+        for cat_key, cat_entry in catalog.items():
+            fp_dict = cat_entry.get("fingerprint_dict", {})
+            cat_h = fp_dict.get("hidden_size")
+            cat_L = fp_dict.get("num_hidden_layers")
+            cat_V = fp_dict.get("vocab_size")
+            cat_I = fp_dict.get("intermediate_size")
+            if (cat_h == h and cat_L == L and cat_I == I and
+                    cat_V is not None and abs(cat_V - V) <= VOCAB_TOLERANCE):
+                vocab_delta = abs(cat_V - V)
+                print(f"[model_detection] fuzzy match {fp_key} → {cat_key} "
+                      f"(base={cat_entry.get('base_model')}, "
+                      f"vocab_delta={vocab_delta}, conf=0.95)", flush=True)
+                return {
+                    "base_model": cat_entry.get("base_model"),
+                    "family": cat_entry.get("family", _arch_to_family(arch)),
+                    "arch": cat_entry.get("arch", arch),
+                    "confidence": 0.95,  # high but slightly below exact match
+                    "fingerprint_key": fp_key,
+                }
+    except (TypeError, ValueError) as _exc:
+        pass  # fall through to Tier 2
+
     # Tier 2: family-only fallback (arch known but specific model unrecognized)
     family = _arch_to_family(arch)
     return {
