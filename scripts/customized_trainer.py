@@ -185,6 +185,33 @@ class CustomEvalSaveCallback(TrainerCallback):
                 flush=True,
             )
 
+        # ── WSM (Weight-Space Merging) — top-K ckpt averaging ──
+        # Research: LCSC (arxiv 2403.04694) / WSM (arxiv 2507.17634) / Khalifa.
+        # Linear-average top-K best LoRA adapters at end of training. Empirical:
+        # 0.5-2% SFT eval improvement via ensemble smoothing. Risk: catastrophic
+        # if loss spread tight (equal weights work better than loss-weighted
+        # per WSM paper finding).
+        # LoRA-only currently (full-FT averaging requires per-shard handling
+        # for 7B+ models, disabled to avoid OOM + disk cost 3× model size).
+        # Disabled in GRPO subclass (mode collapse risk per LCSC paper §3.2).
+        # Only fires in FINAL run (checking_mode="none") to avoid interference
+        # with state machine probe runs.
+        # Env: TRAINING_WSM_ENABLED (default 1), TRAINING_WSM_TOP_K (default 3).
+        self._wsm_enabled = (
+            os.environ.get("TRAINING_WSM_ENABLED", "1") == "1"
+        )
+        try:
+            self._wsm_top_k = int(os.environ.get("TRAINING_WSM_TOP_K", "3"))
+        except (TypeError, ValueError):
+            self._wsm_top_k = 3
+        self._wsm_pool: list = []   # list of {loss, step, path}, sorted ascending by loss
+        # Track every eval (not just NEW BEST) — top-K filter handles spikes.
+        # Stored by on_evaluate, consumed by on_save when save event step
+        # matches the eval step (avoids stale data when save fires
+        # asynchronously from eval).
+        self._wsm_last_eval_loss: Optional[float] = None
+        self._wsm_last_eval_step: int = -1
+
     def compute_loss(self, state: TrainerState, metrics):
         return metrics.get("eval_loss", None)
 
@@ -372,6 +399,10 @@ class CustomEvalSaveCallback(TrainerCallback):
         print(f"GO INTO CUSTOMIZED EVALUATE AT STEP: {state.global_step}", flush=True)
         # Track for window smoothing
         self.eval_history.append(float(eval_loss))
+        # WSM: record latest eval_loss+step pair so on_save can track ckpt to pool.
+        # Tracked at EVERY eval (not just NEW BEST) — top-K filter rejects spikes.
+        self._wsm_last_eval_loss = float(eval_loss)
+        self._wsm_last_eval_step = int(state.global_step)
 
         if self.best_checkpoint_info is None or eval_loss < self.best_checkpoint_info["loss"] - self.early_stop_min_delta:
             print(f"Updating the best checkpoint info at step: {state.global_step} with eval_loss: {eval_loss}", flush=True)
@@ -534,6 +565,196 @@ class CustomEvalSaveCallback(TrainerCallback):
             with open(os.path.join(self.submission_dir, "loss.txt"), "w") as f:
                 f.write(f"{self.best_checkpoint_info['step']},{best_eval_loss}")
 
+        # ── WSM: track current ckpt to pool (Option D — every eval, top-K filter) ──
+        # Only track when save step matches latest eval step (avoids stale data
+        # from saves not paired with eval). Active in FINAL run only.
+        if (self._wsm_enabled
+                and self.checking_mode == "none"
+                and is_main_process(LOCAL_RANK)
+                and self._wsm_last_eval_step == state.global_step
+                and self._wsm_last_eval_loss is not None):
+            try:
+                self._wsm_track_ckpt(
+                    state.global_step, self._wsm_last_eval_loss
+                )
+            except Exception as _exc:
+                print(f"[WSM] track skipped: {_exc}", flush=True)
+
+    # ── WSM (Weight-Space Merging) helper methods ──
+    def _wsm_pool_dir(self) -> str:
+        """Pool dir for top-K ckpt copies (sibling to submission_dir)."""
+        return self.submission_dir.rstrip("/") + "_wsm_pool"
+
+    def _wsm_track_ckpt(self, step: int, loss: float):
+        """Copy ckpt-{step} to wsm_pool dir, maintain top-K sorted by loss."""
+        src = os.path.join(self.output_dir, f"checkpoint-{step}")
+        if not os.path.isdir(src):
+            return
+
+        # LoRA detection: only adapter files (adapter_model.{safetensors,bin}).
+        # Full FT produces model.safetensors (single/sharded) — averaging
+        # those requires per-shard handling not implemented (disk 3× cost,
+        # OOM risk on 7B+). Disable WSM run-wide if full FT detected.
+        is_lora = (
+            os.path.isfile(os.path.join(src, "adapter_model.safetensors"))
+            or os.path.isfile(os.path.join(src, "adapter_model.bin"))
+        )
+        if not is_lora:
+            print(
+                f"[WSM] full fine-tune detected at step {step} — disabling "
+                f"WSM run-wide (LoRA-only; full FT averaging not implemented).",
+                flush=True,
+            )
+            self._wsm_enabled = False
+            for entry in self._wsm_pool:
+                try:
+                    if os.path.isdir(entry.get("path", "")):
+                        shutil.rmtree(entry["path"])
+                except Exception:
+                    pass
+            self._wsm_pool = []
+            return
+
+        pool_dir = self._wsm_pool_dir()
+        os.makedirs(pool_dir, exist_ok=True)
+        dst = os.path.join(pool_dir, f"step_{step}")
+
+        # Skip if step already pooled
+        if any(e["step"] == step for e in self._wsm_pool):
+            return
+
+        # Optimization: skip copy if pool full and new loss is worse than worst.
+        if len(self._wsm_pool) >= self._wsm_top_k:
+            worst_in_pool = self._wsm_pool[-1]["loss"]
+            if float(loss) >= worst_in_pool:
+                print(
+                    f"[WSM] skip step {step} loss={float(loss):.6e} "
+                    f">= worst-in-pool {worst_in_pool:.6e} (pool full)",
+                    flush=True,
+                )
+                return
+
+        if os.path.exists(dst):
+            shutil.rmtree(dst)
+        shutil.copytree(src, dst)
+        self._wsm_pool.append({"loss": float(loss), "step": int(step), "path": dst})
+        self._wsm_pool.sort(key=lambda e: e["loss"])
+        while len(self._wsm_pool) > self._wsm_top_k:
+            evicted = self._wsm_pool.pop()
+            try:
+                if os.path.isdir(evicted["path"]):
+                    shutil.rmtree(evicted["path"])
+            except Exception as _exc:
+                print(f"[WSM] evict cleanup skipped: {_exc}", flush=True)
+
+        kept_steps = [e["step"] for e in self._wsm_pool]
+        kept_losses = [f"{e['loss']:.6e}" for e in self._wsm_pool]
+        print(
+            f"[WSM] pool now {len(self._wsm_pool)}/{self._wsm_top_k}: "
+            f"steps={kept_steps} losses={kept_losses}",
+            flush=True,
+        )
+
+    def _perform_wsm_merge(self):
+        """Linear-average top-K LoRA adapter weights, write to submission_dir.
+
+        Equal weights — paper finding: simpler than loss-weighted, more robust
+        when loss spread is tight. Non-tensor files (adapter_config.json,
+        tokenizer*) kept from existing submission_dir (best-only ckpt).
+        """
+        import torch
+        pool = list(self._wsm_pool)
+        if len(pool) < 2:
+            print(f"[WSM] merge skipped: pool size {len(pool)} < 2", flush=True)
+            return
+        if not os.path.isdir(self.submission_dir):
+            print(f"[WSM] merge skipped: submission_dir missing", flush=True)
+            return
+        # Require adapter_config.json in submission_dir (sanity check)
+        if not os.path.isfile(os.path.join(self.submission_dir, "adapter_config.json")):
+            print(
+                f"[WSM] merge skipped: adapter_config.json missing in "
+                f"submission_dir — keeping current best-only submission",
+                flush=True,
+            )
+            return
+
+        # Pick weight filename
+        weight_filename = None
+        for cand in ("adapter_model.safetensors", "adapter_model.bin"):
+            if os.path.isfile(os.path.join(pool[0]["path"], cand)):
+                weight_filename = cand
+                break
+        if weight_filename is None:
+            print(f"[WSM] merge skipped: no adapter_model.* in pool[0]", flush=True)
+            return
+
+        # Load top-K state dicts
+        state_dicts = []
+        try:
+            for entry in pool:
+                wpath = os.path.join(entry["path"], weight_filename)
+                if weight_filename.endswith(".safetensors"):
+                    from safetensors.torch import load_file
+                    sd = load_file(wpath)
+                else:
+                    sd = torch.load(wpath, map_location="cpu")
+                state_dicts.append(sd)
+        except Exception as exc:
+            print(f"[WSM] load fail (keeping best-only): {exc}", flush=True)
+            return
+
+        # Average
+        merged_sd = {}
+        try:
+            keys = list(state_dicts[0].keys())
+            for key in keys:
+                tensors = [sd[key].float() for sd in state_dicts if key in sd]
+                if not tensors:
+                    continue
+                avg = sum(tensors) / len(tensors)
+                # Cast back to original dtype
+                merged_sd[key] = avg.to(state_dicts[0][key].dtype)
+        except Exception as exc:
+            print(f"[WSM] average fail (keeping best-only): {exc}", flush=True)
+            return
+
+        # Write merged adapter to submission_dir, overwriting the best-only adapter
+        dst_path = os.path.join(self.submission_dir, weight_filename)
+        try:
+            if weight_filename.endswith(".safetensors"):
+                from safetensors.torch import save_file
+                save_file(merged_sd, dst_path)
+            else:
+                torch.save(merged_sd, dst_path)
+            losses = [f"{e['loss']:.6e}" for e in pool]
+            steps = [e["step"] for e in pool]
+            print(
+                f"[WSM] MERGED top-{len(pool)} adapters to {dst_path}: "
+                f"steps={steps} losses={losses}",
+                flush=True,
+            )
+        except Exception as exc:
+            print(f"[WSM] save fail (keeping best-only): {exc}", flush=True)
+
+    def on_train_end(self, args, state, control, **kwargs):
+        """End of training — trigger WSM merge if eligible."""
+        if (self._wsm_enabled
+                and self.checking_mode == "none"
+                and is_main_process(LOCAL_RANK)
+                and len(self._wsm_pool) >= 2):
+            print(f"[WSM] on_train_end: pool size={len(self._wsm_pool)}, performing merge", flush=True)
+            try:
+                self._perform_wsm_merge()
+            except Exception as _exc:
+                print(f"[WSM] merge error (keeping best-only): {_exc}", flush=True)
+        elif self._wsm_enabled:
+            print(
+                f"[WSM] on_train_end: pool size {len(self._wsm_pool)} < 2 or "
+                f"non-final run (checking_mode={self.checking_mode}), skip merge",
+                flush=True,
+            )
+
 
 class GRPOCustomEvalSaveCallback(CustomEvalSaveCallback):
     """GRPO reward-plateau guard — preserves best ckpt before reward saturates.
@@ -573,6 +794,11 @@ class GRPOCustomEvalSaveCallback(CustomEvalSaveCallback):
         # ratio-based divergence detection unreliable. Hook 3 reward-proxy
         # plateau already covers the GRPO failure mode.
         self._divergence_enabled = False
+        # Disable WSM for GRPO. LCSC paper §3.2 notes mode collapse risk
+        # when averaging RL policies (rewards may saturate at different
+        # collapse modes — averaging amplifies the collapse).
+        # Hook 3 reward-proxy plateau already preserves best ckpt.
+        self._wsm_enabled = False
         from collections import deque
         try:
             _w = int(os.environ.get("TRAINING_GRPO_PLATEAU_WINDOW_LOGS", "50"))
