@@ -300,11 +300,22 @@ def suggest_lr(
 #
 # Rule: raise training β when hack_risk is elevated or landscape has
 # conflict tension; keep default when rewards are bounded and balanced.
+#
+# UPDATE 2026-05-11 — Wave 1+2 eval finding: task 020b2f24 (opt-350m GRPO,
+# single reward "reward_reasoning_keywords") catastrophically diverged →
+# eval_loss = −0.0662 (winner +0.9871). Quality score → bottom 25% → −1
+# penalty. Root cause: β=0.04 training (12.5× weaker than validator 0.5)
+# allowed policy free drift over 2 epochs on tiny 350M model; validator
+# KL penalty dominated at scoring. Memory cite (β=0.04 verified) was for
+# 1.3B+ models (f5fbe40f, d878f32d) which drift slower.
+# Patch: bump "single" + "coherent" → 0.10 (matches reward_hack level).
+# Tiny-model rationale: smaller param → faster relative drift → need
+# stronger anchor. Matches grpo_config.py:450 floor (β=0.10 for 7B+).
 _BASE_BETA: Dict[str, float] = {
     "reward_hack":         0.10,  # unbounded + no counter; strong anchor
     "imbalanced_conflict": 0.06,  # mismatched magnitudes; moderate anchor
-    "single":              0.04,  # default
-    "coherent":            0.04,
+    "single":              0.10,  # was 0.04 — Wave 1+2 020b2f24 evidence
+    "coherent":            0.10,  # was 0.04 — same rationale
     "balanced_conflict":   0.04,
 }
 

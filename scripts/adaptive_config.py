@@ -162,13 +162,19 @@ LENGTH_BUCKETS = [512, 768, 1024, 1536, 2048, 3072, 4096]
 
 
 _FAMILY_PROFILES = {
-    # SmolLM family validated against 5C5FB winning run on ded7e684:
-    # epoch=4 + min_lr=0.075 + wd=0.001 + packing=False + max_len=2048
-    # → test_loss 0.0502 (vs our text-jagger 0.0989, +97% gap).
+    # SmolLM family — updated 2026-05-11 per Wave 1+2 eval finding:
+    # task 0c5c7124 SmolLM2-360M lost 9.10% gap (1.6494 vs winner 1.5118).
+    # Root cause: min_lr_rate 0.075 (3.3× lower than 360M empirical winner cell 0.25),
+    # lr_default skewed by 1.7B runs (6.2e-4 vs 360M cell median 4.28e-4).
+    # qwen got min_lr_rate 0.25 fix in 97e6ba3 — smollm tertinggal, fixed here.
+    # Empirical source: empirical_hp_rules.json cell smollm|0_06b|instruct (n=4)
+    # median lr=4.28e-4, min_lr=0.25, wd=0.0, epochs=3, batch=140.
+    # Original 5C5FB validation (ded7e684 test_loss 0.0502) was at 1.7B, doesn't
+    # generalize down to 360M class.
     "smollm": {
-        "min_lr_rate": 0.075,
-        "weight_decay_small_data": 0.001,
-        "weight_decay_default": 0.005,
+        "min_lr_rate": 0.25,          # was 0.075 — match qwen + 360M empirical
+        "weight_decay_small_data": 0.0,
+        "weight_decay_default": 0.0,  # was 0.005 — empirical 360M winners used 0.0
         "packing": False,
         "max_packed_size": 1,
         "max_length_cap": 2048,
@@ -176,8 +182,8 @@ _FAMILY_PROFILES = {
         "neftune_alpha_default": 3,
         "warmup_steps_small_data": 15,
         "warmup_steps_default": 35,
-        "lr_default": 6.2e-4,    # master-text smollm family median (count=9)
-        "lr_floor": 2.4e-4,
+        "lr_default": 4.3e-4,        # was 6.2e-4 — empirical 360M cell median
+        "lr_floor": 2.0e-4,           # was 2.4e-4 — slightly more headroom
         "reg_ratio_small_data": 0.60,
         "reg_ratio_default": 0.70,
     },
