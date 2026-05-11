@@ -95,8 +95,20 @@ def maybe_sanitize_for_anon_model(model_path: str) -> None:
     before any AutoTokenizer.from_pretrained().
 
     Disable: TRAINING_TOKENIZER_SANITIZE_ENABLED=0
+
+    DDP guard 2026-05-12: defense-in-depth — if invoked from a rank-N
+    process (LOCAL_RANK!=0), skip. Currently only called from
+    text_trainer.py orchestrator (single-process), but this guard
+    prevents race if validator ever invokes from rank entrypoints.
     """
     if os.getenv("TRAINING_TOKENIZER_SANITIZE_ENABLED", "1") != "1":
+        return
+    # Multi-process safety: rank-0 only writes the shared config file.
+    try:
+        _local_rank = int(os.getenv("LOCAL_RANK", "0"))
+    except (TypeError, ValueError):
+        _local_rank = 0
+    if _local_rank != 0:
         return
     try:
         sanitize_tokenizer_config(model_path)

@@ -282,6 +282,65 @@ def main():
         log_info(f"train_ds: {train_ds.stat()}")
         log_info(f"dev_ds: {dev_ds.stat()}")
 
+    # ── Cross-lingual detection (Instruct only) ──────────────────────────
+    # Measures tokenizer fertility (tokens/char) on raw training text +
+    # dominant Unicode script + vocab_size (anon-resilient multilingual
+    # signal). On detection: signal text_trainer.py via Redis state to
+    # skip refinement (low-LR polish hurts cross-lingual: sparse in-lang
+    # dev set overfit). Safe-by-default: any failure falls back to normal
+    # behavior. Env override TRAINING_CROSS_LINGUAL_DETECTION=false disables.
+    if os.getenv("TRAINING_CROSS_LINGUAL_DETECTION", "true").lower() not in (
+        "0", "false", "no"
+    ):
+        try:
+            from cross_lingual_detector import detect_cross_lingual
+
+            _raw_path = f"datasets/train_{task_id}.json"
+            _text_samples: list = []
+            try:
+                with open(_raw_path, "r", encoding="utf-8") as _f:
+                    _raw = json.load(_f)
+                for _item in _raw[:30]:
+                    if not isinstance(_item, dict):
+                        continue
+                    _parts = []
+                    for _field in ("instruct", "instruction", "input", "output"):
+                        _val = _item.get(_field)
+                        if isinstance(_val, str) and len(_val) >= 3:
+                            _parts.append(_val)
+                    if _parts:
+                        _text_samples.append(" ".join(_parts))
+            except Exception as _e:
+                log_info(f"[CrossLingual] raw data sample skipped: {_e}")
+
+            try:
+                _vocab_size = len(tokenizer)
+            except Exception:
+                _vocab_size = None
+            _fp = detect_cross_lingual(
+                tokenizer,
+                _text_samples,
+                vocab_size=_vocab_size,
+            )
+            log_info(f"[CrossLingual] detection: {_fp['reason']}")
+
+            if _fp.get("is_cross_lingual"):
+                try:
+                    _s = get_state() or {}
+                    _s["cross_lingual_detected"] = True
+                    _s["cross_lingual_fertility"] = round(
+                        float(_fp.get("fertility", 0.0)), 3
+                    )
+                    set_state(_s)
+                    log_info(
+                        f"[CrossLingual] flag set — refinement will be skipped "
+                        f"(fertility={_fp.get('fertility'):.3f})"
+                    )
+                except Exception as _e:
+                    log_info(f"[CrossLingual] state write failed: {_e}")
+        except Exception as _e:
+            log_info(f"[CrossLingual] detection skipped: {_e}")
+
     log_info(f"world_size: {training_args.world_size}")
     total_steps_per_epoch = len(train_ds) // (
         training_args.per_device_train_batch_size

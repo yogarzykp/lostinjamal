@@ -416,7 +416,10 @@ class CustomEvalSaveCallback(TrainerCallback):
             # Save new best to state_manager so subsequent subprocess
             # instances can compare against it (prevents worse final-run
             # ckpt from overwriting an earlier probe-run best).
-            if os.environ.get("TRAINING_BEST_CKPT_PERSIST", "1") == "1":
+            # DDP guard 2026-05-12: only rank-0 writes — multiple ranks
+            # racing on shared Redis key produces inconsistent reads. Per
+            # multi-GPU audit, this was MED severity (race window real).
+            if os.environ.get("TRAINING_BEST_CKPT_PERSIST", "1") == "1" and is_main_process(LOCAL_RANK):
                 try:
                     _state = get_state() or {}
                     _state["global_best_checkpoint"] = {

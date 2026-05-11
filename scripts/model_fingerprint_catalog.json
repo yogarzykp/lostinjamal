@@ -1,6 +1,6 @@
 {
   "896,24,151936,4864": {
-    "base_model": "Qwen/Qwen2.5-0.5B",
+    "base_model": "unsloth/Qwen2.5-0.5B",
     "family": "qwen",
     "arch": "Qwen2ForCausalLM",
     "fingerprint_dict": {
@@ -10,6 +10,84 @@
       "intermediate_size": 4864,
       "num_attention_heads": 14,
       "num_key_value_heads": 2
+    }
+  },
+  "768,12,32000,3072": {
+    "base_model": "JackFram/llama-160m",
+    "family": "llama",
+    "arch": "LlamaForCausalLM",
+    "fingerprint_dict": {
+      "hidden_size": 768,
+      "num_hidden_layers": 12,
+      "vocab_size": 32000,
+      "intermediate_size": 3072,
+      "num_attention_heads": 12,
+      "num_key_value_heads": 12
+    }
+  },
+  "1024,24,50272,": {
+    "base_model": "facebook/opt-350m",
+    "family": "unknown",
+    "arch": "OPTForCausalLM",
+    "fingerprint_dict": {
+      "hidden_size": 1024,
+      "num_hidden_layers": 24,
+      "vocab_size": 50272,
+      "intermediate_size": null,
+      "num_attention_heads": 16,
+      "num_key_value_heads": null
+    }
+  },
+  "960,32,49152,2560": {
+    "base_model": "HuggingFaceTB/SmolLM2-360M",
+    "family": "llama",
+    "arch": "LlamaForCausalLM",
+    "fingerprint_dict": {
+      "hidden_size": 960,
+      "num_hidden_layers": 32,
+      "vocab_size": 49152,
+      "intermediate_size": 2560,
+      "num_attention_heads": 15,
+      "num_key_value_heads": 5
+    }
+  },
+  "2048,24,49152,8192": {
+    "base_model": "HuggingFaceTB/SmolLM2-1.7B",
+    "family": "llama",
+    "arch": "LlamaForCausalLM",
+    "fingerprint_dict": {
+      "hidden_size": 2048,
+      "num_hidden_layers": 24,
+      "vocab_size": 49152,
+      "intermediate_size": 8192,
+      "num_attention_heads": 32,
+      "num_key_value_heads": 32
+    }
+  },
+  "2048,24,32000,5504": {
+    "base_model": "princeton-nlp/Sheared-LLaMA-1.3B",
+    "family": "llama",
+    "arch": "LlamaForCausalLM",
+    "fingerprint_dict": {
+      "hidden_size": 2048,
+      "num_hidden_layers": 24,
+      "vocab_size": 32000,
+      "intermediate_size": 5504,
+      "num_attention_heads": 16,
+      "num_key_value_heads": 16
+    }
+  },
+  "2048,22,32000,5632": {
+    "base_model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+    "family": "llama",
+    "arch": "LlamaForCausalLM",
+    "fingerprint_dict": {
+      "hidden_size": 2048,
+      "num_hidden_layers": 22,
+      "vocab_size": 32000,
+      "intermediate_size": 5632,
+      "num_attention_heads": 32,
+      "num_key_value_heads": 4
     }
   }
 }
