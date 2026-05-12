@@ -67,22 +67,34 @@ def arch_supports_fa(arch_family: str) -> bool:
 
 
 def get_param_count(model_path: str) -> Optional[int]:
-    """Param count from config (without loading weights). Survives anonymization."""
+    """Param count from config (without loading weights). Survives anonymization.
+
+    Fixed 2026-05-12: OPT architecture uses ffn_dim instead of intermediate_size.
+    Wave 1+2 020b2f24 (opt-350m GRPO) silently fell through to "param unknown,
+    default 1B" fallback → size-gated β picked MID bucket (0.06) instead of TINY
+    (0.10). Patch: fall back to ffn_dim, and use OPT-aware MLP formula (2× weights
+    vs SwiGLU 3×).
+    """
     try:
         cfg = AutoConfig.from_pretrained(model_path, trust_remote_code=True)
     except Exception:
         return None
-    # Estimate from config dimensions
     h = getattr(cfg, "hidden_size", None)
     n = getattr(cfg, "num_hidden_layers", None)
     v = getattr(cfg, "vocab_size", None)
-    inter = getattr(cfg, "intermediate_size", None)
+    # OPT uses ffn_dim, llama/qwen/mistral use intermediate_size
+    inter = getattr(cfg, "intermediate_size", None) or getattr(cfg, "ffn_dim", None)
     if not all([h, n, v, inter]):
         return None
-    # Rough: embedding + n × (attn + mlp)
     embed = h * v
     attn_per_layer = 4 * h * h  # Q, K, V, O
-    mlp_per_layer = 2 * h * inter + h * inter  # gate, up, down
+    # OPT has 2 MLP layers (fc1, fc2); SwiGLU has 3 (gate, up, down).
+    arch_str = (getattr(cfg, "architectures", None) or [""])[0]
+    is_opt = "opt" in (arch_str or "").lower()
+    if is_opt:
+        mlp_per_layer = 2 * h * inter   # fc1 + fc2
+    else:
+        mlp_per_layer = 3 * h * inter   # gate + up + down (SwiGLU)
     return embed + n * (attn_per_layer + mlp_per_layer)
 
 
