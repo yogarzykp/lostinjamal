@@ -1059,7 +1059,25 @@ def build_adaptive_run_config(
         # showed they trained ~25K steps with stable LR — full epoch range.
         # Capping at 300 starves us of training; we LOSE all GRPO with 300-step cap.
         # Default: -1 = epoch-based no cap. Trust cosine LR schedule + KL anchor.
-        run_config["max_steps"] = int(os.getenv("ADAPTIVE_MAX_STEPS_OVERRIDE", "-1"))
+        #
+        # PATCH 2026-05-12 — tiny-model GRPO drift mitigation:
+        # Wave 1+2 020b2f24 (opt-350m GRPO) showed catastrophic KL drift even
+        # with β=0.10 anchor (eval_loss -0.0423, KL 0.564). Tiny models drift
+        # faster proportionally — cap total drift accumulation time.
+        # For param<5e8: cap max_steps at ~1.5 epochs (limits exposure to drift
+        # while preserving enough training for reward growth). Override-able
+        # via ADAPTIVE_MAX_STEPS_OVERRIDE env.
+        _base_max_steps = int(os.getenv("ADAPTIVE_MAX_STEPS_OVERRIDE", "-1"))
+        if _base_max_steps == -1 and param_count < 5e8:
+            # Tiny GRPO: cap at 1.5 epochs to limit drift time
+            _steps_per_epoch_est = max(50, ds_metrics.num_samples // max(1, batch * gpu_count))
+            _capped = int(_steps_per_epoch_est * 1.5)
+            run_config["max_steps"] = _capped
+            print(f"[adaptive-grpo-tiny] param={param_count:,} (<500M) max_steps "
+                  f"capped at {_capped} (1.5 epochs ~{_steps_per_epoch_est} steps/ep) "
+                  f"to limit KL drift", flush=True)
+        else:
+            run_config["max_steps"] = _base_max_steps
         # Phase 1 sampling tuning (Dr.GRPO inspired): encourage natural EOS
         # NOTE: min_completion_length + vllm_enforce_eager NOT supported by TRL.
         run_config["temperature"] = 0.8

@@ -301,37 +301,90 @@ def suggest_lr(
 # Rule: raise training β when hack_risk is elevated or landscape has
 # conflict tension; keep default when rewards are bounded and balanced.
 #
-# UPDATE 2026-05-11 — Wave 1+2 eval finding: task 020b2f24 (opt-350m GRPO,
-# single reward "reward_reasoning_keywords") catastrophically diverged →
-# eval_loss = −0.0662 (winner +0.9871). Quality score → bottom 25% → −1
-# penalty. Root cause: β=0.04 training (12.5× weaker than validator 0.5)
-# allowed policy free drift over 2 epochs on tiny 350M model; validator
-# KL penalty dominated at scoring. Memory cite (β=0.04 verified) was for
-# 1.3B+ models (f5fbe40f, d878f32d) which drift slower.
-# Patch: bump "single" + "coherent" → 0.10 (matches reward_hack level).
-# Tiny-model rationale: smaller param → faster relative drift → need
-# stronger anchor. Matches grpo_config.py:450 floor (β=0.10 for 7B+).
+# UPDATE 2026-05-12 — REVERTED to match hyper-text (TEMAN) empirical:
+# - V1 our patch bumped "single"+"coherent" to 0.10 globally
+# - Hyper-text TESTED β=0.10 floor → REGRESSED on 17c14172 8B (-02 vs -03
+#   showed reward growth stunted, KL 0.008 vs winner KL 0.017 = over-anchored)
+# - They reverted to 0.04 default
+# - Our Wave 1+2 retry confirmed: β=0.10 on opt-350m gave loss -0.0423
+#   (better than -0.0662 v1, still negative) — improvement but not enough
+# - Conclusion: tiny model needs anchor BUT global 0.10 risks large-model regression
+#
+# Patch revision (size-gated via suggest_beta_size_aware):
+# - "single"+"coherent" default back to 0.04 (match hyper-text)
+# - suggest_beta() unchanged for backward compat
+# - NEW suggest_beta_size_aware(): tiny <1B → 0.10, mid 1-5B → 0.06, large → 0.04
+# - grpo_config / hp_override should call _size_aware variant
 _BASE_BETA: Dict[str, float] = {
     "reward_hack":         0.10,  # unbounded + no counter; strong anchor
     "imbalanced_conflict": 0.06,  # mismatched magnitudes; moderate anchor
-    "single":              0.10,  # was 0.04 — Wave 1+2 020b2f24 evidence
-    "coherent":            0.10,  # was 0.04 — same rationale
+    "single":              0.04,  # match hyper-text default (was 0.10)
+    "coherent":            0.04,  # match hyper-text default (was 0.10)
     "balanced_conflict":   0.04,
+}
+
+# Size-gated β floors (per-landscape × per-size). Lower index = stronger anchor.
+# Based on Wave 1+2 020b2f24 empirical (β=0.10 on 350M reduced catastrophic
+# from -0.0662 to -0.0423) AND hyper-text reverted β=0.10 on 7-8B (stunted).
+# Tier:           <1B    1-5B    >=5B  (param_count)
+_SIZE_GATED_BETA: Dict[str, list] = {
+    "reward_hack":         [0.12, 0.10, 0.10],
+    "imbalanced_conflict": [0.08, 0.06, 0.06],
+    "single":              [0.10, 0.06, 0.04],  # tiny tight, large default
+    "coherent":            [0.10, 0.06, 0.04],
+    "balanced_conflict":   [0.06, 0.04, 0.04],
 }
 
 # Additional boost if hack_risk is medium (unbounded+ but < threshold).
 _HACK_RISK_MEDIUM_BOOST = 0.01
 
 
+def _size_bucket(param_count: Optional[int]) -> int:
+    """Return size bucket index: 0=tiny<1B, 1=mid 1-5B, 2=large>=5B."""
+    if param_count is None or param_count <= 0:
+        return 1  # default to mid when unknown
+    if param_count < 1_000_000_000:
+        return 0
+    if param_count < 5_000_000_000:
+        return 1
+    return 2
+
+
 def suggest_beta(fingerprint: Dict) -> Optional[float]:
     """Suggest training β (KL coefficient) based on landscape.
 
     Returns ``None`` when classifier has no opinion.
+
+    NOTE: Size-agnostic — uses _BASE_BETA defaults (matches hyper-text).
+    For size-aware version use suggest_beta_size_aware().
     """
     landscape = fingerprint.get("landscape", "unknown")
     base = _BASE_BETA.get(landscape)
     if base is None:
         return None
+    if fingerprint.get("hack_risk") == "medium":
+        base += _HACK_RISK_MEDIUM_BOOST
+    return base
+
+
+def suggest_beta_size_aware(
+    fingerprint: Dict,
+    param_count: Optional[int] = None,
+) -> Optional[float]:
+    """Size-gated β suggestion. NEW 2026-05-12.
+
+    Tiny models (<1B): tighter anchor (β=0.10 for single/coherent)
+    Mid (1-5B): moderate (β=0.06)
+    Large (>=5B): default (β=0.04 matches hyper-text empirical)
+
+    Returns None when landscape unknown.
+    """
+    landscape = fingerprint.get("landscape", "unknown")
+    tiers = _SIZE_GATED_BETA.get(landscape)
+    if tiers is None:
+        return None
+    bucket = _size_bucket(param_count)
+    base = tiers[bucket]
     if fingerprint.get("hack_risk") == "medium":
         base += _HACK_RISK_MEDIUM_BOOST
     return base
@@ -345,9 +398,14 @@ def suggest_params(
 
     Returns a dict with keys ``learning_rate`` and ``beta``, or ``None``
     when the classifier has no opinion (unknown reward functions).
+
+    UPDATED 2026-05-12: β now size-aware via suggest_beta_size_aware().
+    Avoids global bump that hyper-text reverted (regression on 7-8B).
     """
     lr = suggest_lr(fingerprint, model_size_b)
-    beta = suggest_beta(fingerprint)
+    # Convert model_size_b (float Billions) back to param_count (int) for size_aware
+    param_count = int(model_size_b * 1e9) if model_size_b else None
+    beta = suggest_beta_size_aware(fingerprint, param_count)
     if lr is None or beta is None:
         return None
     return {"learning_rate": lr, "beta": beta}
