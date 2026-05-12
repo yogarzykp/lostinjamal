@@ -980,6 +980,17 @@ def build_adaptive_run_config(
         # vLLM optional override (image variants without vllm installed).
         if os.getenv("DISABLE_VLLM_OVERRIDE", "0") == "1":
             run_config["use_vllm"] = False
+        # PATCH 2026-05-12: tiny-model vLLM auto-disable.
+        # opt-350m and similar <500M models hit vLLM startup timeout (server
+        # never comes up — observed retry9 spinning 5+ min on "Server is not
+        # up yet"). vLLM minimum reliable model size is ~500M-1B; below that,
+        # use HF generation directly (slower but reliable). Override-able via
+        # FORCE_VLLM=1 env (for testing).
+        if param_count < 5e8 and os.getenv("FORCE_VLLM", "0") != "1":
+            run_config["use_vllm"] = False
+            print(f"[adaptive-grpo-tiny-vllm] param={param_count:,} <500M, "
+                  f"use_vllm=False (avoid vLLM startup timeout on tiny model)",
+                  flush=True)
         # Cap batch by vanilla bucket (known-safe upper bound).
         # Slow reward funcs (textstat/langcheck/detoxify) need extra reduction.
         dataset_type = train_info.get("dataset_type", {}) or {}
