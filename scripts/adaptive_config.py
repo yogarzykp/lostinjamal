@@ -1102,6 +1102,22 @@ def build_adaptive_run_config(
     print(f"[adaptive] arch={arch} param={param_count:,} ds_n={ds_metrics.num_samples} seq_p95={ds_metrics.seq_len_p95}", flush=True)
     print(f"[adaptive] PLAN: lr={init_lr:.2e} batch={batch} epochs={epochs} max_len={max_length} lora={use_lora} grad_accum={grad_accum}", flush=True)
 
+    # HP override hooks (selective port from hyper-text Sprint patches 2026-05-13)
+    # - probe_warmup_reduction: cuts probe warmup ~2× for more LR signal
+    # - d2z_scheduler: switches to linear decay-to-zero when TPP > 1.0 + epochs >= 2
+    # Both fail-soft + env-gated. Disable via TRAINING_*_ENABLED=0.
+    try:
+        from hp_override import apply_all as _hp_apply
+        run_config = _hp_apply(
+            run_config,
+            train_info,
+            n_train=ds_metrics.num_samples,
+            param_count=param_count,
+            seq_p95=ds_metrics.seq_len_p95,
+        )
+    except Exception as _exc:
+        print(f"[hp-override] apply_all failed (skipped, fail-soft): {_exc}", flush=True)
+
     # SUGGESTION TIER (advisory only — NOT applied):
     # General HP resolver consults empirical_hp_rules.json (winner medians per
     # family×size×task_type). Logs side-by-side comparison for human inspection.
