@@ -191,6 +191,13 @@ _FAMILY_PROFILES = {
         # min_lr_rate 0.25 (was 0.18) — matches all observed winning training_args
         # across tasks (708e03d4 5G1efLqq, ded7e684 5C5FBvLa, 03f6b01c 5C7vE26G).
         # Higher floor reduces over-cooldown effect at end of training.
+        #
+        # UPDATE 2026-05-13 — size-bucketed LR:
+        # Empirical winner LRs per param size:
+        #   0.5B class (0bda471b 5DLkfAsZ unsloth-Qwen): 2.51e-4
+        #   1.5B-3B class (708e03d4 5G1efLqq): 8.6e-5 (current default)
+        # 0.5B winners use ~2.9× higher LR than 1.5B+ baseline. Apply via
+        # lr_size_buckets dict consumed by adaptive_config logic post-resolve.
         "min_lr_rate": 0.25,
         "weight_decay_small_data": 0.0,
         "weight_decay_default": 0.0,
@@ -203,6 +210,13 @@ _FAMILY_PROFILES = {
         "warmup_steps_default": 35,
         "lr_default": 8.6e-5,
         "lr_floor": 5.7e-5,
+        # NEW 2026-05-13: size-bucketed LR override (overrides lr_default if size matches)
+        # Keys: max_param_bound; value: lr for models below that bound
+        "lr_size_buckets": {
+            "0_7b": 2.5e-4,   # <0.7B (Qwen 0.5B class): 2.51e-4 empirical from 5DLkfAsZ
+            "2_0b": 1.4e-4,   # 0.7B-2B (Qwen 1.5B class): interpolated
+            # >=2B: falls through to lr_default (8.6e-5)
+        },
         "reg_ratio_small_data": 1.08,
         "reg_ratio_default": 1.00,
     },
@@ -219,6 +233,29 @@ _FAMILY_PROFILES = {
         "warmup_steps_default": 35,
         "lr_default": 7.2e-5,
         "lr_floor": 3.9e-5,
+        "reg_ratio_small_data": 1.03,
+        "reg_ratio_default": 1.00,
+    },
+    # Sheared-LLaMA family — NEW 2026-05-13.
+    # Empirical from winner 5Ek3D5Jp on acd597ef (Sheared-LLaMA-1.3B):
+    # lr=9.15e-5, min_lr_rate=0.25, wd=0.0, epochs=3 (stopped at 2),
+    # full FT (no LoRA), batch=100 on validator.
+    # Reason for dedicated profile: previously aliased to tinyllama
+    # (lr=7.2e-5) which was 27% too low. Wave 1+2 acd597ef v1/v5
+    # both LOSE +0.10% — patches didn't help because alias mismatch.
+    "shear": {
+        "min_lr_rate": 0.25,
+        "weight_decay_small_data": 0.0,
+        "weight_decay_default": 0.0,
+        "packing": True,
+        "max_packed_size": 4,
+        "max_length_cap": 4096,
+        "neftune_alpha_small_data": 0,
+        "neftune_alpha_default": 0,
+        "warmup_steps_small_data": 35,
+        "warmup_steps_default": 35,
+        "lr_default": 9.15e-5,   # empirical winner (was tinyllama 7.2e-5)
+        "lr_floor": 7.5e-5,
         "reg_ratio_small_data": 1.03,
         "reg_ratio_default": 1.00,
     },
@@ -285,6 +322,9 @@ def _classify_model_family_safe(model_name: Optional[str]) -> str:
     name = model_name.lower()
     if "tinyllama" in name:
         return "tinyllama"
+    # NEW 2026-05-13: Sheared-LLaMA family (was aliased to tinyllama, lr 27% too low)
+    if "shear" in name:  # matches "Sheared-LLaMA" / "sheared-llama"
+        return "shear"
     if "smollm" in name:
         return "smollm"
     if "qwen" in name:
@@ -567,14 +607,35 @@ def _compute_instruct_adaptive_hp(
     )
 
     # LR: family median if available, else param-based heuristic
-    if profile["lr_default"] is not None:
-        lr = profile["lr_default"]
-    elif param_count < 1.5e9:
-        lr = 1e-4
-    elif param_count < 5e9:
-        lr = 5e-5
-    else:
-        lr = 2e-5
+    # NEW 2026-05-13: lr_size_buckets override — same family, different LR per size
+    # Used by qwen profile to give 0.5B class 2.5e-4 vs 1.5B+ class 8.6e-5
+    lr = None
+    size_buckets = profile.get("lr_size_buckets")
+    if size_buckets and param_count > 0:
+        # Buckets defined as max_param_bound (suffix _Nb means N billion)
+        # e.g. "0_7b" → 0.7e9, "2_0b" → 2.0e9
+        for bucket_key, bucket_lr in sorted(size_buckets.items()):
+            # Parse bucket key like "0_7b" → 0.7e9
+            try:
+                bound_str = bucket_key.lower().rstrip("b").replace("_", ".")
+                bound = float(bound_str) * 1e9
+                if param_count < bound:
+                    lr = bucket_lr
+                    print(f"[adaptive] lr_size_bucket hit: param={param_count:,} "
+                          f"< {bound_str}B → lr={lr:.2e}", flush=True)
+                    break
+            except (ValueError, TypeError):
+                continue
+
+    if lr is None:
+        if profile["lr_default"] is not None:
+            lr = profile["lr_default"]
+        elif param_count < 1.5e9:
+            lr = 1e-4
+        elif param_count < 5e9:
+            lr = 5e-5
+        else:
+            lr = 2e-5
 
     if profile["lr_floor"] is not None:
         lr = max(lr, profile["lr_floor"])
