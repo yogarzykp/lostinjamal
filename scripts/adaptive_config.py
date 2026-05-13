@@ -792,15 +792,29 @@ def build_adaptive_run_config(
     # Tiny bucket added 2026-05-03 from f5fbe40f GRPO 135M LOSE: winner used 8e-6
     # (half of our 1.5e-5 for <1.5B). Tiny models on GRPO need extra-low LR to
     # avoid KL drift (winner BETA_GRPO=0.5 penalises drift heavily).
+    #
+    # 2026-05-14: Family-aware GRPO override for <500M. Research extraction
+    # (empirical_hp_rules.json `smollm|0_06b|grpo` n=5) showed SmolLM-360M GRPO
+    # winners used 2.0e-4 (25× our 8e-6 default). Add narrow override gated on
+    # family=smollm + task=grpo + param<500M. Doesn't affect other tiny GRPO
+    # tasks (opt-350m winner=9.95e-6 ≈ default).
+    _family_for_lr_gate = _resolve_family(arch, None, detected_base_model)
     if param_count < 5e8:
-        init_lr = 8e-6
+        if _family_for_lr_gate == "smollm" and task_type_lc == "grpo":
+            init_lr = 2.0e-4
+            print(f"[adaptive] smollm GRPO <500M LR override 2.0e-4 "
+                  f"(was 8e-6 default; from empirical_hp_rules n=5)", flush=True)
+        else:
+            init_lr = 8e-6
     elif param_count < 1.5e9:
         init_lr = 1.5e-5
     elif param_count < 5e9:
         init_lr = 8e-6
     else:
         init_lr = 5e-6
-    init_lr = float(os.getenv("ADAPTIVE_LR_OVERRIDE", str(init_lr)))
+    _lr_override_env = os.getenv("ADAPTIVE_LR_OVERRIDE")
+    if _lr_override_env:  # guard against empty string from docker --env passthrough
+        init_lr = float(_lr_override_env)
 
     # Epochs from init_loss (placeholder: average expected loss)
     # TODO Phase 2: actual init_loss measurement
@@ -904,7 +918,9 @@ def build_adaptive_run_config(
                 print(f"[adaptive-instruct] init_loss probe error: {exc}", flush=True)
 
         # Override learnings — PRIMARY (these affect convergence)
-        init_lr = float(os.getenv("ADAPTIVE_LR_OVERRIDE", str(instruct_hp["learning_rate"])))
+        # Guard against empty string from docker --env passthrough (2026-05-14 bug fix)
+        _instruct_lr_override = os.getenv("ADAPTIVE_LR_OVERRIDE")
+        init_lr = float(_instruct_lr_override) if _instruct_lr_override else instruct_hp["learning_rate"]
         epochs = instruct_hp["epoch_num"]
         max_length = instruct_hp["max_length"]
         # warmup recomputed below after total_steps
