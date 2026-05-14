@@ -42,12 +42,25 @@ from typing import Any
 
 _SENTINEL_FIELD = "extra_special_tokens"
 
+# 2026-05-14: Known anonymization-placeholder tokenizer_class values that don't
+# exist as real transformers tokenizer classes. When found, remove field so
+# AutoTokenizer falls back to architecture-based detection (config.json
+# `model_type` → matching tokenizer class).
+_PLACEHOLDER_TOKENIZER_CLASSES = {
+    "TokenizersBackend",  # Llama-3.2-3B-Instruct augmented (task 0d824)
+}
+
 
 def sanitize_tokenizer_config(model_dir: str) -> bool:
     """Repair malformed tokenizer_config.json in place.
 
-    Returns True if a fix was applied, False if no-op (already clean).
+    Returns True if any fix was applied, False if no-op (already clean).
     Fail-soft on errors (logs + returns False).
+
+    Handles TWO known anon-related issues:
+    1. `extra_special_tokens` serialized as list instead of dict (Qwen2 anon).
+    2. `tokenizer_class` set to anon placeholder ("TokenizersBackend" etc) that
+       isn't a real transformers class → AutoTokenizer ValueError.
     """
     cfg_path = Path(model_dir) / "tokenizer_config.json"
     if not cfg_path.exists():
@@ -63,17 +76,33 @@ def sanitize_tokenizer_config(model_dir: str) -> bool:
     if not isinstance(cfg, dict):
         return False
 
-    # Only repair if field exists AND is malformed (list)
-    raw = cfg.get(_SENTINEL_FIELD)
-    if raw is None:
-        return False
-    if not isinstance(raw, list):
-        # Already a dict — transformers happy, no-op
-        return False
+    fixed = False
 
-    # Repair: remove the field entirely. Tokenizer will rebuild special
-    # tokens from tokenizer.json's `added_tokens` (correctly structured).
-    del cfg[_SENTINEL_FIELD]
+    # Fix 1: malformed extra_special_tokens (list → drop, rebuilt from tokenizer.json)
+    raw = cfg.get(_SENTINEL_FIELD)
+    if raw is not None and isinstance(raw, list):
+        del cfg[_SENTINEL_FIELD]
+        print(
+            f"[tokenizer-sanitize] removed malformed `{_SENTINEL_FIELD}` "
+            f"(was list of {len(raw)} tokens) from {cfg_path}",
+            flush=True,
+        )
+        fixed = True
+
+    # Fix 2: placeholder tokenizer_class (anon scrubbing). Remove so AutoTokenizer
+    # falls back to architecture lookup via config.json model_type.
+    tc = cfg.get("tokenizer_class")
+    if isinstance(tc, str) and tc in _PLACEHOLDER_TOKENIZER_CLASSES:
+        del cfg["tokenizer_class"]
+        print(
+            f"[tokenizer-sanitize] removed placeholder tokenizer_class='{tc}' "
+            f"from {cfg_path} (AutoTokenizer will fall back to model_type)",
+            flush=True,
+        )
+        fixed = True
+
+    if not fixed:
+        return False
 
     try:
         with open(cfg_path, "w", encoding="utf-8") as f:
@@ -82,11 +111,6 @@ def sanitize_tokenizer_config(model_dir: str) -> bool:
         print(f"[tokenizer-sanitize] write fail (skip): {cfg_path}: {exc}", flush=True)
         return False
 
-    print(
-        f"[tokenizer-sanitize] removed malformed `{_SENTINEL_FIELD}` "
-        f"(was list of {len(raw)} tokens) from {cfg_path}",
-        flush=True,
-    )
     return True
 
 
