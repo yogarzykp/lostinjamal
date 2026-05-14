@@ -780,12 +780,15 @@ def build_adaptive_run_config(
     # multiplies). Even batch=24 OOMs (27.82 GiB allocation per device).
     # Cap at 8 — works for Qwen high-vocab (152k) 2-GPU DDP. Validated on
     # 10fdeca6 organic Qwen2.5-3B PubMedQA test.
+    # 2026-05-14 v2: 9B+ cap lowered to 4 — Gemma-2-9b vocab=256k OOMs at
+    # batch=8 (DDP inp.clone() alloc 15.62 GiB, 65 GiB already used).
+    # Validated empirically on 89f19 unsloth/gemma-2-9b-it 2-GPU DDP.
     if 1.5e9 <= param_count < 5e9:
         batch = min(batch, 8)
     elif 5e9 <= param_count < 9e9:
         batch = min(batch, 14)
     elif param_count >= 9e9:
-        batch = min(batch, 8)
+        batch = min(batch, 4)
     env_batch = os.getenv("INSTRUCT_BATCH_OVERRIDE")
     if env_batch:
         try:
