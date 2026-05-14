@@ -774,7 +774,15 @@ def build_adaptive_run_config(
     # before the fwd, then a 32 GB activation tensor blows past the 80 GB budget.
     # 2nd attempt: cap=14 (halves activations to ~16 GB), pair with
     # PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True in entrypoint.
-    if 5e9 <= param_count < 9e9:
+    #
+    # 2026-05-14: 3B class cap added. Qwen 2.5-3B at batch=64 OOMs at logits
+    # alloc (vocab 152k × 64 × 1024 × bf16 = 19 GB; cross_entropy + grad copy
+    # multiplies). Even batch=24 OOMs (27.82 GiB allocation per device).
+    # Cap at 8 — works for Qwen high-vocab (152k) 2-GPU DDP. Validated on
+    # 10fdeca6 organic Qwen2.5-3B PubMedQA test.
+    if 1.5e9 <= param_count < 5e9:
+        batch = min(batch, 8)
+    elif 5e9 <= param_count < 9e9:
         batch = min(batch, 14)
     elif param_count >= 9e9:
         batch = min(batch, 8)
