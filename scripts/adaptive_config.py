@@ -1291,3 +1291,5 @@ def get_adaptive_training_json(task_type: str, train_info: dict) -> dict:
 # Same code as 45f6190 — different commit hash for hotkey routing only
 # tournament hotkey slot 4 variant (2026-05-14)
 # Same code as 45f6190 — different commit hash for hotkey routing only
+# tournament hotkey slot 5 variant (2026-05-14)
+# Same code as 45f6190 — different commit hash for hotkey routing only
