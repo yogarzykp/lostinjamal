@@ -922,6 +922,64 @@ def build_adaptive_run_config(
         init_lr = 8e-6
     else:
         init_lr = 5e-6
+    # ----------------------------------------------------------------------
+    # EXP-B 2026-05-15: Tier 1 — Empirical family LR table lookup
+    # ----------------------------------------------------------------------
+    # Adopt hyper-text's 140-cell empirical LR table (derived from 783 prior
+    # tournament winner training_args). Their winning round 2 5C7vE26G uses
+    # this exact pipeline: Tier 1 family_lr → Tier 2 tier-config fallback.
+    #
+    # Our previous hardcoded lr_size_buckets for qwen <2B was 1.4e-4 — empirical
+    # winners use 8.07e-5 (n=11, MED confidence) = 73% LOWER. This explains
+    # KITA round 2 underperform (5D7iEJm5 tl=1.1191 missed top-8 by 0.0011).
+    #
+    # Apply only when confidence >= LOW-ok (n>=2, spread<3x). Single-shot LOW
+    # data treated as noise — fall through to next tier.
+    # GRPO sub-task selection: "grpo_python" if dataset has python execution
+    # reward (rough heuristic; defer to caller for now).
+    _family_lr_hit = None
+    try:
+        from family_lr_table import lookup_lr as _family_lookup_lr, confidence_meets
+        from family_lr_table import family_from_architecture as _fam_from_arch
+        # Determine architecture string for family_lr_table lookup.
+        # Prefer AutoConfig.architectures[0] (most reliable for anonymized models).
+        _arch_str_for_lookup = None
+        try:
+            from transformers import AutoConfig
+            _cfg = AutoConfig.from_pretrained(model_path, local_files_only=True, trust_remote_code=False)
+            archs = getattr(_cfg, "architectures", None) or []
+            if archs:
+                _arch_str_for_lookup = archs[0]
+        except Exception:
+            pass
+        # Task type for table key
+        _task_key = task_type_lc if task_type_lc in ("dpo", "grpo", "instruct") else "instruct"
+        # GRPO python sub-key (heuristic: dataset_type contains "python" reward fn name)
+        if _task_key == "grpo":
+            _dt = train_info.get("dataset_type") or {}
+            _rf = _dt.get("reward_functions") or []
+            if isinstance(_rf, list) and any("python" in str(r).lower() for r in _rf):
+                _task_key = "grpo_python"
+        _result = _family_lookup_lr(
+            architecture=_arch_str_for_lookup or "",
+            size_b=param_count / 1e9,
+            task=_task_key,
+        )
+        if _result is not None:
+            _lr, _conf, _n = _result
+            if confidence_meets(_conf, min_conf="LOW-ok"):
+                _orig_init_lr = init_lr
+                init_lr = _lr
+                _family_lr_hit = (_lr, _conf, _n)
+                print(f"[adaptive] Tier 1 family_lr HIT: lr={_lr:.4e} conf={_conf} n={_n} "
+                      f"task={_task_key} arch={_arch_str_for_lookup} (was generic {_orig_init_lr:.4e})", flush=True)
+            else:
+                print(f"[adaptive] Tier 1 family_lr SKIP (low conf): {_lr:.4e} conf={_conf} n={_n}", flush=True)
+        else:
+            print(f"[adaptive] Tier 1 family_lr MISS (no entry for arch={_arch_str_for_lookup} task={_task_key})", flush=True)
+    except Exception as _e:
+        print(f"[adaptive] Tier 1 family_lr lookup fail-soft: {type(_e).__name__}: {_e}", flush=True)
+
     _lr_override_env = os.getenv("ADAPTIVE_LR_OVERRIDE")
     if _lr_override_env:  # guard against empty string from docker --env passthrough
         init_lr = float(_lr_override_env)
