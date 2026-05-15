@@ -1199,7 +1199,16 @@ def build_adaptive_run_config(
         else:
             init_lr = instruct_hp["learning_rate"]
         epochs = instruct_hp["epoch_num"]
-        max_length = instruct_hp["max_length"]
+        # EXP-K2 2026-05-16: instruct_hp.max_length may bypass validator halving
+        # rule when family profile cap > model max_position/2. Re-apply halve
+        # (G.O.D common.py:429-431) to keep train/eval distributions aligned.
+        # Bug observed on opt-350m (max_pos=2048, profile cap=2046): instruct_hp
+        # returned 2046, but validator halves eval to 1024 → 2× context mismatch.
+        _instruct_max = instruct_hp["max_length"]
+        max_length = min(_instruct_max, max_length)  # max_length carries _select_max_length result
+        if max_length != _instruct_max:
+            print(f"[adaptive] EXP-K2 max_length halving applied: instruct_hp={_instruct_max} → {max_length} "
+                  f"(validator-aligned via max_pos={model_max_position})", flush=True)
         # warmup recomputed below after total_steps
 
     # Total steps for warmup
