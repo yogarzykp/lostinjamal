@@ -113,24 +113,44 @@ def _select_max_length(
     validator_max: int = 4096,
     model_max_position: Optional[int] = None,
 ) -> int:
-    """Adaptive max_length from data — capped at validator default + model arch.
+    """Adaptive max_length from data — VALIDATOR-ALIGNED via halving rule.
 
-    Source: our experiment 2026-04-26 — DPO max_length=4096 hurt eval
-    (3.78 vs 3.06 at 1024). p95-based selection avoids over-padding.
+    EXP-K 2026-05-15: replicate G.O.D validator's sequence_len rule to avoid
+    train/eval distribution mismatch.
 
-    2026-05-15 — added model_max_position safety cap (kwarg).
-    OPT models use OPTLearnedPositionalEmbedding with internal +2 offset →
-    positions index [2, max_pos+1]. Sequences of length max_pos crash at embedding
-    lookup with `indexSelectLargeIndex` assertion. Cap at max_pos - 2 for safety.
-    Empirical evidence: Round 1 task 3c42f opt-350m (max_pos=2048) — KITA 5CcPT +
-    5GUHS crashed at packed seq_len 2048; BOSS 17 success hotkeys all used max_len < 2048.
+    Source verbatim from G.O.D/validator/evaluation/common.py:429-431:
+        max_embeddings = getattr(finetuned_model.config, "max_position_embeddings", None)
+        if max_embeddings and max_embeddings < 2 * config_dict["sequence_len"]:
+            config_dict["sequence_len"] = ceil(max_embeddings / 2)
+
+    Where config_dict["sequence_len"] defaults to 4096 (validator/test_axolotl.yml:5).
+
+    Implication: when model.max_position_embeddings < 8192, validator HALVES
+    its eval sequence_len to ceil(max_pos / 2). For OPT-350m (max_pos=2048),
+    validator uses seq_len=1024 for eval. If we train at max_len > 1024,
+    the model sees longer contexts at train than at eval → distribution mismatch.
+
+    Per hyper-text comment (also references same G.O.D code):
+      "Motivating case: opt-125m (max_emb=2050) → validator halves to 1025;
+       we were training at 2048 → 2× context mismatch, hurts eval."
+
+    Previous EXP-1B safety (max_pos - 2) was a partial fix — it prevented OPT
+    indexSelect crash but didn't align train/eval. Halve rule subsumes both:
+    for OPT (max_pos=2048), halve gives 1024, well below the -2 safety threshold.
+
+    Additional layer: data-aware floor max(1024, p95*1.1). Validator's halve
+    operates on architecture; data-aware cap operates on dataset signal.
+    Final = min(validator_halve, data_p95_floor, validator_max=4096).
     """
-    selected = min(validator_max, max(1024, int(seq_len_p95 * 1.1)))
+    import math
+    base = min(validator_max, max(1024, int(seq_len_p95 * 1.1)))
     if model_max_position is not None and model_max_position > 0:
-        # Safety margin: -2 for OPT internal offset, +safety for other archs with
-        # similar +N offset patterns (xPos, RoPE wrapped position not affected).
-        selected = min(selected, model_max_position - 2)
-    return max(64, selected)  # absolute floor — pathological short seqs still need 64
+        # Validator halving rule (G.O.D common.py:429-431) — match it for
+        # train/eval alignment.
+        if model_max_position < 2 * validator_max:
+            validator_halve = math.ceil(model_max_position / 2)
+            base = min(base, validator_halve)
+    return max(64, base)  # absolute floor — pathological short seqs still need 64
 
 
 def _select_grpo_max_completion(seq_len_p95: int) -> int:
