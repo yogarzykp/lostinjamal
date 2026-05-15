@@ -599,7 +599,19 @@ def _apply_task_character_overrides(
         else:
             hp["epoch_num"] = 2
 
-    # translation, skill: keep family HP (NEFTune + family default LR)
+    elif task_class == "translation":
+        # EXP-P 2026-05-16: translation tasks need lower LR + tighter epoch cap.
+        # Empirical: a208c065 (Qwen-1.5B Arabic instruct, task_class=translation)
+        # — Winner 5C7vE26G used peak LR ~2.94e-5 + 3 epochs (train_runtime 81min)
+        # — KITA v2 used 8.07e-5 + 4 epochs → internal eval 1.0828 < winner 1.0888
+        #   BUT validator test 1.1283 > winner 1.1048 (gap dev→test 4.2% vs 1.5%)
+        # → KITA overfit dev split. Root cause: high LR + extra epoch on script-
+        # specific patterns (non-Latin) memorizes dev tokens too tightly.
+        # Fix: halve LR + cap epoch=3. Floor 2.5e-5 to avoid underfitting.
+        hp["learning_rate"] = max(2.5e-5, hp["learning_rate"] * 0.4)
+        hp["epoch_num"] = min(hp.get("epoch_num", 4), 3)
+
+    # skill: keep family HP (NEFTune + family default LR)
     return hp
 
 
@@ -1198,6 +1210,22 @@ def build_adaptive_run_config(
                   f"(would have been overridden by instruct_hp to {instruct_hp['learning_rate']:.4e})", flush=True)
         else:
             init_lr = instruct_hp["learning_rate"]
+
+        # EXP-P 2026-05-16: task_class-specific LR multiplier (applied AFTER Tier 1).
+        # family_lr_table is task_class-agnostic (mixes translation+general). Apply
+        # post-Tier1 multiplier to correct for known task_class overfit modes.
+        # Empirical source: a208c065 LOSE +2.13% — winner LR 0.36× our Tier 1 LR.
+        _task_class_lr_mult = {
+            "translation": 0.4,  # halve+ to prevent dev overfit on script patterns
+        }
+        _tc = (instruct_hp.get("_meta", {}) or {}).get("task_class")
+        if _tc in _task_class_lr_mult:
+            _old_init_lr = init_lr
+            init_lr = max(2.5e-5, init_lr * _task_class_lr_mult[_tc])
+            if abs(init_lr - _old_init_lr) > 1e-9:
+                print(f"[adaptive] EXP-P task_class={_tc} LR mult {_task_class_lr_mult[_tc]:.2f}× "
+                      f"→ {init_lr:.4e} (was {_old_init_lr:.4e})", flush=True)
+
         epochs = instruct_hp["epoch_num"]
         # EXP-K2 2026-05-16: instruct_hp.max_length may bypass validator halving
         # rule when family profile cap > model max_position/2. Re-apply halve
