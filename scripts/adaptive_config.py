@@ -984,9 +984,40 @@ def build_adaptive_run_config(
     if _lr_override_env:  # guard against empty string from docker --env passthrough
         init_lr = float(_lr_override_env)
 
-    # Epochs from init_loss (placeholder: average expected loss)
-    # TODO Phase 2: actual init_loss measurement
-    init_loss_estimate = float(os.getenv("ADAPTIVE_INIT_LOSS_OVERRIDE", "2.5"))
+    # ----------------------------------------------------------------------
+    # EXP-C 2026-05-15: Validator baseline_stats consumer
+    # ----------------------------------------------------------------------
+    # G.O.D model-prep container (PR #1096) computes pre-training stats and
+    # passes path via BASELINE_STATS_PATH env. Provides:
+    #   - init_loss (forward pass on dev split with untrained adapter) — replaces our 2.5 placeholder
+    #   - grad_norms p95 — future hook for max_grad_norm tightening
+    #   - GRPO baseline_reward_scores — future hook for β tuning
+    # Fail-soft: returns None when env unset or file missing (legacy tasks).
+    # Tier preference:
+    #   1. ADAPTIVE_INIT_LOSS_OVERRIDE env (manual)
+    #   2. validator baseline_stats init_loss (preferred when present)
+    #   3. 2.5 default (placeholder)
+    _baseline_stats = None
+    _baseline_init_loss = None
+    try:
+        from baseline_stats_reader import maybe_read_baseline_stats, get_init_loss
+        _baseline_stats = maybe_read_baseline_stats()
+        if _baseline_stats is not None:
+            _baseline_init_loss = get_init_loss(_baseline_stats)
+            if _baseline_init_loss is not None:
+                print(f"[adaptive] baseline_stats init_loss={_baseline_init_loss:.3f} "
+                      f"(replaces 2.5 placeholder)", flush=True)
+    except Exception as _e:
+        print(f"[adaptive] baseline_stats reader fail-soft: {type(_e).__name__}: {_e}", flush=True)
+
+    # Epochs from init_loss — use validator's actual measurement when available
+    _override_init_loss = os.getenv("ADAPTIVE_INIT_LOSS_OVERRIDE")
+    if _override_init_loss:
+        init_loss_estimate = float(_override_init_loss)
+    elif _baseline_init_loss is not None:
+        init_loss_estimate = _baseline_init_loss
+    else:
+        init_loss_estimate = 2.5  # placeholder fallback (legacy tasks without baseline)
     epochs = adaptive_epochs_from_init_loss(init_loss_estimate, ds_metrics.num_samples, param_count)
 
     # ----------------------------------------------------------------------
