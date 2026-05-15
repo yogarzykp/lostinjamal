@@ -833,6 +833,8 @@ def build_adaptive_run_config(
         gpu_metrics=gpu,
         use_lora=use_lora,
     )
+    # Resolve GPU count BEFORE batch policy (used in conditional bucket choice).
+    gpu_count = max(1, gpu.num_gpus)
     # Batch size policy — REWRITTEN 2026-05-15 from empirical winner data recon.
     #
     # KEY INSIGHT: Multi-GPU caps were OVERLY CONSERVATIVE for 1-GPU validator-side runs.
@@ -894,7 +896,6 @@ def build_adaptive_run_config(
             print(f"[adaptive] batch overridden via env: {batch}", flush=True)
         except ValueError:
             pass
-    gpu_count = max(1, gpu.num_gpus)
 
     # Init LR — heuristic from arch+param (LRRT can refine in Phase 2)
     # Range: log-scale based on param_count (smaller = higher LR for non-Instruct path).
