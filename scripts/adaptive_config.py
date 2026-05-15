@@ -917,6 +917,39 @@ def build_adaptive_run_config(
         except ValueError:
             pass
 
+    # ----------------------------------------------------------------------
+    # EXP-O 2026-05-15: GQA-aware batch boost
+    # ----------------------------------------------------------------------
+    # Source: hyper-text/scripts/hp_override.py:_maybe_gqa_batch_boost (Sprint A1).
+    # Theory: GQA models have num_kv_heads << num_query_heads → KV cache smaller
+    # → more memory available for larger batches.
+    # Boost factor (conservative — only KV scales):
+    #   gqa_ratio ≥ 4 → batch ×1.20 (Qwen2.5 7×, Llama-3.1 4×, Mistral 4×)
+    #   gqa_ratio ≥ 2 → batch ×1.10
+    # Relevant for round 2+ Qwen-1.5B (ratio=6) and round 3+ Qwen3-1.7B/4B.
+    if gpu_count == 1:  # only apply for 1-GPU validator path (multi-GPU has DDP overhead)
+        try:
+            from transformers import AutoConfig as _AutoConfig
+            _gqa_cfg = _AutoConfig.from_pretrained(model_path, local_files_only=True, trust_remote_code=False)
+            _num_q = getattr(_gqa_cfg, "num_attention_heads", None)
+            _num_kv = getattr(_gqa_cfg, "num_key_value_heads", None)
+            if _num_q and _num_kv and _num_kv > 0:
+                _gqa_ratio = _num_q / _num_kv
+                if _gqa_ratio >= 4:
+                    _boost = 1.20
+                elif _gqa_ratio >= 2:
+                    _boost = 1.10
+                else:
+                    _boost = 1.0
+                if _boost > 1.0:
+                    _new_batch = max(1, int(batch * _boost))
+                    if _new_batch > batch:
+                        print(f"[adaptive] EXP-O GQA boost: ratio={_gqa_ratio:.1f}× (q={_num_q}/kv={_num_kv}) "
+                              f"batch {batch}→{_new_batch} (×{_boost})", flush=True)
+                        batch = _new_batch
+        except Exception as _e:
+            pass  # GQA boost fail-soft, no log to keep noise low
+
     # Init LR — heuristic from arch+param (LRRT can refine in Phase 2)
     # Range: log-scale based on param_count (smaller = higher LR for non-Instruct path).
     # Tiny bucket added 2026-05-03 from f5fbe40f GRPO 135M LOSE: winner used 8e-6
