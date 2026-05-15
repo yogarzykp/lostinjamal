@@ -1286,8 +1286,55 @@ def build_adaptive_run_config(
         total_steps = max(100, ds_metrics.num_samples * epochs // (batch * gpu_count))
         warmup = adaptive_warmup_steps(total_steps)
 
+    # ----------------------------------------------------------------------
+    # EXP-A 2026-05-15: Dual-strategy "Floating with stable floor"
+    # ----------------------------------------------------------------------
+    # User insight + data: hyper-text 5C7vE26G WON Round 2 (a208c065 Qwen-1.5B)
+    # with tl=1.1048 using SLOW training pattern: lr~5.5e-5, epochs=6, batch=60,
+    # max_grad_norm=0.5, wd=0.005 (vs BOSS fast pattern: lr~1e-4, epochs=3, batch=100).
+    #
+    # KITA Round 2 5D7iEJm5 tl=1.1191 (rank #9, MISSED top 8 BY 0.0011) — extremely
+    # close to advancing. Solution: deploy MIX of fast+slow strategies across our
+    # 3-5 hotkeys to maximize chance one hits winner regime. Validator picks best.
+    #
+    # FLOOR (empirical safe baseline) defined per family in _FAMILY_PROFILES + EXP-2
+    # batch buckets. FLOATING = strategy multiplier applied here (deterministic).
+    #
+    # Env-gated for local testing + tournament slot diversification:
+    #   KITA_STRATEGY=fast (default): BOSS-style, current behavior. lr unchanged.
+    #   KITA_STRATEGY=slow: hyper-text-style. lr×0.4, epochs×1.5, wd=0.005.
+    #   KITA_STRATEGY=auto: pick based on dataset size (small=slow, large=fast).
+    #
+    # Tournament deployment: commit code with KITA_STRATEGY=fast as default. For
+    # diversification, create separate marker commits with strategy hardcoded
+    # (per-slot fork). See `tournament_submit_2026_05_14.md` for marker pattern.
+    #
+    # Skip override for GRPO/DPO — round 3 5C7vE26G TEMAN GRPO catastrophic fail
+    # (tl=5.5309 vs winner 0.0194 = 283× worse). "Slow" pattern incompatible with
+    # KL-drift-sensitive reward training. Instruct only.
+    _kita_strategy = os.getenv("KITA_STRATEGY", "fast").strip().lower()
+    if _kita_strategy == "auto":
+        # Heuristic: small dataset → more epochs help (slow). Large → fast efficient.
+        _kita_strategy = "slow" if ds_metrics.num_samples < 20000 else "fast"
+        print(f"[adaptive] KITA_STRATEGY=auto resolved to '{_kita_strategy}' (ds_n={ds_metrics.num_samples})", flush=True)
+    if _kita_strategy == "slow" and task_type_lc == "instruct":
+        _orig_lr = init_lr
+        _orig_epochs = epochs
+        # Empirical from hyper-text 5C7vE26G round 2 winner training_args.bin:
+        # batch=30 grad_acc=2 epochs=6 warmup_steps=67 max_grad_norm=0.5
+        # wd=0.005 lr=5.479e-5. For our Qwen-1.5B with fast=1.4e-4, slow factor=0.39.
+        init_lr = init_lr * 0.4
+        epochs = max(3, int(epochs * 1.5))  # floor 3, e.g. 4→6
+        if instruct_hp is not None:
+            instruct_hp["weight_decay_default"] = 0.005
+            instruct_hp["weight_decay_small_data"] = 0.005
+        print(f"[adaptive] KITA_STRATEGY=slow override applied (hyper-text round 2 winner pattern):", flush=True)
+        print(f"  lr: {_orig_lr:.3e} → {init_lr:.3e} (×0.4)", flush=True)
+        print(f"  epochs: {_orig_epochs} → {epochs} (×1.5)", flush=True)
+        print(f"  weight_decay: {instruct_hp.get('weight_decay_default', '?') if instruct_hp else '?'}", flush=True)
+
     print(f"[adaptive] arch={arch} param={param_count:,} ds_n={ds_metrics.num_samples} seq_p95={ds_metrics.seq_len_p95}", flush=True)
-    print(f"[adaptive] PLAN: lr={init_lr:.2e} batch={batch} epochs={epochs} max_len={max_length} lora={use_lora} grad_accum={grad_accum}", flush=True)
+    print(f"[adaptive] PLAN: lr={init_lr:.2e} batch={batch} epochs={epochs} max_len={max_length} lora={use_lora} grad_accum={grad_accum} strategy={_kita_strategy}", flush=True)
 
     # HP override hooks (selective port from hyper-text Sprint patches 2026-05-13)
     # - probe_warmup_reduction: cuts probe warmup ~2× for more LR signal
