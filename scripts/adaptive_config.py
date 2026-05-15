@@ -980,6 +980,43 @@ def build_adaptive_run_config(
     except Exception as _e:
         print(f"[adaptive] Tier 1 family_lr lookup fail-soft: {type(_e).__name__}: {_e}", flush=True)
 
+    # ----------------------------------------------------------------------
+    # EXP-D 2026-05-15: Tier 1.5 — GRPO reward_classifier refinement
+    # ----------------------------------------------------------------------
+    # GRPO LR depends on reward function landscape (hack_risk, imbalanced
+    # conflicts, unbounded penalties). family_lr_table alone misses these
+    # signals. Round 3 evidence: TEMAN 5C7vE26G GRPO Qwen-1.5B tl=5.5309
+    # (winner 0.0194, 283× worse) demonstrates GRPO needs reward-aware LR.
+    #
+    # Applied only when:
+    #   1. task_type == grpo
+    #   2. dataset_type.reward_functions has known reward fn signatures
+    #   3. classifier returns a valid range
+    # Override fires AFTER family_lr (preferred for reward-landscape signal).
+    if task_type_lc == "grpo":
+        try:
+            from reward_classifier import classify_reward_mix, suggest_lr_range
+            _dt = train_info.get("dataset_type") or {}
+            _reward_fns = _dt.get("reward_functions") or []
+            if _reward_fns:
+                _fp = classify_reward_mix(_reward_fns)
+                _rng = suggest_lr_range(_fp, model_size_b=param_count / 1e9)
+                if _rng is not None:
+                    import math as _math
+                    _cls_lr = _math.sqrt(_rng[0] * _rng[1])  # geomean of range
+                    _prev_lr = init_lr
+                    init_lr = _cls_lr
+                    print(f"[adaptive] Tier 1.5 reward_classifier HIT: "
+                          f"landscape={_fp.get('landscape')} hack_risk={_fp.get('hack_risk')} "
+                          f"range=({_rng[0]:.2e},{_rng[1]:.2e}) "
+                          f"center={_cls_lr:.4e} (was {_prev_lr:.4e})", flush=True)
+                else:
+                    print(f"[adaptive] Tier 1.5 reward_classifier: unknown reward fns, no range", flush=True)
+            else:
+                print(f"[adaptive] Tier 1.5 reward_classifier: no reward_functions in dataset_type", flush=True)
+        except Exception as _e:
+            print(f"[adaptive] Tier 1.5 reward_classifier fail-soft: {type(_e).__name__}: {_e}", flush=True)
+
     _lr_override_env = os.getenv("ADAPTIVE_LR_OVERRIDE")
     if _lr_override_env:  # guard against empty string from docker --env passthrough
         init_lr = float(_lr_override_env)
