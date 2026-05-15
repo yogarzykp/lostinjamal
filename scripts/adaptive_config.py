@@ -1156,7 +1156,25 @@ def build_adaptive_run_config(
         # Override learnings — PRIMARY (these affect convergence)
         # Guard against empty string from docker --env passthrough (2026-05-14 bug fix)
         _instruct_lr_override = os.getenv("ADAPTIVE_LR_OVERRIDE")
-        init_lr = float(_instruct_lr_override) if _instruct_lr_override else instruct_hp["learning_rate"]
+        # EXP-B Tier order fix 2026-05-15: respect Tier 1 family_lr_table hit
+        # IF EXP-B fired with confidence (HIGH/MED/MED-low/LOW-ok), it represents
+        # empirical winner LR (n>=2 prior wins) and should override instruct_hp
+        # legacy lr_default. Otherwise use instruct_hp.
+        # Order: ADAPTIVE_LR_OVERRIDE env > Tier 1 family_lr > instruct_hp[learning_rate]
+        if _instruct_lr_override:
+            init_lr = float(_instruct_lr_override)
+        elif _family_lr_hit is not None:
+            # EXP-B Tier order fix: family_lr_table represents empirical winner
+            # consensus (n>=2 prior wins, confidence-gated). Trust it over
+            # instruct_hp's profile default + task_class override.
+            # task_class adjustments still apply to OTHER HPs (epochs, neftune,
+            # min_lr_rate, weight_decay) via instruct_hp dict consumed below.
+            _tier1_lr, _tier1_conf, _tier1_n = _family_lr_hit
+            init_lr = _tier1_lr
+            print(f"[adaptive] Tier 1 (family_lr) preserved: lr={_tier1_lr:.4e} conf={_tier1_conf} n={_tier1_n} "
+                  f"(would have been overridden by instruct_hp to {instruct_hp['learning_rate']:.4e})", flush=True)
+        else:
+            init_lr = instruct_hp["learning_rate"]
         epochs = instruct_hp["epoch_num"]
         max_length = instruct_hp["max_length"]
         # warmup recomputed below after total_steps
