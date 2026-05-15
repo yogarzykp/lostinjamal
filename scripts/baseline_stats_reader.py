@@ -146,6 +146,64 @@ def get_grpo_baseline_reward(baseline_stats: Optional[dict]) -> Optional[dict]:
     return None
 
 
+def suggest_grpo_beta_from_baseline(
+    baseline_stats: Optional[dict],
+    current_beta: float = 0.04,
+) -> Optional[tuple]:
+    """Tune GRPO β from validator's baseline_reward_scores (Sprint 1 P0c equivalent).
+
+    Source: hyper-text/scripts/hp_override.py:_maybe_baseline_grpo_beta_tune.
+
+    Hypothesis: baseline_reward_scores dict reveals reward landscape:
+      - high mean + low variance → strong signal, easy task → β higher (prevent over-optim)
+      - low mean + high variance → noisy, hard task → β lower (allow exploration)
+      - mid → keep current
+
+    Calibration (heuristic from hyper-text):
+      mean >= 5.0 and stdev/mean < 0.5 → β = 0.10 (strong+stable)
+      mean < 1.0                       → β = 0.04 (weak signal, more exploration)
+      else                             → None (no override)
+
+    Returns:
+      (new_beta, reason_str) — apply this
+      None — no override / no baseline data / not applicable
+
+    Args:
+      baseline_stats: parsed validator JSON
+      current_beta: current β (returned as new_beta if no override applies)
+    """
+    if not isinstance(baseline_stats, dict):
+        return None
+    if baseline_stats.get("task_type", "").lower() != "grpotask":
+        return None
+    training = baseline_stats.get("training") or {}
+    rewards = training.get("baseline_reward_scores")
+    if not isinstance(rewards, dict) or not rewards:
+        return None
+
+    vals = [float(v) for v in rewards.values() if isinstance(v, (int, float))]
+    if not vals:
+        return None
+
+    mean_r = sum(vals) / len(vals)
+    var = sum((v - mean_r) ** 2 for v in vals) / max(1, len(vals))
+    std_r = var ** 0.5
+    cv = std_r / abs(mean_r) if abs(mean_r) > 1e-6 else float("inf")
+
+    new_beta = None
+    reason = ""
+    if mean_r >= 5.0 and cv < 0.5:
+        new_beta = 0.10
+        reason = f"strong+stable (mean={mean_r:.3f}, cv={cv:.3f}) → β=0.10"
+    elif mean_r < 1.0:
+        new_beta = 0.04
+        reason = f"weak+noisy (mean={mean_r:.3f}, cv={cv:.3f}) → β=0.04"
+
+    if new_beta is None or abs(new_beta - current_beta) < 1e-6:
+        return None
+    return (new_beta, reason)
+
+
 if __name__ == "__main__":
     # Smoke test (manual)
     import sys

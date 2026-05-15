@@ -1000,42 +1000,12 @@ def build_adaptive_run_config(
     except Exception as _e:
         print(f"[adaptive] Tier 1 family_lr lookup fail-soft: {type(_e).__name__}: {_e}", flush=True)
 
-    # ----------------------------------------------------------------------
-    # EXP-D 2026-05-15: Tier 1.5 — GRPO reward_classifier refinement
-    # ----------------------------------------------------------------------
-    # GRPO LR depends on reward function landscape (hack_risk, imbalanced
-    # conflicts, unbounded penalties). family_lr_table alone misses these
-    # signals. Round 3 evidence: TEMAN 5C7vE26G GRPO Qwen-1.5B tl=5.5309
-    # (winner 0.0194, 283× worse) demonstrates GRPO needs reward-aware LR.
-    #
-    # Applied only when:
-    #   1. task_type == grpo
-    #   2. dataset_type.reward_functions has known reward fn signatures
-    #   3. classifier returns a valid range
-    # Override fires AFTER family_lr (preferred for reward-landscape signal).
-    if task_type_lc == "grpo":
-        try:
-            from reward_classifier import classify_reward_mix, suggest_lr_range
-            _dt = train_info.get("dataset_type") or {}
-            _reward_fns = _dt.get("reward_functions") or []
-            if _reward_fns:
-                _fp = classify_reward_mix(_reward_fns)
-                _rng = suggest_lr_range(_fp, model_size_b=param_count / 1e9)
-                if _rng is not None:
-                    import math as _math
-                    _cls_lr = _math.sqrt(_rng[0] * _rng[1])  # geomean of range
-                    _prev_lr = init_lr
-                    init_lr = _cls_lr
-                    print(f"[adaptive] Tier 1.5 reward_classifier HIT: "
-                          f"landscape={_fp.get('landscape')} hack_risk={_fp.get('hack_risk')} "
-                          f"range=({_rng[0]:.2e},{_rng[1]:.2e}) "
-                          f"center={_cls_lr:.4e} (was {_prev_lr:.4e})", flush=True)
-                else:
-                    print(f"[adaptive] Tier 1.5 reward_classifier: unknown reward fns, no range", flush=True)
-            else:
-                print(f"[adaptive] Tier 1.5 reward_classifier: no reward_functions in dataset_type", flush=True)
-        except Exception as _e:
-            print(f"[adaptive] Tier 1.5 reward_classifier fail-soft: {type(_e).__name__}: {_e}", flush=True)
+    # NOTE 2026-05-15: previously here added EXP-D Tier 1.5 reward_classifier
+    # for GRPO via suggest_lr_range geomean. Removed as REDUNDANT — KITA's
+    # existing GRPO config path (line ~1369) already integrates reward_classifier
+    # via suggest_params which returns lr+beta together (richer than range).
+    # Existing code overrides init_lr properly. Kept reward_classifier.py port
+    # for that existing integration. EXP-D effectively a no-op deadweight here.
 
     _lr_override_env = os.getenv("ADAPTIVE_LR_OVERRIDE")
     if _lr_override_env:  # guard against empty string from docker --env passthrough
@@ -1440,6 +1410,30 @@ def build_adaptive_run_config(
                   f"to limit KL drift", flush=True)
         else:
             run_config["max_steps"] = _base_max_steps
+        # ----------------------------------------------------------------------
+        # EXP-L 2026-05-15: GRPO β tune from validator baseline_reward_scores
+        # ----------------------------------------------------------------------
+        # When reward_classifier didn't hit (unknown reward fns) AND validator
+        # provides baseline_stats with baseline_reward_scores, use that data
+        # to tune β. Source: hyper-text Sprint 1 P0c.
+        # Calibration (from hyper-text):
+        #   mean(scores) >= 5 + cv < 0.5 → β=0.10 (strong+stable signal)
+        #   mean(scores) < 1.0           → β=0.04 (weak+noisy, more exploration)
+        # Only fires when classifier_hit is False (preserves classifier priority).
+        if _baseline_stats is not None and not classifier_hit:
+            try:
+                from baseline_stats_reader import suggest_grpo_beta_from_baseline
+                _current_beta = run_config.get("beta", 0.04)
+                _baseline_beta_result = suggest_grpo_beta_from_baseline(
+                    _baseline_stats, current_beta=_current_beta
+                )
+                if _baseline_beta_result is not None:
+                    _new_beta, _reason = _baseline_beta_result
+                    run_config["beta"] = _new_beta
+                    print(f"[adaptive-grpo] EXP-L baseline β tune: {_reason}", flush=True)
+            except Exception as _e:
+                print(f"[adaptive-grpo] EXP-L baseline β tune fail-soft: {type(_e).__name__}: {_e}", flush=True)
+
         # Phase 1 sampling tuning (Dr.GRPO inspired): encourage natural EOS
         # NOTE: min_completion_length + vllm_enforce_eager NOT supported by TRL.
         run_config["temperature"] = 0.8
