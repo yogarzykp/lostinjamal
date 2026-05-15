@@ -146,6 +146,48 @@ def get_grpo_baseline_reward(baseline_stats: Optional[dict]) -> Optional[dict]:
     return None
 
 
+def suggest_dpo_beta_from_baseline(
+    baseline_stats: Optional[dict],
+    current_beta: float = 0.10,
+) -> Optional[tuple]:
+    """Tune DPO β from validator's implicit_reward_gap (Sprint 1 P0b equivalent).
+
+    Source: hyper-text/scripts/hp_override.py:_maybe_baseline_dpo_beta_tune.
+
+    Hypothesis: gap = |ref_log_prob_chosen - ref_log_prob_rejected| measures
+    how opinionated the reference model is about the preference. Large gap
+    means ref already aligned → high β (constrain policy from diverging).
+    Small gap means ref is weak → low β (allow policy to learn freely).
+
+    Calibration (TRL default β=0.1):
+      gap < 0.5         → β = 0.05  (ref weak, allow strong moves)
+      gap in [0.5, 2.0] → β = 0.10  (default — no change)
+      gap > 2.0         → β = 0.15  (ref strong, constrain)
+
+    Returns (new_beta, reason_str) or None when no override applies.
+    """
+    if not isinstance(baseline_stats, dict):
+        return None
+    if baseline_stats.get("task_type", "").lower() != "dpotask":
+        return None
+    training = baseline_stats.get("training") or {}
+    gap = training.get("implicit_reward_gap")
+    if gap is None or not isinstance(gap, (int, float)):
+        return None
+
+    abs_gap = abs(float(gap))
+    if abs_gap < 0.5:
+        new_beta, bucket = 0.05, "low-gap"
+    elif abs_gap > 2.0:
+        new_beta, bucket = 0.15, "high-gap"
+    else:
+        new_beta, bucket = 0.10, "normal-gap"
+
+    if abs(new_beta - current_beta) < 1e-6:
+        return None
+    return (new_beta, f"gap={abs_gap:.3f} {bucket} → β={new_beta:.3f}")
+
+
 def suggest_grpo_beta_from_baseline(
     baseline_stats: Optional[dict],
     current_beta: float = 0.04,

@@ -1297,6 +1297,30 @@ def build_adaptive_run_config(
         run_config["beta"] = adaptive_dpo_beta(ds_metrics.num_samples)
         run_config["loss_type"] = "sigmoid"  # vanilla wins per our 2026-04-23 tournament
 
+        # ----------------------------------------------------------------------
+        # EXP-N 2026-05-15: DPO β tune from validator implicit_reward_gap
+        # ----------------------------------------------------------------------
+        # When validator provides BASELINE_STATS_PATH for DPO task with
+        # implicit_reward_gap signal, override β based on reference model strength.
+        # Source: hyper-text Sprint 1 P0b (_maybe_baseline_dpo_beta_tune).
+        # Calibration:
+        #   gap < 0.5         → β=0.05 (ref weak, allow strong moves)
+        #   gap in [0.5, 2.0] → β=0.10 (default, no change)
+        #   gap > 2.0         → β=0.15 (ref strong, constrain)
+        if _baseline_stats is not None:
+            try:
+                from baseline_stats_reader import suggest_dpo_beta_from_baseline
+                _current_beta = run_config["beta"]
+                _dpo_beta_result = suggest_dpo_beta_from_baseline(
+                    _baseline_stats, current_beta=_current_beta
+                )
+                if _dpo_beta_result is not None:
+                    _new_beta, _reason = _dpo_beta_result
+                    run_config["beta"] = _new_beta
+                    print(f"[adaptive-dpo] EXP-N baseline β tune: {_reason} (was {_current_beta:.3f})", flush=True)
+            except Exception as _e:
+                print(f"[adaptive-dpo] EXP-N baseline β tune fail-soft: {type(_e).__name__}: {_e}", flush=True)
+
     elif task_type_lc == "grpo":
         # vLLM optional override (image variants without vllm installed).
         if os.getenv("DISABLE_VLLM_OVERRIDE", "0") == "1":
