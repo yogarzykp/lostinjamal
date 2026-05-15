@@ -108,13 +108,29 @@ def _select_optimizer(param_count: int) -> str:
     return "paged_adamw_8bit"
 
 
-def _select_max_length(seq_len_p95: int, validator_max: int = 4096) -> int:
-    """Adaptive max_length from data — capped at validator default.
+def _select_max_length(
+    seq_len_p95: int,
+    validator_max: int = 4096,
+    model_max_position: Optional[int] = None,
+) -> int:
+    """Adaptive max_length from data — capped at validator default + model arch.
 
     Source: our experiment 2026-04-26 — DPO max_length=4096 hurt eval
     (3.78 vs 3.06 at 1024). p95-based selection avoids over-padding.
+
+    2026-05-15 — added model_max_position safety cap (kwarg).
+    OPT models use OPTLearnedPositionalEmbedding with internal +2 offset →
+    positions index [2, max_pos+1]. Sequences of length max_pos crash at embedding
+    lookup with `indexSelectLargeIndex` assertion. Cap at max_pos - 2 for safety.
+    Empirical evidence: Round 1 task 3c42f opt-350m (max_pos=2048) — KITA 5CcPT +
+    5GUHS crashed at packed seq_len 2048; BOSS 17 success hotkeys all used max_len < 2048.
     """
-    return min(validator_max, max(1024, int(seq_len_p95 * 1.1)))
+    selected = min(validator_max, max(1024, int(seq_len_p95 * 1.1)))
+    if model_max_position is not None and model_max_position > 0:
+        # Safety margin: -2 for OPT internal offset, +safety for other archs with
+        # similar +N offset patterns (xPos, RoPE wrapped position not affected).
+        selected = min(selected, model_max_position - 2)
+    return max(64, selected)  # absolute floor — pathological short seqs still need 64
 
 
 def _select_grpo_max_completion(seq_len_p95: int) -> int:
@@ -291,6 +307,30 @@ _FAMILY_PROFILES = {
         "reg_ratio_small_data": 1.03,
         "reg_ratio_default": 1.00,
     },
+    # OPT family — NEW 2026-05-15.
+    # Critical: max_length_cap MUST account for OPTLearnedPositionalEmbedding's
+    # internal +2 offset (positions stored at [2, max_pos+1] not [0, max_pos-1]).
+    # opt-350m has max_position_embeddings=2048 → safe max_len ≤ 2046.
+    # Round 1 task 3c42f: 5CcPT + 5GUHS crashed with PyTorch indexSelect assertion
+    # at embedding lookup when packed sequences hit position_ids = 2048 (out of bounds).
+    # Empirical from 3c42f winners (17 BOSS/PENCURI hotkeys succeeded): batch=48 lr~1e-4.
+    # Different from smaller-context models — OPT is "small but constrained".
+    "opt": {
+        "min_lr_rate": 0.20,
+        "weight_decay_small_data": 0.0,
+        "weight_decay_default": 0.0,
+        "packing": False,             # disable packing for OPT (position overflow risk)
+        "max_packed_size": 1,
+        "max_length_cap": 2046,       # OPT internal +2 offset; max_pos=2048 → safe=2046
+        "neftune_alpha_small_data": 0,
+        "neftune_alpha_default": 0,
+        "warmup_steps_small_data": 35,
+        "warmup_steps_default": 35,
+        "lr_default": 1.0e-4,         # opt-350m winner empirical (3c42f 17 success hotkeys)
+        "lr_floor": 5.0e-5,
+        "reg_ratio_small_data": 1.00,
+        "reg_ratio_default": 1.00,
+    },
     # Fallback when family unknown/unmappable (anonymization scenario or unseen arch)
     "unknown": {
         "min_lr_rate": 0.20,
@@ -325,6 +365,14 @@ def _classify_model_family_safe(model_name: Optional[str]) -> str:
     # NEW 2026-05-13: Sheared-LLaMA family (was aliased to tinyllama, lr 27% too low)
     if "shear" in name:  # matches "Sheared-LLaMA" / "sheared-llama"
         return "shear"
+    # NEW 2026-05-15: OPT family (was aliased to "unknown", caused PyTorch indexSelect
+    # assertion fail at validator-side for opt-350m via max_len overflow with packing.
+    # Round 1 task 3c42f opt-350m: 5CcPT + 5GUHS both crashed (KITA only). 17/22 other
+    # miners succeeded → bug specific to our code path. Fix routes OPT family →
+    # max_len-safe profile (cap at max_position_embeddings - 2 for OPT's internal offset).
+    if "opt-" in name or "/opt" in name or name.startswith("opt"):
+        if "gpt" not in name:  # exclude gpt-* names that happen to contain "opt"
+            return "opt"
     if "smollm" in name:
         return "smollm"
     if "qwen" in name:
@@ -716,6 +764,23 @@ def build_adaptive_run_config(
         # Fallback: assume 1B if can't determine
         param_count = 1_000_000_000
         print(f"[adaptive] WARN: param_count unknown, defaulting to 1B", flush=True)
+    # NEW 2026-05-15: max_position_embeddings safety probe (for OPT bug + general).
+    # Avoids PyTorch indexSelect assertion when packed sequences exceed model's
+    # position embedding table. OPT has +2 internal offset (effective max = max_pos - 2).
+    model_max_position = None
+    try:
+        from transformers import AutoConfig
+        _cfg = AutoConfig.from_pretrained(model_path, local_files_only=True, trust_remote_code=False)
+        model_max_position = getattr(_cfg, "max_position_embeddings", None)
+        if model_max_position:
+            print(f"[adaptive] model max_position_embeddings={model_max_position}", flush=True)
+    except Exception as _e:
+        try:
+            from transformers import AutoConfig
+            _cfg = AutoConfig.from_pretrained(model_path, trust_remote_code=False)
+            model_max_position = getattr(_cfg, "max_position_embeddings", None)
+        except Exception as _e2:
+            print(f"[adaptive] WARN: max_position probe failed ({_e2}), skipping safety cap", flush=True)
 
     # Sensor 2: dataset (post-tokenize path) — graceful fallback chain
     ds_metrics = None
@@ -759,7 +824,7 @@ def build_adaptive_run_config(
     # Decisions
     lora_cfg = _select_lora_config(param_count, task_type_lc)
     use_lora = lora_cfg.get("use_lora", False)
-    max_length = _select_max_length(ds_metrics.seq_len_p95)
+    max_length = _select_max_length(ds_metrics.seq_len_p95, model_max_position=model_max_position)
 
     # VRAM-aware batch
     batch = estimate_max_batch_size(
