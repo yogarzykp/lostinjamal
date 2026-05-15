@@ -664,7 +664,12 @@ def estimate_max_batch_size(
         return 1
     max_batch = max(1, int(free_for_act / max(1, per_sample_act_bytes)))
     # Multi-GPU multiplies effective batch (per-device stays same)
-    return min(max_batch, 64)  # cap at 64 for stability
+    # 2026-05-15: cap raised 64 → 200 to allow BOSS-empirical batches.
+    # Verified winners: Qwen-0.5B batch=140 (0bda471b 5DLkfAsZ tl=1.7559),
+    # Sheared-1.3B batch=100 (acd597ef 5Ek3D5Jp tl=1.1017).
+    # Downstream consumer (_compute_instruct_adaptive_hp) applies size buckets to
+    # cap appropriately per param_count. This cap only governs VRAM-math ceiling.
+    return min(max_batch, 200)
 
 
 # ---------------------------------------------------------------------------

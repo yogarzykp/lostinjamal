@@ -833,27 +833,60 @@ def build_adaptive_run_config(
         gpu_metrics=gpu,
         use_lora=use_lora,
     )
-    # Plan D-v2 (2026-05-03): hard cap for 5-9B Instruct.
-    # 1st attempt: cap=28 — still OOM (32 GB activation alloc) on Qwen2-7B 2-GPU.
-    # Empirical: batch=28 + max_len=768 + LoRA + DDP + grad-ckpt → 51 GB resident
-    # before the fwd, then a 32 GB activation tensor blows past the 80 GB budget.
-    # 2nd attempt: cap=14 (halves activations to ~16 GB), pair with
-    # PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True in entrypoint.
+    # Batch size policy — REWRITTEN 2026-05-15 from empirical winner data recon.
     #
-    # 2026-05-14: 3B class cap added. Qwen 2.5-3B at batch=64 OOMs at logits
-    # alloc (vocab 152k × 64 × 1024 × bf16 = 19 GB; cross_entropy + grad copy
-    # multiplies). Even batch=24 OOMs (27.82 GiB allocation per device).
-    # Cap at 8 — works for Qwen high-vocab (152k) 2-GPU DDP. Validated on
-    # 10fdeca6 organic Qwen2.5-3B PubMedQA test.
-    # 2026-05-14 v2: 9B+ cap lowered to 4 — Gemma-2-9b vocab=256k OOMs at
-    # batch=8 (DDP inp.clone() alloc 15.62 GiB, 65 GiB already used).
-    # Validated empirically on 89f19 unsloth/gemma-2-9b-it 2-GPU DDP.
-    if 1.5e9 <= param_count < 5e9:
-        batch = min(batch, 8)
-    elif 5e9 <= param_count < 9e9:
-        batch = min(batch, 14)
-    elif param_count >= 9e9:
-        batch = min(batch, 4)
+    # KEY INSIGHT: Multi-GPU caps were OVERLY CONSERVATIVE for 1-GPU validator-side runs.
+    # Tournament Instruct = 1 GPU on validator (per memory `tournament/utils.py`:
+    # DPO×3, GRPO×2 multipliers; Instruct unmultiplied = 1 GPU).
+    #
+    # EMPIRICAL WINNER DATA (1-GPU H100 80GB Instruct tasks, May 2026 tournaments):
+    #   Qwen-0.5B (0bda471b 5DLkfAsZ tl=1.7559) → batch=140 grad_acc=1
+    #   Sheared-LLaMA-1.3B (acd597ef 5Ek3D5Jp tl=1.1017) → batch=100 grad_acc=1
+    #   Mistral-7B-DPO (f2a461ec 5Hosruax tl=0.6865 rank2) → batch=28 grad_acc=1
+    # All winning configs use Cluster A pattern: cosine_with_min_lr +
+    # paged_adamw_8bit + weight_decay=0 + warmup_steps=35.
+    # → BOSS scales effective batch INVERSELY with model size (memory-driven).
+    #
+    # KITA round 2 (Qwen-1.5B) eval@epoch1 = 1.30 vs BOSS = 1.20 (8% behind).
+    # Likely cause: KITA eff_batch=32 vs BOSS=100 → less smooth gradient.
+    # Apply BOSS empirical batches when running on 1 GPU.
+    #
+    # Multi-GPU caps preserved separately (DPO 3-GPU, GRPO 2-GPU validator paths).
+    # 2-GPU local testing memory budget different (DDP overhead + KV cache).
+    if gpu_count > 1:
+        # Multi-GPU (validator DPO×3, GRPO×2; OR local 2-GPU testing): keep conservative caps
+        # Empirical: Qwen 2.5-3B at batch=64 OOMs at logits alloc (vocab 152k × bf16).
+        # Gemma-2-9b vocab=256k OOMs at batch=8 (DDP inp.clone() 15.62 GiB).
+        if 1.5e9 <= param_count < 5e9:
+            batch = min(batch, 8)
+        elif 5e9 <= param_count < 9e9:
+            batch = min(batch, 14)
+        elif param_count >= 9e9:
+            batch = min(batch, 4)
+        print(f"[adaptive] multi-GPU ({gpu_count}) cap applied: batch={batch}", flush=True)
+    else:
+        # Single GPU (validator Instruct path): BOSS empirical buckets verified on
+        # 3 model families. Larger batch = smoother gradient = faster epoch-1 convergence.
+        if param_count < 0.5e9:
+            # opt-350m: 17 BOSS winners batch=48; Qwen-0.5B: batch=140.
+            # Wide variance — use family-aware override (opt profile caps to 48 via
+            # max_length_cap=2046 reducing per-sample memory). Default mid for safety.
+            _bucket = 64
+        elif param_count < 2e9:
+            # 0.5-2B: Qwen-0.5B verified 140, Sheared-1.3B verified 100, Qwen-1.5B target.
+            # Use 100 as safe lower bound (smaller models won't OOM).
+            _bucket = 100
+        elif param_count < 4e9:
+            # 2-4B: extrapolation midpoint (no verified data). Interpolate 100 → 28.
+            _bucket = 60
+        elif param_count < 10e9:
+            # 4-10B: Mistral-7B verified 28.
+            _bucket = 28
+        else:
+            # 10B+: conservative scale-down (no verified data, scale ~2× from 7B).
+            _bucket = 14
+        batch = min(batch, _bucket)
+        print(f"[adaptive] 1-GPU empirical bucket: batch={batch} (target={_bucket} for param={param_count/1e9:.2f}B)", flush=True)
     env_batch = os.getenv("INSTRUCT_BATCH_OVERRIDE")
     if env_batch:
         try:
