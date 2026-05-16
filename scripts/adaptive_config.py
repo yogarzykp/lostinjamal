@@ -1309,6 +1309,20 @@ def build_adaptive_run_config(
     if total_batch < 64:
         grad_accum = min(4, max(1, 64 // total_batch))
 
+    # EXP-Q 2026-05-16: OPT family SDPA attention override.
+    # Empirical 3c42f7f4 opt-350m winner 5FW2Eaa step time = 1.26s/it vs KITA 8.57s/it
+    # (6.8× faster). Cause: OPT NOT in _FA_SUPPORTED_FAMILIES → we force disable_fa=True
+    # → eager attention O(N²). Modern transformers (≥v4.40) supports SDPA for OPT
+    # which is O(N²) memory but uses Pytorch native kernel — 3-5× faster than eager
+    # without the FA-2 instability risk on OPT.
+    # use_attn_implementation overrides disable_fa-derived choice (train_instruct.py:170-172).
+    _family_resolved = (instruct_hp or {}).get("_meta", {}).get("family_resolved")
+    _attn_impl_override = ""
+    if _family_resolved == "opt":
+        _attn_impl_override = "sdpa"
+        print(f"[adaptive] EXP-Q OPT SDPA enabled (attn_implementation=sdpa) — "
+              f"expected 3-5× step speedup vs eager", flush=True)
+
     # Common run_config keys (matches legacy structure)
     run_config = {
         "epoch_num": epochs,
@@ -1329,7 +1343,7 @@ def build_adaptive_run_config(
         "gradient_checkpointing": "True",
         "gradient_accumulation_steps": grad_accum,
         "warmup_steps": warmup,
-        "use_attn_implementation": "",
+        "use_attn_implementation": _attn_impl_override,
         # Adaptive extras (legacy doesn't have but harmless)
         "max_length": max_length,
         "weight_decay": (
