@@ -272,11 +272,28 @@ def suggest_lr_range(
     ``None`` indicates the classifier cannot make a recommendation
     (unknown reward functions) — caller should fall back to LLM warmstart
     or a default.
+
+    EXP-R 2026-05-16: format-theme tasks need HIGHER LR than other coherent
+    landscapes. Empirical: 293a1d87 winner 5C7vE26G (Qwen2.5-1.5B, 2 format-
+    theme reward funcs: think_answer_format + reasoning_keywords) used peak
+    LR ~5.5e-5 (Grafana log shows range 3.3e-5 → 5.9e-5 cosine). Our default
+    coherent range (1.0-1.5e-5) × size_mult 1.3 = ~1.6e-5 was 3.4× too low.
+
+    For format-theme + low_hack_risk: bump to (3.0e-5, 6.0e-5) range. This
+    matches winner peak LR and gives gradient signal to break cold-start
+    (format-strict rewards need fast learning before reward landscape settles).
     """
     landscape = fingerprint.get("landscape", "unknown")
     base = _BASE_RANGES.get(landscape)
     if base is None:
         return None
+
+    # EXP-R: format-theme override (winner-empirical for 293a1d87 family of tasks)
+    theme = fingerprint.get("dominant_theme")
+    hack_risk = fingerprint.get("hack_risk", "low")
+    if landscape == "coherent" and theme == "format" and hack_risk == "low":
+        base = (3.0e-5, 6.0e-5)
+
     mult = _size_multiplier(model_size_b)
     return (base[0] * mult, base[1] * mult)
 
