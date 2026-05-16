@@ -1309,6 +1309,58 @@ def build_adaptive_run_config(
     if total_batch < 64:
         grad_accum = min(4, max(1, 64 // total_batch))
 
+    # EXP-T 2026-05-16: hours-aware max_steps cap (TOURNAMENT BUDGET GUARDRAIL).
+    # User said berkali-kali: training MUST respect hours_to_complete. Mirror
+    # validator's deadline-kill behavior. If estimated step_time × epoch_steps
+    # exceeds hours budget, cap max_steps to fit (allow at least 1 eval @step500).
+    #
+    # Step time estimates (empirically derived 2026-05-15/16):
+    #   Instruct (no flash attn): ~0.05 * batch * (seq_len/1024) per step
+    #   Instruct (SDPA/FA): ~0.02 * batch * (seq_len/1024)
+    #   GRPO (vLLM): ~1-2s/step typical
+    #   GRPO (HF gen): ~0.5 * num_gen * (max_completion/256) per sample
+    #
+    # Override via env ADAPTIVE_HOURS_BUDGET_OVERRIDE to bypass guardrail.
+    _hours_budget = train_info.get("hours_to_complete", 2.0)
+    if _hours_budget is None:
+        _hours_budget = 2.0
+    _hours_override = os.getenv("ADAPTIVE_HOURS_BUDGET_OVERRIDE")
+    if _hours_override:
+        try:
+            _hours_budget = float(_hours_override)
+            print(f"[adaptive] EXP-T hours_budget override: {_hours_budget}h", flush=True)
+        except ValueError:
+            pass
+    _budget_seconds = float(_hours_budget) * 3600.0 * 0.92  # 8% safety margin (setup + save + upload)
+
+    # Estimate step time conservatively (over-estimate is safer than under-estimate)
+    _effective_batch = max(1, batch * grad_accum)
+    if task_type_lc == "grpo":
+        # GRPO: generation dominates. Per-step time scales with batch × num_gen × completion length.
+        # Default num_gen=5 if not yet computed. max_completion default 512.
+        # vLLM: ~5× faster than HF gen. We can't detect at this point reliably; assume HF for safety.
+        _num_gen_est = 5  # will be overridden later if vLLM auto-disables
+        _max_compl_est = min(1024, max(256, int(ds_metrics.seq_len_p95 * 1.2)))
+        _step_time_est = max(2.0, 0.5 * _num_gen_est * (_max_compl_est / 256.0))
+    else:
+        # Instruct: forward+backward only. SDPA vs eager differs ~5×.
+        # Conservative: assume eager for non-FA families.
+        _supports_fa = arch_supports_fa(arch) or _family_resolved == "opt"  # opt uses SDPA
+        _fa_factor = 0.02 if _supports_fa else 0.06
+        _step_time_est = max(0.5, _fa_factor * _effective_batch * (max_length / 1024.0))
+
+    _budget_steps = int(_budget_seconds / _step_time_est)
+    # Floor: must allow at least 1 eval cycle (periodic_save_steps=500)
+    _eval_floor = 550
+    if _budget_steps < _eval_floor:
+        print(f"[adaptive] ⚠️  EXP-T: budget {_hours_budget}h / {_step_time_est:.1f}s/step "
+              f"= {_budget_steps} steps < {_eval_floor} eval floor. Config too slow for budget.",
+              flush=True)
+    # Cap max_steps based on budget — but don't override existing GRPO tiny-cap if smaller
+    _budget_max_steps = max(_eval_floor, _budget_steps)
+    print(f"[adaptive] EXP-T hours_budget={_hours_budget}h step_time_est={_step_time_est:.1f}s "
+          f"→ max_steps_budget={_budget_max_steps}", flush=True)
+
     # EXP-Q 2026-05-16: OPT family SDPA attention override.
     # Empirical 3c42f7f4 opt-350m winner 5FW2Eaa step time = 1.26s/it vs KITA 8.57s/it
     # (6.8× faster). Cause: OPT NOT in _FA_SUPPORTED_FAMILIES → we force disable_fa=True
@@ -1518,6 +1570,13 @@ def build_adaptive_run_config(
                   f"to limit KL drift", flush=True)
         else:
             run_config["max_steps"] = _base_max_steps
+        # EXP-T 2026-05-16: apply hours_budget cap on top of any GRPO cap.
+        # Pick the tighter of: existing cap OR budget cap. -1 means uncapped.
+        _existing_grpo_cap = run_config["max_steps"]
+        if _existing_grpo_cap == -1 or _budget_max_steps < _existing_grpo_cap:
+            run_config["max_steps"] = _budget_max_steps
+            print(f"[adaptive-grpo] EXP-T hours_budget tighter than GRPO cap: "
+                  f"max_steps {_existing_grpo_cap} → {_budget_max_steps}", flush=True)
         # ----------------------------------------------------------------------
         # EXP-L 2026-05-15: GRPO β tune from validator baseline_reward_scores
         # ----------------------------------------------------------------------
@@ -1640,6 +1699,19 @@ def build_adaptive_run_config(
                   f"vs adaptive_init_lr={init_lr:.2e} → ratio={ratio:.2f}x", flush=True)
     except Exception as _exc:
         print(f"[resolver] suggestion failed (skipped): {_exc}", flush=True)
+
+    # EXP-T 2026-05-16: universal hours_budget enforcement at run_config exit.
+    # For Instruct: max_steps not previously set. Apply budget cap here as guardrail.
+    # For GRPO: already capped above. This re-checks final value.
+    if "max_steps" not in run_config or run_config.get("max_steps", -1) == -1:
+        # Only apply cap if epoch-based count exceeds budget by significant margin.
+        # Compute rough epoch-based total steps for instruct.
+        _est_epoch_steps = max(50, (ds_metrics.num_samples * run_config.get("epoch_num", 2)) // max(1, batch * gpu_count * grad_accum))
+        if _est_epoch_steps > _budget_max_steps * 1.5:
+            # Budget significantly tighter than epoch-based — cap to budget
+            run_config["max_steps"] = _budget_max_steps
+            print(f"[adaptive] EXP-T universal cap fires: est_epoch_steps={_est_epoch_steps} > "
+                  f"1.5×budget={_budget_max_steps*1.5:.0f} → max_steps={_budget_max_steps}", flush=True)
 
     return run_config, arch
 
