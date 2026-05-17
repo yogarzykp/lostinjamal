@@ -1502,6 +1502,7 @@ def build_adaptive_run_config(
         # Opt-out: TRAINING_REWARD_CLASSIFIER_ENABLED=0
         _classifier_lr_set_via_env = os.getenv("ADAPTIVE_LR_OVERRIDE") is not None
         _classifier_beta_set_via_env = os.getenv("ADAPTIVE_BETA_OVERRIDE") is not None
+        classifier_hit = False  # NameError fix 2026-05-17: used by EXP-L baseline_beta gate below
         if (os.getenv("TRAINING_REWARD_CLASSIFIER_ENABLED", "true").lower()
                 not in ("0", "false", "no")) and not (
                 _classifier_lr_set_via_env and _classifier_beta_set_via_env):
@@ -1526,6 +1527,7 @@ def build_adaptive_run_config(
                             run_config["learning_rate"] = init_lr
                         if not _classifier_beta_set_via_env:
                             run_config["beta"] = classifier_params["beta"]
+                        classifier_hit = True
                         print(
                             f"[classifier] tier 1.5 hit: lr="
                             f"{classifier_params['learning_rate']:.2e} "
