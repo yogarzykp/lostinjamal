@@ -336,7 +336,11 @@ _FAMILY_PROFILES = {
     # Empirical from 3c42f winners (17 BOSS/PENCURI hotkeys succeeded): batch=48 lr~1e-4.
     # Different from smaller-context models — OPT is "small but constrained".
     "opt": {
-        "min_lr_rate": 0.20,
+        # EXP-X 2026-05-17: min_lr_rate 0.20 → 0.75 to mimic winner near-constant LR.
+        # Grafana log 3c42f7f4 winner 5FW2Eaa: peak 5.96e-5, min 5.07e-5, min/peak ratio 0.85.
+        # OPT family appears to benefit from constant LR throughout (no cosine decay).
+        # Conservative move to 0.75 (not 0.85) to leave some decay headroom.
+        "min_lr_rate": 0.75,
         "weight_decay_small_data": 0.0,
         "weight_decay_default": 0.0,
         "packing": False,             # disable packing for OPT (position overflow risk)
@@ -346,8 +350,11 @@ _FAMILY_PROFILES = {
         "neftune_alpha_default": 0,
         "warmup_steps_small_data": 35,
         "warmup_steps_default": 35,
-        "lr_default": 1.0e-4,         # opt-350m winner empirical (3c42f 17 success hotkeys)
-        "lr_floor": 5.0e-5,
+        # EXP-Y 2026-05-17: lr_default 1.0e-4 → 6.0e-5 winner-matched.
+        # Grafana shows 3c42f winner peak 5.96e-5 (we were at 9.1e-5 from Tier 1 = +53% over).
+        # New default 6e-5 matches winner peak. Floor 4e-5 (2/3 of default) keeps some range.
+        "lr_default": 6.0e-5,         # was 1.0e-4 — winner empirical 3c42f 5FW2Eaa
+        "lr_floor": 4.0e-5,           # was 5.0e-5 — adjusted proportionally
         "reg_ratio_small_data": 1.00,
         "reg_ratio_default": 1.00,
     },
@@ -600,15 +607,15 @@ def _apply_task_character_overrides(
             hp["epoch_num"] = 2
 
     elif task_class == "translation":
-        # EXP-P 2026-05-16: translation tasks need lower LR + tighter epoch cap.
-        # Empirical: a208c065 (Qwen-1.5B Arabic instruct, task_class=translation)
-        # — Winner 5C7vE26G used peak LR ~2.94e-5 + 3 epochs (train_runtime 81min)
-        # — KITA v2 used 8.07e-5 + 4 epochs → internal eval 1.0828 < winner 1.0888
-        #   BUT validator test 1.1283 > winner 1.1048 (gap dev→test 4.2% vs 1.5%)
-        # → KITA overfit dev split. Root cause: high LR + extra epoch on script-
-        # specific patterns (non-Latin) memorizes dev tokens too tightly.
-        # Fix: halve LR + cap epoch=3. Floor 2.5e-5 to avoid underfitting.
-        hp["learning_rate"] = max(2.5e-5, hp["learning_rate"] * 0.4)
+        # EXP-W 2026-05-17: REVISE EXP-P translation mult 0.4 → 0.85.
+        # Original EXP-P (commit 5d0a458) misread winner's LATE-EPOCH LR (2.94e-5)
+        # as peak. Full Grafana LR curve analysis (2026-05-17) shows actual winner
+        # 5C7vE26G PEAK LR is 6.76e-5 (median 4.13e-5, min 1.36e-5, min_lr_rate 0.20).
+        # — KITA v2 (no EXP-P): 8.07e-5 = winner+19% over → LOSE +2.13%
+        # — KITA v3 (EXP-P × 0.4): 3.23e-5 = winner-52% under → LOSE +1.61% (over-corrected)
+        # — Sweet spot: × 0.85 → 6.86e-5 (within 1% of winner 6.76e-5 peak)
+        # Keep epoch cap 3 (winner empirically stopped at ep 2-3).
+        hp["learning_rate"] = max(2.5e-5, hp["learning_rate"] * 0.85)
         hp["epoch_num"] = min(hp.get("epoch_num", 4), 3)
 
     # skill: keep family HP (NEFTune + family default LR)
@@ -1211,12 +1218,17 @@ def build_adaptive_run_config(
         else:
             init_lr = instruct_hp["learning_rate"]
 
-        # EXP-P 2026-05-16: task_class-specific LR multiplier (applied AFTER Tier 1).
+        # EXP-W 2026-05-17: REVISE EXP-P task_class-specific LR multiplier.
         # family_lr_table is task_class-agnostic (mixes translation+general). Apply
         # post-Tier1 multiplier to correct for known task_class overfit modes.
-        # Empirical source: a208c065 LOSE +2.13% — winner LR 0.36× our Tier 1 LR.
+        #
+        # Original EXP-P (commit 5d0a458) used 0.4 based on misreading late-epoch LR
+        # as peak. Full Grafana analysis shows winner a208c065 PEAK LR 6.76e-5
+        # (not 2.94e-5 late-epoch decay value). KITA Tier 1 8.07e-5 was only +19%
+        # over winner. EXP-P × 0.4 over-corrected → kita ended 52% UNDER winner.
+        # EXP-W revises to × 0.85 → 6.86e-5 (within 1% of winner 6.76e-5 peak).
         _task_class_lr_mult = {
-            "translation": 0.4,  # halve+ to prevent dev overfit on script patterns
+            "translation": 0.85,  # winner-matched (EXP-W revision of EXP-P)
         }
         _tc = (instruct_hp.get("_meta", {}) or {}).get("task_class")
         if _tc in _task_class_lr_mult:
