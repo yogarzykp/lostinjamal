@@ -170,14 +170,29 @@ def _grpo_vanilla_batch_cap(param_count: int) -> int:
     Lotob v1 2026-04-28: adaptive picked batch=64 vs vanilla batch=10
     (slow reward detected) → effective gen batch 50× vanilla → crash.
     Cap adaptive batch at vanilla bucket value to stay within known-safe.
+
+    EXP-FF 2026-05-19: align boundaries with GRPO_CONFIG buckets.
+    Empirical: 5df20458 winner (Qwen3-4B, 4.02B params) used GRPO_CONFIG[4_5_b]
+    batch=42, but our old code returned 32 for 4.02B (because not <4e9).
+    Updated boundaries match GRPO_CONFIG buckets exactly:
+      0_1_b/1_2_b: batch=40 (<2B)
+      2_4_b: batch=42 (2-4B)
+      4_5_b/5_6_b: batch=42 (4-6B) — was 32
+      6_9_b: batch=24 LoRA (6-9B) — was 32
+      9_12_b: batch=16 LoRA (9-12B)
+      12_15_b+: batch=8-16 LoRA (was 16 catch-all)
     """
     if param_count < 2e9:
         return 40
     if param_count < 4e9:
         return 42
+    if param_count < 6e9:
+        return 42   # was 32 — match GRPO_CONFIG[4_5_b] + [5_6_b] empirical
     if param_count < 9e9:
-        return 32
-    return 16
+        return 24   # was 32 — match GRPO_CONFIG[6_9_b] LoRA bucket
+    if param_count < 12e9:
+        return 16   # match GRPO_CONFIG[9_12_b]
+    return 16       # 12B+ scales smaller anyway
 
 
 # ---------------------------------------------------------------------------
