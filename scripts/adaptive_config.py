@@ -1546,9 +1546,40 @@ def build_adaptive_run_config(
                         model_size_b=(param_count / 1e9) if param_count else None,
                     )
                     if classifier_params is not None:
-                        if not _classifier_lr_set_via_env:
-                            init_lr = classifier_params["learning_rate"]
-                            run_config["learning_rate"] = init_lr
+                        # EXP-EE 2026-05-19: for conflict landscapes, defer to GRPO_CONFIG
+                        # bucket lr (validated empirical) over classifier suggestion.
+                        # Evidence: 5df20458 winner 5CPgenyJ (balanced_conflict landscape)
+                        # used bucket lr=6e-6, classifier suggested 1.35e-5 (2.25× higher).
+                        # Bucket lr is data-grounded across many wins; classifier ranges
+                        # for conflict are extrapolated from few samples (n<5 per bucket).
+                        # For coherent + single + reward_hack: classifier still authoritative.
+                        _landscape = (fingerprint or {}).get("landscape", "unknown")
+                        _is_conflict = _landscape in ("balanced_conflict", "imbalanced_conflict")
+                        if _is_conflict:
+                            # Use GRPO_CONFIG bucket lr instead of classifier
+                            try:
+                                from grpo_config import get_grpo_config
+                                _bucket_cfg = get_grpo_config(int(param_count))
+                                _bucket_lr = _bucket_cfg.get("lr")
+                                if _bucket_lr is not None and not _classifier_lr_set_via_env:
+                                    init_lr = float(_bucket_lr)
+                                    run_config["learning_rate"] = init_lr
+                                    print(f"[classifier] EXP-EE: {_landscape} → defer to GRPO bucket "
+                                          f"lr={init_lr:.2e} (classifier suggested "
+                                          f"{classifier_params['learning_rate']:.2e})", flush=True)
+                                else:
+                                    if not _classifier_lr_set_via_env:
+                                        init_lr = classifier_params["learning_rate"]
+                                        run_config["learning_rate"] = init_lr
+                            except Exception as _e:
+                                if not _classifier_lr_set_via_env:
+                                    init_lr = classifier_params["learning_rate"]
+                                    run_config["learning_rate"] = init_lr
+                                print(f"[classifier] EXP-EE bucket lookup fail-soft: {_e}", flush=True)
+                        else:
+                            if not _classifier_lr_set_via_env:
+                                init_lr = classifier_params["learning_rate"]
+                                run_config["learning_rate"] = init_lr
                         if not _classifier_beta_set_via_env:
                             run_config["beta"] = classifier_params["beta"]
                         classifier_hit = True

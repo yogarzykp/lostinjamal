@@ -724,12 +724,27 @@ def is_slow_reward_function(dataset_type: dict) -> bool:
 
     Mirrors scripts/grpo_config.py:if_contain_slow_reward_function — duplicated
     here to keep dynamics_utils self-contained (no legacy imports).
+
+    EXP-DD 2026-05-19: distinguish textstat fast vs slow methods.
+    - langcheck (NLI model inference) → SLOW
+    - detoxify (toxicity classifier) → SLOW
+    - textstat methods → varies:
+        * Pure string ops (avg_character_per_word, syllable_count, lexicon_count,
+          sentence_count, char_count, letter_count) → FAST
+        * Readability formulas (flesch_kincaid, gunning_fog, smog) → MEDIUM (still Python)
+      All textstat is CPU Python, no model inference → treat as NOT slow.
+
+    Empirical evidence: 5df20458 winner 5CPgenyJ used batch=42 with
+    reward_long_words (textstat.avg_character_per_word). Our old code flagged
+    this as slow → batch cap 8 (5× under-utilized). Removing textstat from
+    slow_keywords matches winner's empirical config.
     """
     reward_functions = dataset_type.get("reward_functions", []) if dataset_type else []
     slow_keywords = [
         "import langcheck", "from langcheck",
         "import detoxify", "from detoxify",
-        "import textstat", "from textstat",
+        # EXP-DD: textstat REMOVED — empirically not slow enough to warrant batch cap
+        # (winner 5df20458 used batch=42 with textstat without performance issues)
     ]
     for rf in reward_functions:
         func_def = rf.get("reward_func", "")
