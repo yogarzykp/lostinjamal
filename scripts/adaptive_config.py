@@ -894,8 +894,15 @@ def build_adaptive_run_config(
     #
     # Multi-GPU caps preserved separately (DPO 3-GPU, GRPO 2-GPU validator paths).
     # 2-GPU local testing memory budget different (DDP overhead + KV cache).
-    if gpu_count > 1:
-        # Multi-GPU (validator DPO×3, GRPO×2; OR local 2-GPU testing): keep conservative caps
+    #
+    # EXP-CC 2026-05-18: SKIP multi-GPU cap for GRPO tasks.
+    # GRPO_CONFIG.get_grpo_config() already provides bucket-aware batch+gpu_count
+    # tuned for validator-side memory budget. Applying additional cap here causes
+    # under-utilization. Empirical: 5df20458 winner used GRPO_CONFIG["4_5_b"]
+    # batch=42 LoRA on 2-GPU; our adaptive cap reduced to 8 (5× too low).
+    # For DPO + Instruct: keep multi-GPU cap (no equivalent bucket system).
+    if gpu_count > 1 and task_type_lc != "grpo":
+        # Multi-GPU (validator DPO×3, Instruct OR local 2-GPU testing): keep conservative caps
         # Empirical: Qwen 2.5-3B at batch=64 OOMs at logits alloc (vocab 152k × bf16).
         # Gemma-2-9b vocab=256k OOMs at batch=8 (DDP inp.clone() 15.62 GiB).
         if 1.5e9 <= param_count < 5e9:
@@ -905,6 +912,11 @@ def build_adaptive_run_config(
         elif param_count >= 9e9:
             batch = min(batch, 4)
         print(f"[adaptive] multi-GPU ({gpu_count}) cap applied: batch={batch}", flush=True)
+    elif gpu_count > 1 and task_type_lc == "grpo":
+        # EXP-CC: GRPO uses bucket-managed batch; will be further refined by
+        # GRPO_CONFIG batch + _grpo_vanilla_batch_cap below. Skip adaptive cap here.
+        print(f"[adaptive] EXP-CC: GRPO on multi-GPU ({gpu_count}) — skip adaptive cap, "
+              f"defer to GRPO_CONFIG bucket (was batch={batch})", flush=True)
     else:
         # Single GPU (validator Instruct path): BOSS empirical buckets verified on
         # 3 model families. Larger batch = smoother gradient = faster epoch-1 convergence.
