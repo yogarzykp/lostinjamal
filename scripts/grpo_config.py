@@ -234,7 +234,13 @@ def get_run_cmd(config: dict, gpu_nums: int):
 
     if config.get("use_lora", False):
         template += (
-            " --use_peft --lora_r 128 --lora_alpha 256 --lora_target_modules all-linear"
+            # EXP-3 2026-05-21: lora_r 128→64, lora_alpha 256→32. Data: paper 2502.07374
+            # (Berkeley + NovaSky-AI) explicit r=64 worked for 32B distillation. Verl
+            # handbook (Qwen2.5-3B GRPO) uses r=64, alpha=32. "LoRA Without Regret"
+            # (Thinking Machines): rank-1 sufficient for RL, apply to all-linear.
+            # Smaller adapter = less parameter capacity = anti-reward-hack natural floor.
+            # alpha=32 follows Verl ratio α=0.5r (more conservative scaling vs our previous α=2r).
+            " --use_peft --lora_r 64 --lora_alpha 32 --lora_target_modules all-linear"
         )
 
     if config.get("use_vllm", True):
