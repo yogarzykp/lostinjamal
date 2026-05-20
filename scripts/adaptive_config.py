@@ -2030,20 +2030,6 @@ def build_adaptive_run_config(
             except Exception as _e:
                 print(f"[adaptive-grpo] EXP-L baseline β tune fail-soft: {type(_e).__name__}: {_e}", flush=True)
 
-        # EXP-2 2026-05-21: Dr.GRPO mode → force beta=0 (override classifier).
-        # Data: Sea AI Lab Dr.GRPO paper 2503.20783 + DAPO 2503.14476 + Open-Reasoner-Zero 2503.24290.
-        # When loss_type='dr_grpo' active, KL term irrelevant (Dr.GRPO unbiased advantage
-        # doesn't need beta penalty). Beta×KL outliers cause spurious loss spikes
-        # (observed EXP-1 v2 epoch 0.38: KL=13305 → loss=532 because beta×KL=0.04×13305).
-        # Setting beta=0 eliminates this entire failure mode while staying paper-aligned.
-        # Env override: ADAPTIVE_BETA_OVERRIDE for explicit per-task tuning.
-        # Floor TRAINING_GRPO_BETA_FLOOR_LARGE_7B still applies to 7B+ models (safety).
-        if run_config.get("loss_type") == "dr_grpo" and not _classifier_beta_set_via_env:
-            _prev_beta = run_config.get("beta", 0.04)
-            run_config["beta"] = 0.0
-            if _prev_beta != 0.0:
-                print(f"[adaptive] EXP-2: Dr.GRPO mode → force beta=0.0 (was {_prev_beta:.4f}, classifier/baseline override)", flush=True)
-
         # Phase 1 sampling tuning (Dr.GRPO inspired): encourage natural EOS
         # NOTE: min_completion_length + vllm_enforce_eager NOT supported by TRL.
         run_config["temperature"] = 0.8
