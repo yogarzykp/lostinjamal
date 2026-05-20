@@ -1785,6 +1785,24 @@ def build_adaptive_run_config(
             print(f"[adaptive] EXP-T universal cap fires: est_epoch_steps={_est_epoch_steps} > "
                   f"1.5×budget={_budget_max_steps*1.5:.0f} → max_steps={_budget_max_steps}", flush=True)
 
+    # ------------------------------------------------------------------
+    # EXP-BOSS-2 (2026-05-20): Apply reg_ratio multiplier on final LR.
+    # Root cause: train_info["reg_ratio"] (CLI --reg-ratio default 1.24383
+    # in text_trainer.py:299) was extracted via _compute_instruct_adaptive_hp
+    # into instruct_hp["reg_ratio"] but NEVER multiplied onto learning_rate.
+    # BOSS lion_dance_1 applies × reg_ratio at end of all 3 config files
+    # (instruct_config.py:286, dpo_config.py:232, grpo_config.py:350) with
+    # CLI default 1.159624 — silent +16% LR boost.
+    # Forensic: see research_adaptive_config_diff_2026_05_20.md +
+    # research_lion_dance_1_evolution_2026_05_20.md.
+    # ------------------------------------------------------------------
+    _reg_ratio = train_info.get("reg_ratio", 1.0)
+    if _reg_ratio != 1.0 and "learning_rate" in run_config:
+        _orig_lr = run_config["learning_rate"]
+        run_config["learning_rate"] *= _reg_ratio
+        print(f"[adaptive] EXP-BOSS-2: reg_ratio={_reg_ratio:.5f} applied "
+              f"(lr {_orig_lr:.2e} → {run_config['learning_rate']:.2e})", flush=True)
+
     return run_config, arch
 
 
