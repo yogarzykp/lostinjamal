@@ -286,7 +286,7 @@ def get_training_json(train_info: dict) -> dict:
         "gradient_checkpointing": get_gradient_checkpointing(model_name, model_dir=model_path),
         "gradient_accumulation_steps": 4,
         "vllm_gpu_memory_utilization": config.get("vllm_gpu_memory_utilization", 0.4),
-        "num_generations": 2,
+        "num_generations": 5,  # EXP-1 2026-05-21: 2→5 per Verl handbook ablation (sweet spot, N=10 marginal +70% cost). Data ref: research_sea_ai_lab_grpo_2026_05_19.md
         "max_completion_length": 256,
         "max_steps": -1,  # legacy: epoch-based, no step cap
         "beta": 0.04,  # legacy TRL default
