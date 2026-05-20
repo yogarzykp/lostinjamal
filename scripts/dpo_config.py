@@ -2,7 +2,7 @@
 import os
 from model_utility import get_model_architecture, get_model_num_params, get_use_liger, disable_flash_attention, get_gradient_checkpointing, get_gpu_count
 from copy import deepcopy
-from lrs_lookup import get_dpo_lr
+from lrs_lookup import get_dpo_lr, get_lr_from_ar_dpo
 
 DPO_CONFIG = {
     "0_1_b": {
@@ -227,10 +227,19 @@ def get_training_json(train_info: dict) -> dict:
         # detection-based recovery
         lr = get_dpo_lr(model_name, model_dir=model_path)
         if lr is not None:
-            print(f"Using lr from lk: {lr}", flush=True)
+            print(f"Using lr from lk (tier 1/2 hash): {lr}", flush=True)
             run_config["learning_rate"] = lr
         else:
-            print(f"Using lr from config: {run_config['learning_rate']}", flush=True)
+            # EXP-BOSS-1 (2026-05-20): Tier 3 AR-CSV fallback ported from
+            # BOSS lion_dance_1 (commit 249e0e7 2026-05-14). Anonymization-
+            # resistant: matches by (architecture, closest_param_size).
+            ar_lr = get_lr_from_ar_dpo(model_architecture, param_nums)
+            if ar_lr is not None:
+                print(f"Using lr from AR-CSV (tier 3 fallback): {ar_lr} "
+                      f"(arch={model_architecture}, params={param_nums})", flush=True)
+                run_config["learning_rate"] = ar_lr
+            else:
+                print(f"Using lr from config: {run_config['learning_rate']}", flush=True)
     
     run_config["learning_rate"] *= train_info["reg_ratio"]
     run_cmd = get_run_cmd(run_config, run_config["gpu_nums"])

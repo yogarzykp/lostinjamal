@@ -11,7 +11,7 @@ from model_utility import (
     get_gpu_count,
 )
 from copy import deepcopy
-from lrs_lookup import get_instruct_lr
+from lrs_lookup import get_instruct_lr, get_lr_from_ar_instruct
 
 # Validator's test_axolotl.yml sets sequence_len: 4096 — mirror exactly.
 VALIDATOR_SEQUENCE_LEN = 4096
@@ -398,10 +398,19 @@ def get_training_json(train_info: dict) -> dict:
         # against model_fingerprint_catalog.json).
         lr = get_instruct_lr(model_name, model_dir=model_path)
         if lr is not None:
-            print(f"Using lr from lk: {lr}", flush=True)
+            print(f"Using lr from lk (tier 1/2 hash): {lr}", flush=True)
             run_config["learning_rate"] = lr
         else:
-            print(f"Using lr from config: {run_config['learning_rate']}", flush=True)
+            # EXP-BOSS-1 (2026-05-20): Tier 3 AR-CSV fallback ported from
+            # BOSS lion_dance_1 (commit 249e0e7 2026-05-14). Anonymization-
+            # resistant: matches by (architecture, closest_param_size).
+            ar_lr = get_lr_from_ar_instruct(model_architecture, param_nums)
+            if ar_lr is not None:
+                print(f"Using lr from AR-CSV (tier 3 fallback): {ar_lr} "
+                      f"(arch={model_architecture}, params={param_nums})", flush=True)
+                run_config["learning_rate"] = ar_lr
+            else:
+                print(f"Using lr from config: {run_config['learning_rate']}", flush=True)
 
     run_config["learning_rate"] *= train_info["reg_ratio"]
     run_cmd = get_run_cmd(run_config, run_config["gpu_nums"])
