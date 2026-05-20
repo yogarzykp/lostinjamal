@@ -1874,7 +1874,13 @@ def build_adaptive_run_config(
         # beta=0.04 with max_steps=-1 (epoch-based). Earlier 0.06 was inflated
         # to "dampen drift" but actual fix is to NOT cap max_steps prematurely
         # (was 300, winners trained full 2 epochs).
-        run_config["beta"] = float(os.getenv("ADAPTIVE_BETA_OVERRIDE", "0.04"))
+        # EXP-2 2026-05-21: beta 0.04 → 0.0 default. Data citation: Dr.GRPO paper
+        # 2503.20783 + DAPO 2503.14476 + Open-Reasoner-Zero 2503.24290 — KL term
+        # non-essential for verifiable-reward GRPO. beta=0 removes ref-policy memory
+        # cost + eliminates beta×KL loss spikes (observed in EXP-1: KL=13305 → loss=532
+        # because 0.04×13305=532). Floor TRAINING_GRPO_BETA_FLOOR_LARGE_7B still
+        # protects 7B+ models. Env override: ADAPTIVE_BETA_OVERRIDE.
+        run_config["beta"] = float(os.getenv("ADAPTIVE_BETA_OVERRIDE", "0.0"))
         # EXPERIMENTAL 2026-05-21: Dr.GRPO loss_type via TRL 0.18 native support.
         # Sea AI Lab paper 2503.20783 §3: removes length-bias from GRPO advantage
         # (sum/max_response_length instead of mean/per-completion-len).
