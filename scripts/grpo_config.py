@@ -183,6 +183,8 @@ def get_run_cmd(config: dict, gpu_nums: int):
         "vllm_gpu_memory_utilization",
         "num_generations",
         "disable_fa",
+        "loss_type",       # EXPERIMENTAL 2026-05-21 (Dr.GRPO plumbing)
+        "scale_rewards",   # EXPERIMENTAL 2026-05-21 (Dr.GRPO plumbing)
     ]
     for key in required_keys:
         if key not in config:
@@ -236,7 +238,11 @@ def get_run_cmd(config: dict, gpu_nums: int):
         )
 
     if config.get("use_vllm", True):
-        template += " --use_vllm True"
+        # EXPERIMENTAL 2026-05-21: --vllm_mode colocate (single-container, avoids
+        # cross-container NCCL crash) + Dr.GRPO loss_type plumbing (TRL 0.18
+        # supports loss_type='dr_grpo' + scale_rewards=False per Dr.GRPO paper).
+        # Memory ref: exp_trl_dr_grpo_finding_2026_05_20.md
+        template += " --use_vllm True --vllm_mode colocate --loss_type {loss_type} --scale_rewards {scale_rewards}"
     else:
         template += " --use_vllm False"
 
@@ -289,6 +295,13 @@ def get_training_json(train_info: dict) -> dict:
         "use_vllm": get_use_vllm(model_architecture, model_name, model_dir=model_path),
         "tensor_parallel": config.get("tensor_parallel", False),
         "use_4bit": config.get("use_4bit", False),
+        # EXPERIMENTAL 2026-05-21: Dr.GRPO loss correction (Sea AI Lab paper 2503.20783)
+        # loss_type='dr_grpo' removes length-bias from GRPO advantage (sum/max_response_length
+        # instead of mean/per-completion-len). scale_rewards=False per Dr.GRPO paper
+        # (removes per-group std division that biases group baseline).
+        # TRL 0.18 supports both natively. Memory ref: exp_trl_dr_grpo_finding_2026_05_20.md
+        "loss_type": "dr_grpo",
+        "scale_rewards": False,
     }
 
     if model_name == "OpenAssistant/oasst-sft-4-pythia-12b-epoch-3.5":
