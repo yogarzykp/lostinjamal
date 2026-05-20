@@ -304,6 +304,88 @@ def _maybe_gqa_batch_boost(current_batch: int, num_q_heads: Optional[int],
 
 
 # ---------------------------------------------------------------------------
+# EXP-HYPER-PORT-E 2026-05-20: Per-layer LR multipliers (LARS-style).
+# Source: hyper-text/scripts/hp_override.py:_compute_per_layer_lr_multipliers.
+#
+# Tournament audit 2026-05-20: winner 5C7vE26G77n7 ships 12 param-group
+# optimizer fingerprint:
+#   [per-layer-lr] custom optimizer built: 12 groups,
+#   lr range [1.5000e-04, 5.0706e-04], base=3.0000e-04
+#
+# Theory (LARS, Goyal+2017): optimal layer LR ∝ ||W||_F. Layers with
+# larger weight norms can absorb proportionally more LR without instability.
+# Inverse of LAMB ratio. Formula:
+#   multiplier_g = clamp(weight_norm_g / mean_norm, [0.5, 2.0])
+# ---------------------------------------------------------------------------
+
+def _compute_per_layer_lr_multipliers(model_path: str) -> Optional[Dict[str, float]]:
+    """LARS-style per-layer LR multipliers from model weight norms.
+
+    Args:
+      model_path: directory with safetensors / .bin weight files.
+
+    Returns:
+      Dict {layer_group: multiplier_float} or None on any failure/skip.
+      Keys match per_layer_optimizer._LAYER_PATTERNS labels:
+        attn.q_proj, attn.k_proj, attn.v_proj, attn.o_proj,
+        mlp.gate_proj, mlp.up_proj, mlp.down_proj.
+
+    Env gates:
+      PER_LAYER_LR_ENABLED=0 → returns None (skip)
+    """
+    if os.getenv("PER_LAYER_LR_ENABLED", "1") != "1":
+        return None
+    try:
+        from model_features import extract_weight_stats
+    except Exception as exc:
+        print(f"[hp-override:per-layer-lr] model_features import failed: {exc}", flush=True)
+        return None
+
+    weights = extract_weight_stats(model_path)
+    by_group = (weights or {}).get("by_group") or {}
+    if not by_group:
+        if weights and weights.get("iter_error"):
+            print(f"[hp-override:per-layer-lr] weight extraction skipped: "
+                  f"{weights['iter_error']}", flush=True)
+        return None
+
+    # Only consider attn + mlp groups (norms have weight_norm ≈ √n_elem,
+    # not informative for LR scaling).
+    relevant = {
+        g: float(w.get("weight_norm") or 0.0)
+        for g, w in by_group.items()
+        if (g.startswith("attn.") or g.startswith("mlp."))
+        and float(w.get("weight_norm") or 0.0) > 0
+    }
+    if not relevant:
+        return None
+
+    norms = list(relevant.values())
+    mean_norm = sum(norms) / len(norms)
+    if mean_norm <= 0:
+        return None
+
+    multipliers = {}
+    for group, norm in relevant.items():
+        mult = norm / mean_norm
+        # Clamp to safe range (avoid runaway LR on outlier layers)
+        mult = max(0.5, min(2.0, mult))
+        multipliers[group] = round(mult, 4)
+
+    # Log compact summary (matches hyper-text format)
+    sorted_mults = sorted(multipliers.items(), key=lambda kv: kv[1])
+    lo = sorted_mults[0]
+    hi = sorted_mults[-1]
+    print(
+        f"[hp-override:per-layer-lr] computed {len(multipliers)} multipliers "
+        f"min={lo[0]}={lo[1]:.2f} max={hi[0]}={hi[1]:.2f} "
+        f"mean_norm={mean_norm:.2f}",
+        flush=True,
+    )
+    return multipliers
+
+
+# ---------------------------------------------------------------------------
 # Family-aware adaptive HP profiles (Phase 1: Instruct, focus SmolLM2-1.7B)
 # ---------------------------------------------------------------------------
 # Design philosophy:
@@ -1932,6 +2014,22 @@ def build_adaptive_run_config(
         print(f"[adaptive] EXP-BOSS-2: reg_ratio={_reg_ratio:.5f} applied "
               f"(lr {_orig_lr:.2e} → {run_config['learning_rate']:.2e})", flush=True)
 
+    # ------------------------------------------------------------------
+    # EXP-HYPER-PORT-E 2026-05-20: per-layer LR multipliers (LARS-style)
+    # ------------------------------------------------------------------
+    # Compute weight-norm-derived multipliers per layer group (attn.q/k/v/o,
+    # mlp.gate/up/down). Stored in run_config so get_adaptive_training_json
+    # can attach to train_request → consumed by per_layer_optimizer in
+    # train_*.py just before trainer.train(). FAIL-SOFT — missing/bad
+    # weights yields None, training continues with single-LR.
+    try:
+        _multipliers = _compute_per_layer_lr_multipliers(model_path)
+        if _multipliers:
+            run_config["per_layer_lr_multipliers"] = _multipliers
+    except Exception as _exc:
+        print(f"[adaptive] per_layer_lr_multipliers compute failed (skipped): "
+              f"{type(_exc).__name__}: {_exc}", flush=True)
+
     return run_config, arch
 
 
@@ -1981,6 +2079,13 @@ def get_adaptive_training_json(task_type: str, train_info: dict) -> dict:
         "arch_family": arch_family,
         "version": "v1_static",  # v1 = no init_loss/LRRT, v2 will add
     }
+
+    # EXP-HYPER-PORT-E 2026-05-20: round-trip per-layer LR multipliers
+    # through train_request JSON → consumed by per_layer_optimizer in
+    # train_*.py just before trainer.train(). Skipped when feature
+    # disabled / weight extraction failed (no key in run_config).
+    if "per_layer_lr_multipliers" in run_config:
+        train_request["per_layer_lr_multipliers"] = run_config["per_layer_lr_multipliers"]
 
     return {
         "train_request": train_request,

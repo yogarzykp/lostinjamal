@@ -314,7 +314,19 @@ def main():
         ],
     )
     
-    print("Start training ...", flush=True)       
+    # EXP-HYPER-PORT-E 2026-05-20: per-layer LR optimizer override (LARS-style).
+    # Reads multipliers from train_request (computed in adaptive_config), rebuilds
+    # optimizer with per-layer param_groups. Fail-soft: any error → default optimizer.
+    # Disable via PER_LAYER_LR_ENABLED=0 env.
+    try:
+        from per_layer_optimizer import apply_per_layer_lr_optimizer
+        apply_per_layer_lr_optimizer(
+            trainer, train_request.get("per_layer_lr_multipliers")
+        )
+    except Exception as _exc:
+        log_info(f"[per-layer-lr] hook failed (skipped): {type(_exc).__name__}: {_exc}")
+
+    print("Start training ...", flush=True)
     # trainer.train()
     trainer.train()
     
