@@ -236,7 +236,11 @@ def get_run_cmd(config: dict, gpu_nums: int):
         )
 
     if config.get("use_vllm", True):
-        template += " --use_vllm True"
+        # SAFE 2026-05-21: --vllm_mode colocate (single-container vLLM)
+        # avoids cross-container NCCL crash discovered during local training
+        # validation. No separate vLLM container needed.
+        # NOT including Dr.GRPO loss_type plumbing (that's EXPERIMENTAL branch).
+        template += " --use_vllm True --vllm_mode colocate"
     else:
         template += " --use_vllm False"
 
