@@ -325,6 +325,7 @@ class DatasetMetrics:
     seq_len_p50: int
     seq_len_p95: int
     seq_len_max: int
+    seq_len_p99: int = 0  # EXP-HYPER-PORT-A 2026-05-20: token p99 for adaptive-seq-len halving
     completion_len_p95: Optional[int] = None
     has_chat_template_signal: bool = False
 
@@ -412,6 +413,10 @@ def measure_dataset(dataset_path: str, tokenizer, max_samples: int = 1000) -> Da
     p50 = seq_lens[len(seq_lens) // 2]
     p95_idx = min(len(seq_lens) - 1, int(0.95 * len(seq_lens)))
     p95 = seq_lens[p95_idx]
+    # EXP-HYPER-PORT-A 2026-05-20: token p99 for adaptive-seq-len helper.
+    # Ported from hyper-text dataset_profiler (validator-style token_p99).
+    p99_idx = min(len(seq_lens) - 1, int(0.99 * len(seq_lens)))
+    p99 = seq_lens[p99_idx]
     # Use actual_total when known (post-bugfix); fall back to sampled count
     # (legacy behavior) only when file couldn't be parsed at all.
     final_num_samples = actual_total if actual_total > 0 else max(n_samples, 1000)
@@ -419,6 +424,7 @@ def measure_dataset(dataset_path: str, tokenizer, max_samples: int = 1000) -> Da
         num_samples=final_num_samples,
         seq_len_p50=p50,
         seq_len_p95=p95,
+        seq_len_p99=p99,
         seq_len_max=max(seq_lens),
         has_chat_template_signal=chat_signal,
     )
