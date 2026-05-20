@@ -318,6 +318,70 @@ def _maybe_gqa_batch_boost(current_batch: int, num_q_heads: Optional[int],
 #   multiplier_g = clamp(weight_norm_g / mean_norm, [0.5, 2.0])
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# EXP-TINKER 2026-05-20: Tinker Cookbook LR formula for Instruct LoRA SFT
+# ---------------------------------------------------------------------------
+# Source: Thinking Machines / John Schulman lab — tinker_cookbook/hyperparam_utils.py
+#   get_lr(model_name, lora=False) = 5e-5 * (10 if lora else 1)
+#                                  * (2000 / hidden_size) ** family_exponent
+#   family exponents: qwen=0.0775, llama=0.781
+#
+# IMPORTANT: formula is SFT-only (lora=True path). GRPO/RL training uses
+# 5-paper consensus 1e-6 instead — NOT this formula.
+#
+# Computed reference values (LoRA SFT):
+#   Qwen3-4B   (hidden=2560) → 4.91e-4
+#   Qwen2.5-7B (hidden=3584) → 4.77e-4
+#   Llama-3.1-8B (hidden=4096) → 2.79e-4
+# ---------------------------------------------------------------------------
+
+# Family → Tinker exponent. Llama exponent reused for llama-derived families
+# (tinyllama, smollm, shear) since they share llama-style scaling dynamics.
+# Unknown families return None (caller must fall back).
+_TINKER_FAMILY_EXPONENTS = {
+    "qwen": 0.0775,
+    "llama": 0.781,
+    "tinyllama": 0.781,
+    "smollm": 0.781,
+    "shear": 0.781,
+}
+
+
+def _tinker_instruct_lora_lr(
+    model_family: str,
+    hidden_size: Optional[int],
+    current_default_lr: float,
+) -> Optional[float]:
+    """Tinker Cookbook LR formula for Instruct LoRA SFT.
+
+    Formula: 5e-5 * 10 * (2000 / hidden_size) ** family_exponent
+
+    Args:
+      model_family: resolved family string (qwen, llama, tinyllama, smollm, shear, ...).
+      hidden_size: hidden dim from AutoConfig (required — formula uses it).
+      current_default_lr: current default LR (for log comparison only; not used
+        in computation). Caller decides whether to actually swap to the formula.
+
+    Returns:
+      Computed formula LR, or None when family unsupported / hidden_size missing.
+      Caller decides whether to override (e.g. skip if family_lr_table HIGH conf).
+    """
+    if hidden_size is None or hidden_size <= 0:
+        return None
+    exponent = _TINKER_FAMILY_EXPONENTS.get(model_family)
+    if exponent is None:
+        return None
+    try:
+        lr = 5e-5 * 10.0 * (2000.0 / float(hidden_size)) ** exponent
+    except Exception:
+        return None
+    # Sanity clamp (formula should produce ~2e-4..6e-4 for normal hidden sizes;
+    # extreme inputs guarded just in case).
+    if lr <= 0 or lr > 1e-2:
+        return None
+    return float(lr)
+
+
 def _compute_per_layer_lr_multipliers(model_path: str) -> Optional[Dict[str, float]]:
     """LARS-style per-layer LR multipliers from model weight norms.
 
@@ -1017,6 +1081,7 @@ def build_adaptive_run_config(
     num_hidden_layers: Optional[int] = None
     num_attention_heads: Optional[int] = None
     num_key_value_heads: Optional[int] = None
+    hidden_size: Optional[int] = None  # EXP-TINKER 2026-05-20: for tinker LR formula
     try:
         from transformers import AutoConfig
         _cfg = AutoConfig.from_pretrained(model_path, local_files_only=True, trust_remote_code=False)
@@ -1024,6 +1089,7 @@ def build_adaptive_run_config(
         num_hidden_layers = getattr(_cfg, "num_hidden_layers", None)
         num_attention_heads = getattr(_cfg, "num_attention_heads", None)
         num_key_value_heads = getattr(_cfg, "num_key_value_heads", None)
+        hidden_size = getattr(_cfg, "hidden_size", None)
         if model_max_position:
             print(f"[adaptive] model max_position_embeddings={model_max_position}", flush=True)
     except Exception as _e:
@@ -1034,6 +1100,7 @@ def build_adaptive_run_config(
             num_hidden_layers = getattr(_cfg, "num_hidden_layers", None)
             num_attention_heads = getattr(_cfg, "num_attention_heads", None)
             num_key_value_heads = getattr(_cfg, "num_key_value_heads", None)
+            hidden_size = getattr(_cfg, "hidden_size", None)
         except Exception as _e2:
             print(f"[adaptive] WARN: max_position probe failed ({_e2}), skipping safety cap", flush=True)
 
@@ -1460,6 +1527,39 @@ def build_adaptive_run_config(
             if abs(init_lr - _old_init_lr) > 1e-9:
                 print(f"[adaptive] EXP-P task_class={_tc} LR mult {_task_class_lr_mult[_tc]:.2f}× "
                       f"→ {init_lr:.4e} (was {_old_init_lr:.4e})", flush=True)
+
+        # EXP-TINKER 2026-05-20: Tinker Cookbook LR formula for Instruct LoRA SFT.
+        # Source: Thinking Machines (John Schulman lab) tinker_cookbook/hyperparam_utils.py
+        #   lr = 5e-5 * 10 * (2000 / hidden_size) ** family_exponent
+        # Override gates (ALL must hold):
+        #   - TINKER_LR_FORMULA_ENABLED env (default "1")
+        #   - task_type == "instruct" (already inside this block)
+        #   - use_lora == True (formula is SFT-LoRA specific)
+        #   - family resolved + in _TINKER_FAMILY_EXPONENTS
+        #   - hidden_size known
+        #   - no ADAPTIVE_LR_OVERRIDE env (manual override wins)
+        #   - no Tier 1 family_lr_table hit (empirical winner consensus wins)
+        # NOTE: GRPO path explicitly EXCLUDED — Tinker formula is for SFT only.
+        if (
+            os.getenv("TINKER_LR_FORMULA_ENABLED", "1") == "1"
+            and use_lora
+            and not _instruct_lr_override
+            and _family_lr_hit is None
+        ):
+            _tinker_family = (instruct_hp.get("_meta", {}) or {}).get("family_resolved")
+            _tinker_lr = _tinker_instruct_lora_lr(
+                model_family=_tinker_family,
+                hidden_size=hidden_size,
+                current_default_lr=init_lr,
+            )
+            if _tinker_lr is not None:
+                _old_init_lr = init_lr
+                init_lr = _tinker_lr
+                print(
+                    f"[hp-override:tinker-lr] family={_tinker_family} h={hidden_size} "
+                    f"formula={init_lr:.2e} (was {_old_init_lr:.2e})",
+                    flush=True,
+                )
 
         epochs = instruct_hp["epoch_num"]
         # EXP-K2 2026-05-16: instruct_hp.max_length may bypass validator halving
