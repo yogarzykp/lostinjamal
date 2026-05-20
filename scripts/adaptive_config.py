@@ -1342,6 +1342,30 @@ def build_adaptive_run_config(
     except Exception as _e:
         print(f"[adaptive] Tier 1 family_lr lookup fail-soft: {type(_e).__name__}: {_e}", flush=True)
 
+    # ------------------------------------------------------------------
+    # EXP-BOSS-1 FIX (2026-05-20): Wire AR-CSV into ACTIVE adaptive path.
+    # ROOT CAUSE: Branch C added AR-CSV functions in lrs_lookup.py but only
+    # wired into legacy dpo_config.py / instruct_config.py (ADAPTIVE_MODE=0).
+    # Since ADAPTIVE_MODE=1 is default since 2026-05-08, AR-CSV was DEAD CODE
+    # in production. Now active as Tier 2 fallback (after family_lr miss).
+    # Anonymization-resistant: matches by (arch, closest_param_size).
+    # ------------------------------------------------------------------
+    _ar_csv_lr = None
+    if _family_lr_hit is None and task_type_lc in ("instruct", "dpo"):
+        try:
+            from lrs_lookup import get_lr_from_ar_dpo, get_lr_from_ar_instruct
+            if task_type_lc == "dpo":
+                _ar_csv_lr = get_lr_from_ar_dpo(_arch_str_for_lookup, int(param_count))
+            else:
+                _ar_csv_lr = get_lr_from_ar_instruct(_arch_str_for_lookup, int(param_count))
+            if _ar_csv_lr is not None:
+                print(f"[adaptive] Tier 2 AR-CSV HIT: lr={_ar_csv_lr:.4e} "
+                      f"(arch={_arch_str_for_lookup} size={int(param_count)} task={task_type_lc})", flush=True)
+            else:
+                print(f"[adaptive] Tier 2 AR-CSV MISS (no entry for arch={_arch_str_for_lookup})", flush=True)
+        except Exception as _e:
+            print(f"[adaptive] Tier 2 AR-CSV lookup fail-soft: {type(_e).__name__}: {_e}", flush=True)
+
     # NOTE 2026-05-15: previously here added EXP-D Tier 1.5 reward_classifier
     # for GRPO via suggest_lr_range geomean. Removed as REDUNDANT — KITA's
     # existing GRPO config path (line ~1369) already integrates reward_classifier
@@ -1504,6 +1528,13 @@ def build_adaptive_run_config(
             _tier1_lr, _tier1_conf, _tier1_n = _family_lr_hit
             init_lr = _tier1_lr
             print(f"[adaptive] Tier 1 (family_lr) preserved: lr={_tier1_lr:.4e} conf={_tier1_conf} n={_tier1_n} "
+                  f"(would have been overridden by instruct_hp to {instruct_hp['learning_rate']:.4e})", flush=True)
+        elif _ar_csv_lr is not None:
+            # EXP-BOSS-1 FIX (2026-05-20): Tier 2 AR-CSV fallback.
+            # Fires when family_lr_table misses (no winner data for this arch+size).
+            # Provides architecture-keyed empirical LR (anonymization-resistant).
+            init_lr = _ar_csv_lr
+            print(f"[adaptive] Tier 2 AR-CSV preserved: lr={_ar_csv_lr:.4e} "
                   f"(would have been overridden by instruct_hp to {instruct_hp['learning_rate']:.4e})", flush=True)
         else:
             init_lr = instruct_hp["learning_rate"]
