@@ -216,8 +216,7 @@ def get_run_cmd(config: dict, gpu_nums: int):
     --learning_rate {learning_rate} \
     --weight_decay 0. \
     --warmup_steps 35 \
-    --lr_scheduler_type cosine_with_min_lr \
-    --lr_scheduler_kwargs "{\\"min_lr_rate\\": {min_lr_rate}}" \
+    --lr_scheduler_type constant \
     --tf32 True \
     --gradient_checkpointing {gradient_checkpointing} \
     --optim {optimizer} \
