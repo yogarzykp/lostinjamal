@@ -240,7 +240,9 @@ def get_run_cmd(config: dict, gpu_nums: int):
             # (Thinking Machines): rank-1 sufficient for RL, apply to all-linear.
             # Smaller adapter = less parameter capacity = anti-reward-hack natural floor.
             # alpha=32 follows Verl ratio α=0.5r (more conservative scaling vs our previous α=2r).
-            " --use_peft --lora_r 64 --lora_alpha 32 --lora_target_modules all-linear"
+            # EXP-5 2026-05-21: lora_dropout 0 → 0.05 (Sea AI Lab OAT math_rl_lora.sh default)
+            # Anti-overfit regularization on small LoRA. Data: research_sea_ai_lab_grpo_2026_05_19.md
+            " --use_peft --lora_r 64 --lora_alpha 32 --lora_dropout 0.05 --lora_target_modules all-linear"
         )
 
     if config.get("use_vllm", True):
