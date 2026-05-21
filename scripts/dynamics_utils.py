@@ -27,6 +27,14 @@ _ARCH_SIGNATURES = {
     "phi":    {"partial_rotary_factor": True},
     "gemma":  {"rms_norm_eps_high": True},
     "deepseek": {"yarn": True, "n_routed_experts": True},
+    # OPT detection: model_type="opt" (anonymization preserves config.model_type).
+    # CRITICAL anon-defense — task 3c42f (2026-05-15) crash root cause:
+    # anon name strips "opt-" → _classify_model_family_safe returns "unknown" →
+    # "unknown" profile has packing=True + max_length_cap=4096 → PyTorch
+    # indexSelect assertion at OPTLearnedPositionalEmbedding (positions 2..2049
+    # out of bounds). With "opt" detected here, _resolve_family Tier 3 routes
+    # to opt profile (packing=False, max_length_cap=2046, lr_default=6e-5).
+    "opt":    {"ffn_dim_marker": True},
 }
 
 _FA_SUPPORTED_FAMILIES = {"llama", "mistral", "qwen", "phi", "gemma", "deepseek"}
@@ -35,7 +43,7 @@ _FA_SUPPORTED_FAMILIES = {"llama", "mistral", "qwen", "phi", "gemma", "deepseek"
 def detect_arch_family(model_path: str) -> str:
     """Detect architecture family from config, NOT from model_name.
 
-    Returns one of: llama, mistral, qwen, phi, gemma, deepseek, unknown.
+    Returns one of: llama, mistral, qwen, phi, gemma, deepseek, opt, unknown.
     Survives model_name anonymization (per Gradients roadmap).
     """
     try:
@@ -57,6 +65,9 @@ def detect_arch_family(model_path: str) -> str:
         return "mistral"
     if hasattr(cfg, "partial_rotary_factor"):
         return "phi"
+    # OPT uses ffn_dim instead of intermediate_size (heuristic for anon)
+    if hasattr(cfg, "ffn_dim") and not hasattr(cfg, "intermediate_size"):
+        return "opt"
 
     return "unknown"
 
