@@ -279,6 +279,32 @@ def get_reward_funcs(dataset_type: dict, sample_data, has_extra_column: bool):
     wrapped_reward_funcs = []
     
 
+    # EXP-7 2026-05-21: Cosine length reward penalty (Open-RS 2503.16219 Exp3).
+    # Anti-hack mechanism — discourages long completions hacking unbounded reward funcs
+    # (e.g., textstat.avg_character_per_word). Penalty curve:
+    #   length=0     → reward × 1.0  (no penalty)
+    #   length=max/2 → reward × cos(π/4) ≈ 0.71 (mild)
+    #   length=max   → reward × cos(π/2) = 0    (full)
+    # Env gates: COSINE_LENGTH_REWARD_ENABLED (default 1), COSINE_LENGTH_MAX_CHARS (default 2048).
+    # Memory ref: research_hf_papers_grpo_2026_05_19.md (Open-RS Exp3 stabilizes 100→700 steps).
+    import math as _math
+    _cos_len_enabled = os.getenv("COSINE_LENGTH_REWARD_ENABLED", "1") == "1"
+    _cos_len_max = int(os.getenv("COSINE_LENGTH_MAX_CHARS", "2048"))
+    if _cos_len_enabled:
+        print(f"[EXP-7] cosine length reward penalty ENABLED (max_chars={_cos_len_max})", flush=True)
+
+    def _cos_length_penalty(completions):
+        """Cosine decay from 1.0 (short) to 0.0 (at max_len). Returns list of multipliers."""
+        if not _cos_len_enabled:
+            return [1.0] * len(completions)
+        penalties = []
+        for comp in completions:
+            comp_str = str(comp) if comp is not None else ""
+            comp_len = len(comp_str)
+            normalized = min(comp_len, _cos_len_max) / _cos_len_max
+            penalties.append(_math.cos(normalized * _math.pi / 2))
+        return penalties
+
     for i, (original_func, func_name, weight) in enumerate(
         zip(reward_funcs_callable, reward_func_names, reward_weights)
     ):
@@ -291,7 +317,9 @@ def get_reward_funcs(dataset_type: dict, sample_data, has_extra_column: bool):
                 def wrapper(completions, extra_data, **kwargs):
                     raw_results = original_func(completions, extra_data=extra_data)
                     raw_rewards[func_name].extend(raw_results)
-                    weighted_results = [r * weight for r in raw_results]
+                    # EXP-7: cosine length penalty
+                    penalties = _cos_length_penalty(completions)
+                    weighted_results = [r * weight * p for r, p in zip(raw_results, penalties)]
                     captured_rewards[func_name].extend(weighted_results)
                     return weighted_results
             else:
@@ -299,7 +327,9 @@ def get_reward_funcs(dataset_type: dict, sample_data, has_extra_column: bool):
                 def wrapper(completions, **kwargs):
                     raw_results = original_func(completions)
                     raw_rewards[func_name].extend(raw_results)
-                    weighted_results = [r * weight for r in raw_results]
+                    # EXP-7: cosine length penalty
+                    penalties = _cos_length_penalty(completions)
+                    weighted_results = [r * weight * p for r, p in zip(raw_results, penalties)]
                     captured_rewards[func_name].extend(weighted_results)
                     return weighted_results
 
