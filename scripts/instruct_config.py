@@ -418,7 +418,15 @@ def get_training_json(train_info: dict) -> dict:
     train_request["save_before_remaining_time"] = 3
     train_request["adjust_batch_size"] = False
     train_request["periodic_save_steps"] = 500
-    train_request["checking_step"] = 70
+    # BOSS-9 (2026-05-21): Dynamic checking_step per (param, hours).
+    # Source: lion_dance_1/scripts/instruct_config.py:191-194.
+    # Small models (<=3B) on long runs (>=2h) need more eval frequency (140)
+    # for plateau detection; larger models / shorter runs use default 70.
+    def _get_checking_step(param_nums: int, hours_to_complete) -> int:
+        if param_nums <= 3_000_000_000 and hours_to_complete >= 2:
+            return 140
+        return 70
+    train_request["checking_step"] = _get_checking_step(param_nums, train_info["hours_to_complete"])
 
     # Native max_length: per-task auto-halve matching validator behavior.
     # Opt out via INSTRUCT_SKIP_MAX_LENGTH=1 (original winner fallback to YAML 2048).
