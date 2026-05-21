@@ -1,3 +1,8 @@
+# CRITICAL DEFENSIVE FIX (2026-05-21): Disable optional DeepSpeed BEFORE HF imports
+# to prevent Triton "0 active drivers" crash. See validator_workflow_postmortem_2026_05_08.md
+from transformers_runtime import maybe_disable_optional_deepspeed
+maybe_disable_optional_deepspeed()
+
 from typing import Dict, Optional
 import requests
 import json

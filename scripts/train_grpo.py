@@ -1,8 +1,16 @@
+# CRITICAL DEFENSIVE FIX (ported from hyper-text 2026-05-21):
+# Disable optional DeepSpeed import BEFORE any HF imports to prevent
+# Triton "0 active drivers" crash that killed 2026-05-07 tournament (5/5 hotkey
+# HANGUS per memory validator_workflow_postmortem_2026_05_08.md).
+# Must be FIRST imports — order critical.
+from transformers_runtime import maybe_disable_optional_deepspeed
+maybe_disable_optional_deepspeed()
+
 from typing import Dict, Optional
 import requests
 import json
 import random
-import inspect 
+import inspect
 import numbers
 import utility
 from datasets import Dataset
