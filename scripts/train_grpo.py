@@ -422,7 +422,13 @@ def main():
 
     if peft_config is None:  # this is full-weight training
         # some model need to resize the token embeddings or encounter the size mismatch error; only for full-weight models
-        resize_if_needed(train_request["model_name"], model, len(tokenizer))
+        # EXP-DEFENSIVE 2026-05-21 (hyper-text port): skip_shrink_on_excess=True for vLLM compat
+        # — avoids weight-copy assertion when tokenizer vocab > model embedding (vLLM doesn't shrink)
+        try:
+            resize_if_needed(train_request["model_name"], model, len(tokenizer), skip_shrink_on_excess=True)
+        except TypeError:
+            # fallback if older resize_if_needed doesn't accept kwarg
+            resize_if_needed(train_request["model_name"], model, len(tokenizer))
 
     # Check if this is the main process and create the output directory
     if is_main_process(LOCAL_RANK):  # Only create directory on main process

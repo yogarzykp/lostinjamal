@@ -163,13 +163,17 @@ def main():
     dev_ds = get_dataset(dev_path, train_request["dataset_type"])
 
     log_info(f"world_size: {training_args.world_size}")
-    total_steps_per_epoch = len(train_ds) // (
-        training_args.per_device_train_batch_size
-        * training_args.gradient_accumulation_steps
-        * training_args.world_size
-    )
+    # EXP-DEFENSIVE 2026-05-21 (hyper-text port): use math.ceil (not //) for steps_per_epoch
+    # and enforce MIN_BATCH_FLOOR=4 to prevent off-by-one WhenToEvalHandler triggers and
+    # pathological batch=1 SGD on tiny datasets.
+    import math as _math
+    _MIN_BATCH_FLOOR = 4
+    _eff_batch = max(_MIN_BATCH_FLOOR, training_args.per_device_train_batch_size
+                     * training_args.gradient_accumulation_steps
+                     * training_args.world_size)
+    total_steps_per_epoch = _math.ceil(len(train_ds) / _eff_batch)
 
-    log_info(f"total_steps_per_epoch: {total_steps_per_epoch}")
+    log_info(f"total_steps_per_epoch: {total_steps_per_epoch} (eff_batch={_eff_batch}, MIN_BATCH_FLOOR={_MIN_BATCH_FLOOR})")
     # consider reducing the batch_size if it is quite big
     # num_steps = len(train_ds) * training_args.num_train_epochs / (training_args.per_device_train_batch_size * training_args.gradient_accumulation_steps * training_args.world_size)
     # num_steps > min_step ->
