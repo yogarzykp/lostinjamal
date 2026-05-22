@@ -388,41 +388,99 @@ def main():
     # ADAPTIVE_MODE routes to 100% dynamics-driven config (Plan D).
     # Default ON (validated 80% win-rate, 10-task tournament eval 2026-05-03).
     # Set ADAPTIVE_MODE=0 to fall back to legacy bucket lookup.
+    #
+    # SAFETY LAYER (2026-05-23): adaptive_config can crash mid-build due to
+    # bugs in advanced logic (e.g. UnboundLocalError _family_resolved on
+    # 2026-05-22 wiped both KITA hotkeys R2). Wrap with try/except so a
+    # config-builder bug never takes the whole training down — cascade to
+    # legacy battle-tested config builder instead. Worst case: validator gets
+    # a vanilla submission instead of no submission at all.
     use_adaptive = os.getenv("ADAPTIVE_MODE", "1") == "1"
+    _train_info_snapshot = copy.deepcopy(train_info)  # restore point if adaptive crashes
+    _adaptive_ok = False
     if use_adaptive:
-        from adaptive_config import get_adaptive_training_json
-        print(f"[text_trainer] ADAPTIVE_MODE=on — using dynamics-driven config", flush=True)
-        train_info = get_adaptive_training_json(args.task_type, train_info)
-        if args.task_type == TaskType.INSTRUCTTEXTTASK.value or args.task_type == TaskType.CHATTASK.value:
-            tokenize_cmd = f"/workspace/axo_py/bin/python tokenize_instruct.py {request_path}"
-        elif args.task_type == TaskType.DPOTASK.value:
-            tokenize_cmd = f"python tokenize_dpo.py {request_path}"
-        elif args.task_type == TaskType.GRPOTASK.value:
-            tokenize_cmd = f"python tokenize_grpo.py {request_path}"
-        else:
-            raise ValueError(f"Task type {args.task_type} not supported")
-        train_cmd = train_info["run_cmd"]
-    elif (
-        args.task_type == TaskType.INSTRUCTTEXTTASK.value
-        or args.task_type == TaskType.CHATTASK.value
-    ):
-        train_info = get_instruct_training_json(train_info)
-        tokenize_cmd = (
-            f"/workspace/axo_py/bin/python tokenize_instruct.py {request_path}"
-        )
-        train_cmd = train_info["run_cmd"]
+        try:
+            from adaptive_config import get_adaptive_training_json
+            print(f"[text_trainer] ADAPTIVE_MODE=on — using dynamics-driven config", flush=True)
+            train_info = get_adaptive_training_json(args.task_type, train_info)
+            _adaptive_ok = True
+        except Exception as _ad_exc:
+            import traceback
+            traceback.print_exc()
+            print(
+                f"[ADAPTIVE-SAFETY] adaptive_config crashed "
+                f"({type(_ad_exc).__name__}: {_ad_exc}). "
+                f"Falling back to legacy config so training proceeds instead of dying.",
+                flush=True,
+            )
+            try:
+                subprocess.Popen(
+                    [
+                        "bash",
+                        "/workspace/scripts/telegram_notify.sh",
+                        "ERROR",
+                        f"ADAPTIVE crash → legacy fallback [{args.task_type}] task={args.task_id}",
+                        f"{type(_ad_exc).__name__}: {_ad_exc}",
+                    ],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+            except Exception:
+                pass  # never block training
+            train_info = _train_info_snapshot  # restore pre-adaptive state
 
+    # tokenize_cmd is task-type determined — independent of adaptive vs legacy.
+    if args.task_type == TaskType.INSTRUCTTEXTTASK.value or args.task_type == TaskType.CHATTASK.value:
+        tokenize_cmd = f"/workspace/axo_py/bin/python tokenize_instruct.py {request_path}"
     elif args.task_type == TaskType.DPOTASK.value:
-        train_info = get_dpo_training_json(train_info)
         tokenize_cmd = f"python tokenize_dpo.py {request_path}"
-        train_cmd = train_info["run_cmd"]
-
     elif args.task_type == TaskType.GRPOTASK.value:
-        train_info = get_grpo_training_json(train_info)
         tokenize_cmd = f"python tokenize_grpo.py {request_path}"
-        train_cmd = train_info["run_cmd"]
     else:
         raise ValueError(f"Task type {args.task_type} not supported")
+
+    # Legacy fallback when adaptive disabled or crashed. Wrap defensively too —
+    # if legacy ALSO fails, we have no choice but to propagate (container exits,
+    # validator marks fail). But at least we tried both layers + logged everything.
+    if not _adaptive_ok:
+        try:
+            if (
+                args.task_type == TaskType.INSTRUCTTEXTTASK.value
+                or args.task_type == TaskType.CHATTASK.value
+            ):
+                train_info = get_instruct_training_json(train_info)
+            elif args.task_type == TaskType.DPOTASK.value:
+                train_info = get_dpo_training_json(train_info)
+            elif args.task_type == TaskType.GRPOTASK.value:
+                train_info = get_grpo_training_json(train_info)
+            else:
+                raise ValueError(f"Task type {args.task_type} not supported")
+        except Exception as _lg_exc:
+            import traceback
+            traceback.print_exc()
+            print(
+                f"[LEGACY-SAFETY] legacy config builder ALSO failed "
+                f"({type(_lg_exc).__name__}: {_lg_exc}). "
+                f"No more fallback layer — propagating.",
+                flush=True,
+            )
+            try:
+                subprocess.Popen(
+                    [
+                        "bash",
+                        "/workspace/scripts/telegram_notify.sh",
+                        "TRAIN_FAIL",
+                        f"BOTH adaptive+legacy crashed [{args.task_type}] task={args.task_id}",
+                        f"{type(_lg_exc).__name__}: {_lg_exc}",
+                    ],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+            except Exception:
+                pass
+            raise
+
+    train_cmd = train_info["run_cmd"]
 
     
     with open(request_path, "w") as f:
