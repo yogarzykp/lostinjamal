@@ -138,6 +138,9 @@ def extract_output_dir(train_cmd: str) -> str:
         return None
 
 
+FAST_CRASH_THRESHOLD_SECONDS = 60.0  # train_cmd exiting in <60s = bad config signal
+
+
 def run_training(
     train_cmd: str,
     log_path: str,
@@ -146,6 +149,14 @@ def run_training(
     task_type: str,
     expected_repo_name: str,
 ):
+    # SAFETY LAYER (B) 2026-05-23: track per-attempt duration so Grafana can
+    # spot fast-fail patterns. UnboundLocalError yesterday: train_*.py never
+    # even launched torch — config-phase crash. Different pattern: train
+    # launches, dies at step 1 (bad LR / OOM-not-caught / NaN). Both would
+    # show up here as <60s exit. Logging only at this stage — cascade-to-
+    # legacy after N fast-fails is planned in a follow-up once Grafana
+    # confirms the pattern empirically.
+    consecutive_fast_crashes = 0
     for i in range(retries):
         print(
             f"************* Training attempt {i+1}/{retries} for task {task_id}*************",
@@ -196,11 +207,28 @@ def run_training(
             "WANDB_NAME": f"{task_id}_{expected_repo_name}",
         }
 
+        _attempt_start = time.time()
         run_cmd_with_log(train_cmd, log_path, env_vars=training_env_vars)
+        _attempt_duration = time.time() - _attempt_start
         # check if training is successfully here so we can break the loop; if output_dir contains file: "successs.txt" return true
         output_dir = extract_value_from_cmd(train_cmd, "output_dir")
         if os.path.exists(os.path.join(output_dir, "success.txt")):
             return True
+        # SAFETY LAYER (B): fast-crash detection. If train_cmd died in <60s
+        # without success.txt, config is likely bad (UnboundLocalError /
+        # immediate OOM / NaN at step 1). Tag with greppable marker for
+        # Grafana/Loki visibility.
+        if _attempt_duration < FAST_CRASH_THRESHOLD_SECONDS:
+            consecutive_fast_crashes += 1
+            error_type = get_error_type(log_path) if os.path.exists(log_path) else None
+            print(
+                f"[FAST-CRASH] attempt={i+1}/{retries} task={task_id} "
+                f"duration={_attempt_duration:.1f}s threshold={FAST_CRASH_THRESHOLD_SECONDS}s "
+                f"consecutive={consecutive_fast_crashes} error_type={error_type or 'unknown'}",
+                flush=True,
+            )
+        else:
+            consecutive_fast_crashes = 0  # reset chain on a "normal" failure
         time.sleep(5)
     return False
 
@@ -395,6 +423,41 @@ def main():
     # config-builder bug never takes the whole training down — cascade to
     # legacy battle-tested config builder instead. Worst case: validator gets
     # a vanilla submission instead of no submission at all.
+    def _sanity_check_train_info(ti: dict) -> tuple[bool, str]:
+        """Validate adaptive's output has sane fields. Returns (ok, reason).
+
+        Adaptive can import + return without raising but produce nonsense (NaN
+        LR, batch=0, missing run_cmd). Catch those before they crash train_*.py
+        at step 1 — burning one of our 2 retry attempts.
+        """
+        if not isinstance(ti, dict):
+            return False, f"train_info not dict ({type(ti).__name__})"
+        if "run_cmd" not in ti or not isinstance(ti["run_cmd"], str) or not ti["run_cmd"].strip():
+            return False, "missing/empty run_cmd"
+        tr = ti.get("train_request")
+        if not isinstance(tr, dict):
+            return False, f"train_request not dict ({type(tr).__name__})"
+        # LR sanity — accept any field name that might carry it
+        lr_candidates = [tr.get("learning_rate"), tr.get("lr"), tr.get("init_lr")]
+        lr = next((v for v in lr_candidates if v is not None), None)
+        if lr is not None:
+            try:
+                lr_f = float(lr)
+                if not (1e-8 < lr_f < 1e-1):
+                    return False, f"learning_rate out of bounds: {lr_f}"
+            except (TypeError, ValueError):
+                return False, f"learning_rate non-numeric: {lr!r}"
+        # batch sanity — explicit None chain (avoid `or` falsy-on-zero bug)
+        bs_candidates = [tr.get("batch_size"), tr.get("per_device_train_batch_size"), tr.get("micro_batch_size")]
+        bs = next((v for v in bs_candidates if v is not None), None)
+        if bs is not None:
+            try:
+                if int(bs) <= 0:
+                    return False, f"batch_size <= 0: {bs}"
+            except (TypeError, ValueError):
+                return False, f"batch_size non-int: {bs!r}"
+        return True, ""
+
     use_adaptive = os.getenv("ADAPTIVE_MODE", "1") == "1"
     _train_info_snapshot = copy.deepcopy(train_info)  # restore point if adaptive crashes
     _adaptive_ok = False
@@ -403,7 +466,32 @@ def main():
             from adaptive_config import get_adaptive_training_json
             print(f"[text_trainer] ADAPTIVE_MODE=on — using dynamics-driven config", flush=True)
             train_info = get_adaptive_training_json(args.task_type, train_info)
-            _adaptive_ok = True
+            # SAFETY LAYER (A) 2026-05-23: sanity-check adaptive's output before
+            # accepting. If LR/batch/run_cmd are insane, cascade to legacy.
+            _ok, _why = _sanity_check_train_info(train_info)
+            if not _ok:
+                print(
+                    f"[ADAPTIVE-SANITY] adaptive returned invalid train_info: {_why}. "
+                    f"Treating as adaptive failure → cascade to legacy.",
+                    flush=True,
+                )
+                try:
+                    subprocess.Popen(
+                        [
+                            "bash",
+                            "/workspace/scripts/telegram_notify.sh",
+                            "ERROR",
+                            f"ADAPTIVE sanity FAIL → legacy fallback [{args.task_type}] task={args.task_id}",
+                            f"reason: {_why}",
+                        ],
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                    )
+                except Exception:
+                    pass
+                train_info = _train_info_snapshot  # restore for legacy path
+            else:
+                _adaptive_ok = True
         except Exception as _ad_exc:
             import traceback
             traceback.print_exc()
@@ -482,7 +570,23 @@ def main():
 
     train_cmd = train_info["run_cmd"]
 
-    
+    # SAFETY LAYER (C) 2026-05-23: post-Grafana-audit, all other diagnostic
+    # info (adaptive PLAN, errors, retries, end_time) is already in stdout
+    # and shipped to Loki. The only missing greppable marker was the FINAL
+    # resolved config — which path won (adaptive vs legacy) and the headline
+    # HP. One short line is enough — no need for a separate JSON dump.
+    _tr = train_info.get("train_request", {}) if isinstance(train_info, dict) else {}
+    _lr_val = _tr.get("learning_rate") or _tr.get("lr") or _tr.get("init_lr") or "?"
+    _bs_val = _tr.get("batch_size") or _tr.get("per_device_train_batch_size") or _tr.get("micro_batch_size") or "?"
+    _ms_val = _tr.get("max_steps") or _tr.get("num_train_epochs") or "?"
+    print(
+        f"[CONFIG-RESOLVED] path={'adaptive' if _adaptive_ok else 'legacy'} "
+        f"task_type={args.task_type} task_id={args.task_id} "
+        f"lr={_lr_val} batch={_bs_val} steps_or_epochs={_ms_val} "
+        f"model={train_info.get('model_name', '?')}",
+        flush=True,
+    )
+
     with open(request_path, "w") as f:
         json.dump(train_info, f, indent=4, ensure_ascii=False)
 
