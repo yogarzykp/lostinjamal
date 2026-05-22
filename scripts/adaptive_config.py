@@ -1714,6 +1714,24 @@ def build_adaptive_run_config(
             pass
     _budget_seconds = float(_hours_budget) * 3600.0 * 0.92  # 8% safety margin (setup + save + upload)
 
+    # CRITICAL FIX 2026-05-22: resolve family EARLY so OPT SDPA check at line 1729 doesn't UnboundLocalError.
+    # Previously this block was AFTER line 1729, causing Python to treat `_family_resolved` as local
+    # but referenced-before-assigned when training Round 2 DPO tasks (opt-125m + falcon-rw-1b).
+    # Both KITA hotkeys crashed with: `UnboundLocalError: cannot access local variable '_family_resolved'`.
+    # EXP-Q 2026-05-16: OPT family SDPA attention override.
+    # Empirical 3c42f7f4 opt-350m winner 5FW2Eaa step time = 1.26s/it vs KITA 8.57s/it
+    # (6.8× faster). Cause: OPT NOT in _FA_SUPPORTED_FAMILIES → we force disable_fa=True
+    # → eager attention O(N²). Modern transformers (≥v4.40) supports SDPA for OPT
+    # which is O(N²) memory but uses Pytorch native kernel — 3-5× faster than eager
+    # without the FA-2 instability risk on OPT.
+    # use_attn_implementation overrides disable_fa-derived choice (train_instruct.py:170-172).
+    _family_resolved = (instruct_hp or {}).get("_meta", {}).get("family_resolved")
+    _attn_impl_override = ""
+    if _family_resolved == "opt":
+        _attn_impl_override = "sdpa"
+        print(f"[adaptive] EXP-Q OPT SDPA enabled (attn_implementation=sdpa) — "
+              f"expected 3-5× step speedup vs eager", flush=True)
+
     # Estimate step time conservatively (over-estimate is safer than under-estimate)
     _effective_batch = max(1, batch * grad_accum)
     if task_type_lc == "grpo":
@@ -1741,20 +1759,6 @@ def build_adaptive_run_config(
     _budget_max_steps = max(_eval_floor, _budget_steps)
     print(f"[adaptive] EXP-T hours_budget={_hours_budget}h step_time_est={_step_time_est:.1f}s "
           f"→ max_steps_budget={_budget_max_steps}", flush=True)
-
-    # EXP-Q 2026-05-16: OPT family SDPA attention override.
-    # Empirical 3c42f7f4 opt-350m winner 5FW2Eaa step time = 1.26s/it vs KITA 8.57s/it
-    # (6.8× faster). Cause: OPT NOT in _FA_SUPPORTED_FAMILIES → we force disable_fa=True
-    # → eager attention O(N²). Modern transformers (≥v4.40) supports SDPA for OPT
-    # which is O(N²) memory but uses Pytorch native kernel — 3-5× faster than eager
-    # without the FA-2 instability risk on OPT.
-    # use_attn_implementation overrides disable_fa-derived choice (train_instruct.py:170-172).
-    _family_resolved = (instruct_hp or {}).get("_meta", {}).get("family_resolved")
-    _attn_impl_override = ""
-    if _family_resolved == "opt":
-        _attn_impl_override = "sdpa"
-        print(f"[adaptive] EXP-Q OPT SDPA enabled (attn_implementation=sdpa) — "
-              f"expected 3-5× step speedup vs eager", flush=True)
 
     # Common run_config keys (matches legacy structure)
     run_config = {
