@@ -575,15 +575,27 @@ def main():
     # and shipped to Loki. The only missing greppable marker was the FINAL
     # resolved config — which path won (adaptive vs legacy) and the headline
     # HP. One short line is enough — no need for a separate JSON dump.
-    _tr = train_info.get("train_request", {}) if isinstance(train_info, dict) else {}
-    _lr_val = _tr.get("learning_rate") or _tr.get("lr") or _tr.get("init_lr") or "?"
-    _bs_val = _tr.get("batch_size") or _tr.get("per_device_train_batch_size") or _tr.get("micro_batch_size") or "?"
-    _ms_val = _tr.get("max_steps") or _tr.get("num_train_epochs") or "?"
+    #
+    # FIX 2026-05-23: HP lives in train_cmd string (torchrun --arg value),
+    # not train_request dict. First production run showed "lr=? batch=?"
+    # because the dict lookup found nothing. Use extract_value_from_cmd
+    # (already defined above for regex extraction).
+    def _safe_extract(cmd: str, *keys: str) -> str:
+        for k in keys:
+            v = extract_value_from_cmd(cmd, k)
+            if v is not None:
+                return v
+        return "?"
+
+    _lr_val = _safe_extract(train_cmd, "learning_rate", "lr")
+    _bs_val = _safe_extract(train_cmd, "per_device_train_batch_size", "batch_size", "micro_batch_size")
+    _ms_val = _safe_extract(train_cmd, "max_steps", "num_train_epochs")
+    _model_val = _safe_extract(train_cmd, "base_model", "model_name_or_path", "model")
     print(
         f"[CONFIG-RESOLVED] path={'adaptive' if _adaptive_ok else 'legacy'} "
         f"task_type={args.task_type} task_id={args.task_id} "
         f"lr={_lr_val} batch={_bs_val} steps_or_epochs={_ms_val} "
-        f"model={train_info.get('model_name', '?')}",
+        f"model={_model_val}",
         flush=True,
     )
 
