@@ -1214,24 +1214,36 @@ def build_adaptive_run_config(
     else:
         # Single GPU (validator Instruct path): BOSS empirical buckets verified on
         # 3 model families. Larger batch = smoother gradient = faster epoch-1 convergence.
+        #
+        # DPO-AWARE FORK (PROD-VALIDATED BUG-FIX 2026-05-23 b38 run):
+        # DPO computes chosen+rejected forward pass → 2× activation memory vs
+        # SFT. Plus a frozen reference model (+ model_size GB). Falcon-RW-1B
+        # (1B, vocab=50k, seq=2048) OOM at batch=100, eventually fit at
+        # batch=25 after 10 FAST-CRASH events (~6 min wasted per worker).
+        # Use separate DPO buckets sized from that empirical run.
+        # OPT-125M class (<0.5B) DPO at batch=64 verified OK — no halving
+        # needed for tiny models.
+        _is_dpo = task_type_lc == "dpo"
         if param_count < 0.5e9:
             # opt-350m: 17 BOSS winners batch=48; Qwen-0.5B: batch=140.
-            # Wide variance — use family-aware override (opt profile caps to 48 via
-            # max_length_cap=2046 reducing per-sample memory). Default mid for safety.
+            # OPT-125M DPO at batch=64 verified OK (2026-05-23 5fbe61c9 run).
             _bucket = 64
         elif param_count < 2e9:
             # 0.5-2B: Qwen-0.5B verified 140, Sheared-1.3B verified 100, Qwen-1.5B target.
-            # Use 100 as safe lower bound (smaller models won't OOM).
-            _bucket = 100
+            # DPO: Falcon-RW-1B verified fit at ~25 → use 24 for safety margin.
+            _bucket = 24 if _is_dpo else 100
         elif param_count < 4e9:
             # 2-4B: extrapolation midpoint (no verified data). Interpolate 100 → 28.
-            _bucket = 60
+            # DPO: halve from Instruct + small safety margin.
+            _bucket = 16 if _is_dpo else 60
         elif param_count < 10e9:
             # 4-10B: Mistral-7B verified 28.
-            _bucket = 28
+            # DPO: 7B class DPO needs heavy reduction (chosen+rejected forward
+            # on 7B model + ref model = ~80GB easily). Cap at 8.
+            _bucket = 8 if _is_dpo else 28
         else:
             # 10B+: conservative scale-down (no verified data, scale ~2× from 7B).
-            _bucket = 14
+            _bucket = 4 if _is_dpo else 14
         batch = min(batch, _bucket)
         print(f"[adaptive] 1-GPU empirical bucket: batch={batch} (target={_bucket} for param={param_count/1e9:.2f}B)", flush=True)
     env_batch = os.getenv("INSTRUCT_BATCH_OVERRIDE")
