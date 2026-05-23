@@ -1082,6 +1082,7 @@ def build_adaptive_run_config(
     num_attention_heads: Optional[int] = None
     num_key_value_heads: Optional[int] = None
     hidden_size: Optional[int] = None  # EXP-TINKER 2026-05-20: for tinker LR formula
+    vocab_size: Optional[int] = None  # 2026-05-23: needed for vocab-aware batch cap
     try:
         from transformers import AutoConfig
         _cfg = AutoConfig.from_pretrained(model_path, local_files_only=True, trust_remote_code=False)
@@ -1090,6 +1091,7 @@ def build_adaptive_run_config(
         num_attention_heads = getattr(_cfg, "num_attention_heads", None)
         num_key_value_heads = getattr(_cfg, "num_key_value_heads", None)
         hidden_size = getattr(_cfg, "hidden_size", None)
+        vocab_size = getattr(_cfg, "vocab_size", None)
         if model_max_position:
             print(f"[adaptive] model max_position_embeddings={model_max_position}", flush=True)
     except Exception as _e:
@@ -1101,6 +1103,7 @@ def build_adaptive_run_config(
             num_attention_heads = getattr(_cfg, "num_attention_heads", None)
             num_key_value_heads = getattr(_cfg, "num_key_value_heads", None)
             hidden_size = getattr(_cfg, "hidden_size", None)
+            vocab_size = getattr(_cfg, "vocab_size", None)
         except Exception as _e2:
             print(f"[adaptive] WARN: max_position probe failed ({_e2}), skipping safety cap", flush=True)
 
@@ -1258,6 +1261,37 @@ def build_adaptive_run_config(
                 f"→ batch_size {_old_batch}→{batch} (×{_boost_applied:.2f})",
                 flush=True,
             )
+
+    # ----------------------------------------------------------------------
+    # VOCAB-AWARE BATCH CEILING (PROD-VALIDATED BUG-FIX 2026-05-23):
+    # ----------------------------------------------------------------------
+    # Single-GPU bucket (line ~1219) sized for activation memory but ignored
+    # logits tensor memory = batch × seq × vocab × dtype_bytes. For models
+    # with vocab >= 100k (Qwen 152k, Gemma-2 256k), logits alone can exceed
+    # available VRAM at batch=100+.
+    #
+    # Production evidence 2026-05-23: Qwen-1.5B (vocab=151,936) on H100 80GB:
+    #   batch=120, seq=1024, bf16 → logits = 120 × 1024 × 151936 × 2B ≈ 75GB
+    #   OOM tried alloc 69.55 GB. Plus model weights (3GB) + activations
+    #   (~21GB) + optimizer state (24GB) = ~123GB needed, only 79GB available.
+    # OOM-aware retry in run_training halved batch repeatedly until fit (~30s
+    # per retry, burned 3-5 retries before train started).
+    #
+    # Mirror multi-GPU vocab awareness (line ~1199) for single-GPU path.
+    # Formula: cap batch so logits ≤ 30GB safe budget at expected seq=1024.
+    #   max_batch_logits = 30e9 / (1024 * vocab * 2)
+    # For vocab=152k: max_batch ≈ 96. Use 48 as safety margin (allows GQA
+    # boost ×1.20 → 58, well under 96).
+    if gpu_count == 1 and vocab_size and vocab_size >= 100000 and param_count >= 1e9:
+        _vocab_cap = 48
+        if batch > _vocab_cap:
+            print(
+                f"[adaptive] vocab-aware OOM-safe cap: batch {batch}→{_vocab_cap} "
+                f"(vocab={vocab_size}, param={param_count/1e9:.2f}B, "
+                f"logits_at_orig=~{batch * 1024 * vocab_size * 2 / 1e9:.1f}GB)",
+                flush=True,
+            )
+            batch = _vocab_cap
 
     # Init LR — heuristic from arch+param (LRRT can refine in Phase 2)
     # Range: log-scale based on param_count (smaller = higher LR for non-Instruct path).
