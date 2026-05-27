@@ -992,16 +992,37 @@ class GRPOCustomEvalSaveCallback(CustomEvalSaveCallback):
             print(f"[Hook 3] skipped (fail-soft): {exc}", flush=True)
 
     def compute_loss(self, state: TrainerState, metrics):
+        # FIX 2026-05-27 (Patch A from GRPO bedah):
+        # Validator scores GRPO as `eval_loss = reward − BETA_GRPO × KL_div_full_corpus`
+        # (rayonlabs/G.O.D validator/evaluation/eval_grpo.py:206-258, BETA_GRPO=0.5).
+        # Previous implementation used `-eval_reward` only → checkpoint selection
+        # ignored KL drift penalty. May submit high-reward/high-KL ckpt that
+        # scores WORSE than moderate-reward/low-KL ckpt at validator side.
+        # Hook 3 plateau guard already uses correct proxy (dynamics_utils.py:807-816),
+        # mirror that semantic here. Fail-soft: if KL missing from log, fall back
+        # to old behavior with visible warning.
+        BETA_GRPO = 0.5  # match validator/core/constants.py:BETA_GRPO
         eval_loss = None
         if state.log_history:
             last_log_entry = state.log_history[-1]
-            eval_loss = last_log_entry.get("eval_reward", None)
-            print(f"choose eval_loss ({eval_loss}) as eval_reward from: last_log_entry: {last_log_entry}; \n metrics: {metrics}", flush=True)
+            reward = last_log_entry.get("eval_reward") or last_log_entry.get("reward")
+            kl = last_log_entry.get("eval_kl") or last_log_entry.get("kl")
+            if reward is not None and kl is not None:
+                # Validator-aligned: minimize -(reward - β·KL) for ckpt selection
+                proxy = float(reward) - BETA_GRPO * float(kl)
+                eval_loss = -proxy
+                print(f"[ckpt-select] validator-aligned: reward={reward:.4f} kl={kl:.4f} "
+                      f"proxy={proxy:.4f} eval_loss={eval_loss:.4f} (KL-penalized)", flush=True)
+            elif reward is not None:
+                # KL missing — fail-soft to old behavior with warning
+                eval_loss = -float(reward)
+                print(f"[ckpt-select] WARN: KL missing from log, fallback to -eval_reward "
+                      f"(reward={reward:.4f} eval_loss={eval_loss:.4f}). "
+                      f"Checkpoint may not align with validator scoring formula.", flush=True)
+            else:
+                print(f"[ckpt-select] WARN: no reward in last_log_entry: {last_log_entry}", flush=True)
         else:
             print(f"state.log_history is empty", flush=True)
-
-        if eval_loss is not None:
-            eval_loss = - eval_loss
 
         return eval_loss
 
