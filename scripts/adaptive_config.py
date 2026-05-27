@@ -1788,6 +1788,24 @@ def build_adaptive_run_config(
         _attn_impl_override = "sdpa"
         print(f"[adaptive] EXP-Q OPT SDPA enabled (attn_implementation=sdpa) — "
               f"expected 3-5× step speedup vs eager", flush=True)
+    # PROD BUG FIX 2026-05-27 — Falcon family uses ALIBI positional encoding,
+    # incompatible with FlashAttention 3 (AssertionError: Alibi is not supported in FA3).
+    # Discovered in t6 b266adea Falcon-RW-1B GRPO crash. Same SDPA override pattern as OPT.
+    # Detection: family_resolved=="falcon" OR architecture string OR AutoConfig.alibi=True.
+    _alibi_attr = None
+    try:
+        _alibi_attr = getattr(_cfg, "alibi", None)
+    except NameError:
+        pass  # _cfg not defined (both AutoConfig loads failed earlier)
+    _is_alibi_model = (
+        _family_resolved == "falcon"
+        or _alibi_attr is True
+        or (isinstance(arch, str) and "falcon" in arch.lower())
+    )
+    if _is_alibi_model and _attn_impl_override == "":
+        _attn_impl_override = "sdpa"
+        print(f"[adaptive] ALIBI model detected (arch={arch}, family={_family_resolved}, alibi_attr={_alibi_attr}) — "
+              f"attn_implementation=sdpa (FA3 incompatible with alibi)", flush=True)
 
     # Estimate step time conservatively (over-estimate is safer than under-estimate)
     _effective_batch = max(1, batch * grad_accum)
