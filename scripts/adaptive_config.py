@@ -1932,6 +1932,22 @@ def build_adaptive_run_config(
             print(f"[adaptive-grpo-tiny-vllm] param={param_count:,} <500M, "
                   f"use_vllm=False (avoid vLLM startup timeout on tiny model)",
                   flush=True)
+        # PROD BUG FIX 2026-05-27 — vLLM uses FA3 internally which crashes on
+        # ALIBI models. Falcon-RW-1B GRPO (t6 b266adea) crashed:
+        # `assert alibi_slopes is None, "Alibi is not supported in FA3"` from
+        # vLLM colocate generation despite disable_fa=True + sdpa override.
+        # Force use_vllm=False for any alibi model — slower HF generation but
+        # avoids vLLM FA3 crash. Override-able via FORCE_VLLM=1.
+        _grpo_alibi = False
+        try:
+            _grpo_alibi = bool(getattr(_cfg, "alibi", False))
+        except NameError:
+            pass
+        if (_grpo_alibi or (isinstance(arch, str) and "falcon" in arch.lower())) \
+                and os.getenv("FORCE_VLLM", "0") != "1":
+            run_config["use_vllm"] = False
+            print(f"[adaptive-grpo-alibi-vllm] alibi model detected (arch={arch}), "
+                  f"use_vllm=False (avoid vLLM FA3 crash on alibi)", flush=True)
         # Cap batch by vanilla bucket (known-safe upper bound).
         # Slow reward funcs (textstat/langcheck/detoxify) need extra reduction.
         dataset_type = train_info.get("dataset_type", {}) or {}
