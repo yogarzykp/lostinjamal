@@ -12,6 +12,8 @@ from model_utility import (
 )
 from copy import deepcopy
 from lrs_lookup import get_instruct_lr, get_lr_from_ar_instruct
+from llm_warmstart import try_llm_warmstart
+from model_utility import get_data_size
 
 # Validator's test_axolotl.yml sets sequence_len: 4096 — mirror exactly.
 VALIDATOR_SEQUENCE_LEN = 4096
@@ -401,16 +403,39 @@ def get_training_json(train_info: dict) -> dict:
             print(f"Using lr from lk (tier 1/2 hash): {lr}", flush=True)
             run_config["learning_rate"] = lr
         else:
-            # EXP-BOSS-1 (2026-05-20): Tier 3 AR-CSV fallback ported from
-            # BOSS lion_dance_1 (commit 249e0e7 2026-05-14). Anonymization-
-            # resistant: matches by (architecture, closest_param_size).
-            ar_lr = get_lr_from_ar_instruct(model_architecture, param_nums)
-            if ar_lr is not None:
-                print(f"Using lr from AR-CSV (tier 3 fallback): {ar_lr} "
-                      f"(arch={model_architecture}, params={param_nums})", flush=True)
-                run_config["learning_rate"] = ar_lr
+            # EXP-LLM-WARMSTART 2026-05-27: Tier 1.7 — LLM advisor (Qwen-14B-AWQ
+            # vLLM sidecar) suggests LR from model/task/size context.
+            warmstart_lr = None
+            try:
+                dataset_size = None
+                try:
+                    dataset_size = get_data_size(train_info["request_path"])
+                except Exception as _e:
+                    print(f"[warmstart] data size lookup failed: {_e}", flush=True)
+                warmstart_lr = try_llm_warmstart(
+                    model_name=model_name,
+                    task_type="InstructTextTask",
+                    param_nums=param_nums,
+                    dataset_size=dataset_size,
+                    hours_to_complete=train_info.get("hours_to_complete"),
+                )
+            except Exception as _exc:
+                print(f"[warmstart] unexpected error, falling back: {_exc}", flush=True)
+
+            if warmstart_lr is not None:
+                print(f"Using lr from LLM warmstart (tier 1.7): {warmstart_lr}", flush=True)
+                run_config["learning_rate"] = warmstart_lr
             else:
-                print(f"Using lr from config: {run_config['learning_rate']}", flush=True)
+                # EXP-BOSS-1 (2026-05-20): Tier 3 AR-CSV fallback ported from
+                # BOSS lion_dance_1 (commit 249e0e7 2026-05-14). Anonymization-
+                # resistant: matches by (architecture, closest_param_size).
+                ar_lr = get_lr_from_ar_instruct(model_architecture, param_nums)
+                if ar_lr is not None:
+                    print(f"Using lr from AR-CSV (tier 3 fallback): {ar_lr} "
+                          f"(arch={model_architecture}, params={param_nums})", flush=True)
+                    run_config["learning_rate"] = ar_lr
+                else:
+                    print(f"Using lr from config: {run_config['learning_rate']}", flush=True)
 
     run_config["learning_rate"] *= train_info["reg_ratio"]
     run_cmd = get_run_cmd(run_config, run_config["gpu_nums"])

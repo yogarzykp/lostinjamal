@@ -11,6 +11,8 @@ from model_utility import (
 )
 from copy import deepcopy
 from lrs_lookup import get_grpo_lr, get_grpo_python_lr
+from llm_warmstart import try_llm_warmstart
+from model_utility import get_data_size
 allow_find_lk_lr = False
 
 GRPO_CONFIG = {
@@ -456,6 +458,32 @@ def get_training_json(train_info: dict) -> dict:
                     f"{type(exc).__name__}: {exc}",
                     flush=True,
                 )
+
+    # EXP-LLM-WARMSTART 2026-05-27: Tier 1.7 — if both empirical lookup AND
+    # reward classifier missed, query LLM advisor (Qwen-14B-AWQ vLLM sidecar)
+    # for LR suggestion based on model/task/size. Fail-safe: returns None →
+    # caller keeps existing run_config default.
+    if not lookup_hit and not classifier_hit and train_info.get("find_lk_lr") and allow_find_lk_lr:
+        warmstart_lr = None
+        try:
+            dataset_size = None
+            try:
+                dataset_size = get_data_size(train_info["request_path"])
+            except Exception as _e:
+                print(f"[warmstart] data size lookup failed: {_e}", flush=True)
+            warmstart_lr = try_llm_warmstart(
+                model_name=model_name,
+                task_type="GrpoTask",
+                param_nums=param_nums,
+                dataset_size=dataset_size,
+                hours_to_complete=train_info.get("hours_to_complete"),
+            )
+        except Exception as _exc:
+            print(f"[warmstart] unexpected error, falling back: {_exc}", flush=True)
+
+        if warmstart_lr is not None:
+            print(f"Using lr from LLM warmstart (tier 1.7): {warmstart_lr}", flush=True)
+            run_config["learning_rate"] = warmstart_lr
 
     # β floor for large GRPO (7B+). Empirical from tournament observation:
     # 0/3 GRPO 7B+ wins on tourn_f4f456bc6d050b8b_20260430 — pattern shows

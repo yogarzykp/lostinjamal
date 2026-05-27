@@ -48,4 +48,11 @@ RUN pip install uv && \
     uv pip install vllm==0.8.3 --system && \
     pip install "fiber @ git+https://github.com/rayonlabs/fiber.git@2.4.0"
 
+# EXP-LLM-WARMSTART 2026-05-27: bake Qwen2.5-14B-Instruct-AWQ (~8GB) as
+# embedded vLLM advisor. Sourced at runtime by entrypoint.sh based on
+# TRAINING_LLM_DECIDER_ENABLED + task type. Adds ~5-8 min to image build
+# but enables Tier-2 LR prior (try_llm_warmstart) for lookup-miss cases.
+RUN mkdir -p /opt/models/llm_decider && \
+    python -c "from huggingface_hub import snapshot_download; snapshot_download(repo_id='Qwen/Qwen2.5-14B-Instruct-AWQ', local_dir='/opt/models/llm_decider', local_dir_use_symlinks=False)"
+
 ENTRYPOINT ["./entrypoint.sh"]
