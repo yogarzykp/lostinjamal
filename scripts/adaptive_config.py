@@ -526,7 +526,12 @@ _FAMILY_PROFILES = {
         "reg_ratio_default": 1.00,
     },
     "tinyllama": {
-        "min_lr_rate": 0.20,
+        # 2026-05-27: min_lr_rate 0.20 → 0.25 (Patch A from big-bucket bedah).
+        # Both Llama 7B+ winners on tourn_d735329f8ba0f486 (W1 5GU4Xkd3 Vikhr-7B,
+        # W2 5Et76g7Y Llama-3-8B) explicitly use 0.25. Aligns with qwen/smollm/
+        # shear profiles which already use 0.25. Effect: ~6% higher LR floor at
+        # end of cosine cooldown.
+        "min_lr_rate": 0.25,
         "weight_decay_small_data": 0.0,
         "weight_decay_default": 0.0,
         "packing": True,
@@ -1202,7 +1207,13 @@ def build_adaptive_run_config(
         if 1.5e9 <= param_count < 5e9:
             batch = min(batch, 8)
         elif 5e9 <= param_count < 9e9:
-            batch = min(batch, 14)
+            # 2026-05-27 (Patch C from big-bucket bedah): cap 14 → 18.
+            # Winner W2 5Et76g7Y on Llama-3-8B vocab=128k tourn_d735329f8ba0f486
+            # task 3193e3ad ran batch=18 on 2-GPU DDP successfully. Bumping cap
+            # gives ~28% more effective tokens/step on Llama-class 5-9B models
+            # without hitting the vocab=256k Gemma-2-9b OOM frontier (which is
+            # caught by the >=9e9 branch at batch=4).
+            batch = min(batch, 18)
         elif param_count >= 9e9:
             batch = min(batch, 4)
         print(f"[adaptive] multi-GPU ({gpu_count}) cap applied: batch={batch}", flush=True)
