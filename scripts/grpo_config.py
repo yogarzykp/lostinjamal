@@ -209,7 +209,11 @@ def get_run_cmd(config: dict, gpu_nums: int):
     --gradient_accumulation_steps {gradient_accumulation_steps} \
     --eval_accumulation_steps 1 \
     --eval_strategy no \
-    --save_strategy no \
+    --save_strategy epoch \
+    --save_total_limit 3 \
+    --load_best_model_at_end True \
+    --metric_for_best_model loss \
+    --greater_is_better False \
     --logging_steps 5 \
     --learning_rate {learning_rate} \
     --weight_decay 0. \
