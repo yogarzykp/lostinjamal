@@ -1306,12 +1306,23 @@ def build_adaptive_run_config(
     # For vocab=152k: max_batch ≈ 96. Use 48 as safety margin (allows GQA
     # boost ×1.20 → 58, well under 96).
     if gpu_count == 1 and vocab_size and vocab_size >= 100000 and param_count >= 1e9:
-        _vocab_cap = 48
+        # PROD VALIDATION 2026-05-27 t7 Qwen-1.5B retry: batch=48 (previous cap)
+        # STILL OOM'd 16 times in row. State machine couldn't recover. Total
+        # memory at batch=48 for Qwen-1.5B (vocab=152k, seq=1024 full-FT):
+        # logits 15GB + model fp16 3GB + grad 3GB + AdamW 8bit 6GB + activations
+        # 25GB+ = ~52GB but actual OOM showed 64GB+ (PyTorch overhead). Need
+        # MUCH tighter cap for 1.5B+ large-vocab.
+        if param_count < 2e9:
+            _vocab_cap = 16   # Qwen-1.5B class (was 48 → still OOM)
+        elif param_count < 5e9:
+            _vocab_cap = 8    # Qwen-3B / Llama-3-3B class
+        else:
+            _vocab_cap = 4    # Qwen-7B+ class on single GPU (rare)
         if batch > _vocab_cap:
             print(
                 f"[adaptive] vocab-aware OOM-safe cap: batch {batch}→{_vocab_cap} "
                 f"(vocab={vocab_size}, param={param_count/1e9:.2f}B, "
-                f"logits_at_orig=~{batch * 1024 * vocab_size * 2 / 1e9:.1f}GB)",
+                f"logits_at_capped=~{_vocab_cap * 1024 * vocab_size * 2 / 1e9:.1f}GB)",
                 flush=True,
             )
             batch = _vocab_cap
