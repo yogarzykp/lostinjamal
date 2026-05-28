@@ -322,16 +322,30 @@ class CustomEvalSaveCallback(TrainerCallback):
             
         when_to_eval = self.function_when_to_evaluate(state.global_step)
         if when_to_eval["eval"]:
-            # do not allow the pod to be stopped by any reason 
-                # first check if there is at least one checkpoint or not 
             print(f"Evaluating the model at step: {state.global_step} the reason: {when_to_eval['reason']}", flush=True)
-            control.should_evaluate = True
-            control.should_save = True
-            if when_to_eval["reason"] == "end_time":
-                if not self.has_checkpoint: # if there is no checkpoint, we just save the model, do not evaluate
-                    print(f"No checkpoint found, just save the model at step: {state.global_step}", flush=True)
-                    control.should_evaluate = False
-                    self.save_only = True
+            if getattr(self, "_grpo_no_eval", False):
+                # GRPO STEP-500 RESHAPE FIX (2026-05-28): GRPO eval generation
+                # crashes at trl/grpo_trainer.py:1199 — rewards.view(-1, num_generations)
+                # fails when the dev-set generation yields rewards not divisible by
+                # num_generations (size-1 batch). GRPO scoring uses reward-proxy from
+                # TRAINING logs (Hook 3 on_log), NOT eval_loss — so the eval generation
+                # is pure overhead AND a crash. Skip it: save-only for best-ckpt.
+                # This is what crashed tournament GRPO at step 500 (validator 4h run).
+                control.should_evaluate = False
+                control.should_save = True
+                self.save_only = True
+                print(f"[GRPO] save-only (skip eval gen → avoids step-500 reshape crash) "
+                      f"@ step {state.global_step}", flush=True)
+            else:
+                # do not allow the pod to be stopped by any reason
+                # first check if there is at least one checkpoint or not
+                control.should_evaluate = True
+                control.should_save = True
+                if when_to_eval["reason"] == "end_time":
+                    if not self.has_checkpoint: # if there is no checkpoint, we just save the model, do not evaluate
+                        print(f"No checkpoint found, just save the model at step: {state.global_step}", flush=True)
+                        control.should_evaluate = False
+                        self.save_only = True
         return control
 
 
@@ -841,6 +855,10 @@ class GRPOCustomEvalSaveCallback(CustomEvalSaveCallback):
         # _submission_proxy = proxy of what's currently in submission_dir.
         self._h3_last_proxy: Optional[float] = None
         self._submission_proxy: Optional[float] = None
+        # GRPO STEP-500 RESHAPE FIX: skip eval generation (crashes at TRL
+        # grpo_trainer.py:1199). GRPO uses reward-proxy from training logs, not
+        # eval_loss → eval gen is overhead + crash. on_step_end routes to save-only.
+        self._grpo_no_eval = True
         # Telemetry state — emit config once, warmup-end once, periodic
         # snapshots, and best-proxy update events for post-hoc verification.
         self._h3_config_logged: bool = False
