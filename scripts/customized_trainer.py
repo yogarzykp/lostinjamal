@@ -858,23 +858,46 @@ class GRPOCustomEvalSaveCallback(CustomEvalSaveCallback):
         self._kl_gov_window = deque(maxlen=3)  # rolling 3-log mean (smooths spikes)
         self._kl_gov_throttles = 0
         self._kl_gov_max_throttles = 4  # floor: don't decay LR to zero
+        self._kl_gov_best_proxy = None  # best reward-proxy seen (drift discriminator)
 
-    def _maybe_kl_govern(self, kl, kwargs):
-        """Throttle LR if rolling-mean KL drifts beyond ceiling. Returns True if throttled."""
+    def _maybe_kl_govern(self, kl, reward, kwargs):
+        """Throttle LR ONLY on genuine drift: high KL AND reward-proxy collapsing.
+        Returns True if throttled."""
         if self._kl_gov_ceiling <= 0 or kl is None:
             return False
         if self._kl_gov_throttles >= self._kl_gov_max_throttles:
             return False
         try:
-            self._kl_gov_window.append(float(kl))
+            kl_f = float(kl)
+            self._kl_gov_window.append(kl_f)
         except (TypeError, ValueError):
             return False
+        # Track reward-proxy (validator-style reward - 0.5*kl) to discriminate
+        # genuine drift from healthy aggressive learning.
+        proxy = None
+        if reward is not None:
+            try:
+                proxy = float(reward) - 0.5 * kl_f
+                if self._kl_gov_best_proxy is None or proxy > self._kl_gov_best_proxy:
+                    self._kl_gov_best_proxy = proxy
+            except (TypeError, ValueError):
+                proxy = None
         if len(self._kl_gov_window) < self._kl_gov_window.maxlen:
             return False
         recent = sum(self._kl_gov_window) / len(self._kl_gov_window)
         if recent <= self._kl_gov_ceiling:
             return False
-        # Drift detected → throttle LR (scheduler base + live optimizer)
+        # ── DRIFT GATE (2026-05-28 validation klstable b68ef8e5) ──
+        # High training-KL ALONE is NOT drift: healthy aggressive learning runs
+        # KL~1.0-1.6 with reward IMPROVING (-21→-10) + length controlled. KL-only
+        # ceiling=1.0 falsely throttled that healthy run 4x. TRUE drift (EXP:
+        # KL 3.196, reward -180, length blowup) has COLLAPSING reward-proxy.
+        # Only throttle if proxy dropped meaningfully below its best → real divergence.
+        if proxy is not None and self._kl_gov_best_proxy is not None:
+            margin = abs(self._kl_gov_best_proxy) * 0.15 + 0.5
+            if proxy >= self._kl_gov_best_proxy - margin:
+                return False  # proxy holding/improving → healthy high-KL, don't touch LR
+        # Drift confirmed (high KL + proxy collapse) → throttle LR
         sched = kwargs.get("lr_scheduler")
         opt = kwargs.get("optimizer")
         f = self._kl_gov_factor
@@ -895,8 +918,11 @@ class GRPOCustomEvalSaveCallback(CustomEvalSaveCallback):
             return False
         self._kl_gov_throttles += 1
         self._kl_gov_window.clear()  # reset window so we re-measure post-throttle
+        _proxy_str = f"{proxy:.3f}" if proxy is not None else "?"
+        _best_str = f"{self._kl_gov_best_proxy:.3f}" if self._kl_gov_best_proxy is not None else "?"
         print(
-            f"[KL-governor] DRIFT mean_kl={recent:.4f} > ceiling={self._kl_gov_ceiling} "
+            f"[KL-governor] DRIFT mean_kl={recent:.4f} > {self._kl_gov_ceiling} "
+            f"AND proxy={_proxy_str} collapsed from best={_best_str} "
             f"→ LR x{f} (throttle #{self._kl_gov_throttles}/{self._kl_gov_max_throttles})",
             flush=True,
         )
@@ -906,7 +932,7 @@ class GRPOCustomEvalSaveCallback(CustomEvalSaveCallback):
         """Track reward + kl, compute plateau proxy, fire when stagnated."""
         # KL governor runs FIRST (preventive) — independent of plateau early-stop.
         if logs:
-            self._maybe_kl_govern(logs.get("kl"), kwargs)
+            self._maybe_kl_govern(logs.get("kl"), logs.get("reward"), kwargs)
         if self._h3_fired or not logs:
             return
         reward = logs.get("reward")
