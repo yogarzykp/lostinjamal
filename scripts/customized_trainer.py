@@ -531,10 +531,31 @@ class CustomEvalSaveCallback(TrainerCallback):
         if self.save_only: # if only save, do not evaluate 
             print(f"Only save the model at step: {state.global_step}, no evaluation", flush=True)
             current_step = state.global_step
+            # ── BEST-CKPT GATE (2026-05-28) — GRPO peak-then-drift fix ──
+            # Only update submission_dir if reward-proxy IMPROVED over what's
+            # already there. Prevents overwriting the PEAK model with a later
+            # drifted one (klstable3: peak ep0.18 reward-proxy, drift by ep0.40).
+            # _h3_last_proxy=None (non-GRPO / no proxy yet) → always save (legacy).
+            _cur = self._h3_last_proxy
+            if _cur is not None:
+                if self._submission_proxy is not None and _cur <= self._submission_proxy:
+                    print(
+                        f"[best-ckpt] step {current_step} proxy={_cur:.4f} <= "
+                        f"submission best={self._submission_proxy:.4f} → KEEP prior "
+                        f"peak, skip overwrite", flush=True,
+                    )
+                    self.update_best_checkpoint = False
+                    self.save_only = False
+                    return
+                print(
+                    f"[best-ckpt] step {current_step} proxy={_cur:.4f} is new best "
+                    f"(prev={self._submission_proxy}) → update submission_dir", flush=True,
+                )
+                self._submission_proxy = _cur
             # Remove existing directory if it exists
             if os.path.exists(self.submission_dir):
                 shutil.rmtree(self.submission_dir)
-                
+
             shutil.copytree(
                 os.path.join(self.output_dir, f"checkpoint-{current_step}"),
                 self.submission_dir
@@ -542,7 +563,7 @@ class CustomEvalSaveCallback(TrainerCallback):
             self.update_best_checkpoint = False
             # add a loss.txt file to the submission directory
             with open(os.path.join(self.submission_dir, "loss.txt"), "w") as f:
-                f.write(f"{current_step},no_eval")
+                f.write(f"{current_step},proxy={_cur if _cur is not None else 'no_eval'}")
             
             # release the flag
             self.save_only = False
@@ -812,6 +833,14 @@ class GRPOCustomEvalSaveCallback(CustomEvalSaveCallback):
         self._h3_best_proxy: Optional[float] = None
         self._h3_best_step: int = 0
         self._h3_fired: bool = False
+        # BEST-CKPT capture (2026-05-28): GRPO peaks early then drifts (klstable3:
+        # peak reward-proxy ep0.18 → drift by ep0.40). save_only path copies the
+        # CURRENT ckpt each save → submission_dir ends as drifted final. Gate it:
+        # only update submission_dir when reward-proxy IMPROVES → submission holds
+        # the PEAK, not the drifted end. _h3_last_proxy = proxy at last on_log;
+        # _submission_proxy = proxy of what's currently in submission_dir.
+        self._h3_last_proxy: Optional[float] = None
+        self._submission_proxy: Optional[float] = None
         # Telemetry state — emit config once, warmup-end once, periodic
         # snapshots, and best-proxy update events for post-hoc verification.
         self._h3_config_logged: bool = False
@@ -960,6 +989,7 @@ class GRPOCustomEvalSaveCallback(CustomEvalSaveCallback):
                 maybe_grpo_plateau_stop,
             )
             proxy = grpo_proxy_score(list(self._h3_rewards), list(self._h3_kls))
+            self._h3_last_proxy = proxy  # BEST-CKPT: latest proxy for save-gate
             _total = max(1, int(getattr(state, "max_steps", 0) or 0))
             _warmup, _patience = grpo_plateau_window(_total)
 
