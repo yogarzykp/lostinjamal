@@ -1981,7 +1981,13 @@ def build_adaptive_run_config(
         # to "dampen drift" but actual fix is to NOT cap max_steps prematurely
         # (was 300, winners trained full 2 epochs).
         run_config["beta"] = float(os.getenv("ADAPTIVE_BETA_OVERRIDE", "0.04"))
-        run_config["scale_rewards"] = "True"  # Dr.GRPO False hurt us
+        # SAFE-DRGRPO 2026-05-28: ISOLATED Dr.GRPO test (Sea AI Lab 2503.20783).
+        # Old "scale_rewards=True hurt us" was a no-op (never plumbed to CLI per
+        # exp_trl_dr_grpo_finding_2026_05_20.md). Now properly plumbed via grpo_config.
+        # Keeps SAFE's r=128 LoRA + num_gen=2 — isolates the Dr.GRPO loss_type variable.
+        # Validates ab_eval_results_2026_05_28.md finding (SAFE lost GRPO 0.6458 vs win 0.5506).
+        run_config["loss_type"] = os.getenv("TRAINING_GRPO_LOSS_TYPE", "dr_grpo")
+        run_config["scale_rewards"] = os.getenv("TRAINING_GRPO_SCALE_REWARDS", "False").lower() == "true"
 
         # Tier 1.5: GRPO reward classifier (lotob-grpo-hard).
         # Static analysis of reward_functions → suggests LR + β by landscape.

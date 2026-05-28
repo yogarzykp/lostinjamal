@@ -183,6 +183,8 @@ def get_run_cmd(config: dict, gpu_nums: int):
         "vllm_gpu_memory_utilization",
         "num_generations",
         "disable_fa",
+        "loss_type",       # SAFE-DRGRPO 2026-05-28 (isolated Dr.GRPO test)
+        "scale_rewards",   # SAFE-DRGRPO 2026-05-28 (isolated Dr.GRPO test)
     ]
     for key in required_keys:
         if key not in config:
@@ -236,11 +238,12 @@ def get_run_cmd(config: dict, gpu_nums: int):
         )
 
     if config.get("use_vllm", True):
-        # SAFE 2026-05-21: --vllm_mode colocate (single-container vLLM)
-        # avoids cross-container NCCL crash discovered during local training
-        # validation. No separate vLLM container needed.
-        # NOT including Dr.GRPO loss_type plumbing (that's EXPERIMENTAL branch).
-        template += " --use_vllm True --vllm_mode colocate"
+        # SAFE-DRGRPO 2026-05-28: --vllm_mode colocate (single-container vLLM)
+        # + ISOLATED Dr.GRPO loss_type plumbing (Sea AI Lab 2503.20783).
+        # This branch tests: does Dr.GRPO ALONE (keeping SAFE r=128, num_gen=2)
+        # close SAFE's GRPO gap vs winner? Validation experiment for
+        # ab_eval_results_2026_05_28.md finding (SAFE lost GRPO 0.6458 vs winner 0.5506).
+        template += " --use_vllm True --vllm_mode colocate --loss_type {loss_type} --scale_rewards {scale_rewards}"
     else:
         template += " --use_vllm False"
 
@@ -293,6 +296,11 @@ def get_training_json(train_info: dict) -> dict:
         "use_vllm": get_use_vllm(model_architecture, model_name, model_dir=model_path),
         "tensor_parallel": config.get("tensor_parallel", False),
         "use_4bit": config.get("use_4bit", False),
+        # SAFE-DRGRPO 2026-05-28: isolated Dr.GRPO (Sea AI Lab 2503.20783).
+        # loss_type='dr_grpo' removes length-bias from advantage; scale_rewards=False
+        # removes per-group std division. Keeps SAFE r=128 + num_gen=2 (isolation test).
+        "loss_type": os.getenv("TRAINING_GRPO_LOSS_TYPE", "dr_grpo"),
+        "scale_rewards": os.getenv("TRAINING_GRPO_SCALE_REWARDS", "False").lower() == "true",
     }
 
     if model_name == "OpenAssistant/oasst-sft-4-pythia-12b-epoch-3.5":
