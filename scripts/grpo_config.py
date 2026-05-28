@@ -183,6 +183,8 @@ def get_run_cmd(config: dict, gpu_nums: int):
         "vllm_gpu_memory_utilization",
         "num_generations",
         "disable_fa",
+        "loss_type",       # KL-STABLE 2026-05-28: explicit GRPO loss (bnpo, winner-validated)
+        "scale_rewards",   # KL-STABLE 2026-05-28: per-group std norm = THE KL stabilizer
     ]
     for key in required_keys:
         if key not in config:
@@ -237,12 +239,16 @@ def get_run_cmd(config: dict, gpu_nums: int):
 
     if config.get("use_vllm", True):
         # SAFE 2026-05-21: --vllm_mode colocate (single-container vLLM)
-        # avoids cross-container NCCL crash discovered during local training
-        # validation. No separate vLLM container needed.
-        # NOT including Dr.GRPO loss_type plumbing (that's EXPERIMENTAL branch).
-        template += " --use_vllm True --vllm_mode colocate"
+        # avoids cross-container NCCL crash discovered during local training.
+        # KL-STABLE 2026-05-28: plumb loss_type + scale_rewards EXPLICITLY.
+        # Empirical (ab_eval_results_2026_05_28): scale_rewards=False (Dr.GRPO)
+        # destabilizes — KL either vanishes (0.002, no learning) or explodes
+        # (3.196, drift). scale_rewards=True (winner 5Et76g7Y KL 0.077 + our SAFE
+        # KL 0.258) keeps advantage normalized → stable gradient → stable KL →
+        # LR stable → reward safe. loss_type=bnpo matches winner (NOT dr_grpo).
+        template += " --use_vllm True --vllm_mode colocate --loss_type {loss_type} --scale_rewards {scale_rewards}"
     else:
-        template += " --use_vllm False"
+        template += " --use_vllm False --loss_type {loss_type} --scale_rewards {scale_rewards}"
 
     if run_type == "ds":
         template = template + """ --deepspeed ds_config/zero3.json"""
@@ -293,6 +299,12 @@ def get_training_json(train_info: dict) -> dict:
         "use_vllm": get_use_vllm(model_architecture, model_name, model_dir=model_path),
         "tensor_parallel": config.get("tensor_parallel", False),
         "use_4bit": config.get("use_4bit", False),
+        # KL-STABLE 2026-05-28: winner-validated GRPO loss config.
+        # bnpo + scale_rewards=True = winner 5Et76g7Y (KL 0.077) + our SAFE (KL 0.258).
+        # Dr.GRPO (dr_grpo + scale_rewards=False) PROVEN harmful: KL 0.002/3.196.
+        # Env-overridable but defaults locked to the stable winning config.
+        "loss_type": os.getenv("TRAINING_GRPO_LOSS_TYPE", "bnpo"),
+        "scale_rewards": os.getenv("TRAINING_GRPO_SCALE_REWARDS", "True").lower() == "true",
     }
 
     if model_name == "OpenAssistant/oasst-sft-4-pythia-12b-epoch-3.5":

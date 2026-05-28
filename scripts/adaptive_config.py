@@ -1981,7 +1981,15 @@ def build_adaptive_run_config(
         # to "dampen drift" but actual fix is to NOT cap max_steps prematurely
         # (was 300, winners trained full 2 epochs).
         run_config["beta"] = float(os.getenv("ADAPTIVE_BETA_OVERRIDE", "0.04"))
-        run_config["scale_rewards"] = "True"  # Dr.GRPO False hurt us
+        # KL-STABLE 2026-05-28: explicit GRPO loss config, now PLUMBED to CLI
+        # (was dead string before — relied on TRL default). Empirical proof
+        # (ab_eval_results_2026_05_28 + winner 5Et76g7Y training_args.bin):
+        #   scale_rewards=True + loss_type=bnpo → KL 0.077-0.258 (STABLE, wins)
+        #   Dr.GRPO scale_rewards=False → KL 0.002 (vanish) OR 3.196 (explode) → LOSES
+        # scale_rewards=True normalizes advantage by per-group std → stable
+        # gradient → stable KL → LR stable → reward safe. THE core GRPO stabilizer.
+        run_config["loss_type"] = os.getenv("TRAINING_GRPO_LOSS_TYPE", "bnpo")
+        run_config["scale_rewards"] = os.getenv("TRAINING_GRPO_SCALE_REWARDS", "True").lower() == "true"
 
         # Tier 1.5: GRPO reward classifier (lotob-grpo-hard).
         # Static analysis of reward_functions → suggests LR + β by landscape.
