@@ -1083,12 +1083,15 @@ class GRPOCustomEvalSaveCallback(CustomEvalSaveCallback):
                     f"[Hook 3 GRPO Plateau] proxy stagnated; best_proxy="
                     f"{self._h3_best_proxy:.4f} @ step={self._h3_best_step}, "
                     f"current_proxy={proxy:.4f} @ step={state.global_step} — "
-                    f"triggering eval+save+stop",
+                    f"triggering SAVE+stop (GRPO no-eval: reshape-crash-safe)",
                     flush=True,
                 )
-                control.should_evaluate = True
+                # GRPO STEP-500 RESHAPE FIX: eval crashes (trl grpo_trainer:1199).
+                # save-only + best-ckpt gate preserves peak. NEVER should_evaluate.
+                control.should_evaluate = False
                 control.should_save = True
                 control.should_training_stop = True
+                self.save_only = True
                 return
 
             # ── KL ceiling — safety net for runaway drift (post-warmup) ──
@@ -1105,12 +1108,13 @@ class GRPOCustomEvalSaveCallback(CustomEvalSaveCallback):
                             f"[Hook 3 KL Ceiling] mean_kl={_mean_kl:.2f} > "
                             f"ceiling={self._h3_kl_ceiling:.2f} @ "
                             f"step={state.global_step} (window="
-                            f"{len(self._h3_kls)}) — triggering eval+save+stop",
+                            f"{len(self._h3_kls)}) — triggering SAVE+stop (GRPO no-eval)",
                             flush=True,
                         )
-                        control.should_evaluate = True
+                        control.should_evaluate = False  # GRPO eval crashes (reshape) — save-only
                         control.should_save = True
                         control.should_training_stop = True
+                        self.save_only = True
                         return
                 if self._h3_kl_peak_threshold > 0 and not self._h3_fired:
                     _peak_kl = max(self._h3_kls)
@@ -1128,12 +1132,13 @@ class GRPOCustomEvalSaveCallback(CustomEvalSaveCallback):
                             f"with {_violations}/{len(self._h3_kls)} "
                             f"violations (min={_min_violations}) @ "
                             f"step={state.global_step} — triggering "
-                            f"eval+save+stop",
+                            f"SAVE+stop (GRPO no-eval)",
                             flush=True,
                         )
-                        control.should_evaluate = True
+                        control.should_evaluate = False  # GRPO eval crashes (reshape) — save-only
                         control.should_save = True
                         control.should_training_stop = True
+                        self.save_only = True
         except Exception as exc:
             # Fail-soft — Hook 3 must never break training.
             print(f"[Hook 3] skipped (fail-soft): {exc}", flush=True)
