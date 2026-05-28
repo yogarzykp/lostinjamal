@@ -841,16 +841,19 @@ class GRPOCustomEvalSaveCallback(CustomEvalSaveCallback):
             self._h3_kl_peak_threshold = 0.0
         # ── KL GOVERNOR (2026-05-28) — PREVENTIVE LR throttle on KL drift ──
         # Empirical: Dr.GRPO scale_rewards=False drifted KL to 3.196 (reward -180,
-        # divergence). Stable runs sit at KL 0.077-0.258. This governor catches
-        # runaway drift DURING training (not just checkpoint-select) by throttling
-        # LR when rolling-mean KL exceeds ceiling → pulls policy back toward
-        # reference → KL stable → LR effectively self-stabilizing → reward safe.
-        # Default ceiling 1.0 (4x above stable 0.258, well below disaster 3.196):
-        # never fires on healthy runs, only catches genuine drift. 0 = disabled.
+        # divergence). This governor catches runaway drift DURING training by
+        # throttling LR when rolling-MEDIAN KL exceeds ceiling AND reward-proxy
+        # collapses → pulls policy back → reward safe.
+        # CEILING CALIBRATION (validation klstable/klstable2 2026-05-28): TRAINING
+        # KL for healthy GRPO sits SUSTAINED ~1.0-1.6 (≠ eval KL 0.077-0.258, which
+        # is final-model-vs-base). Ceiling=1.0 FALSELY fired on healthy runs (reward
+        # improving, length controlled). Default raised to 2.5: above healthy
+        # training KL (~1.6) + transient spikes (median-smoothed), below disaster
+        # (EXP 3.196). Clean separation. 0 = disabled.
         try:
-            self._kl_gov_ceiling = float(os.environ.get("TRAINING_GRPO_KL_GOVERNOR", "1.0"))
+            self._kl_gov_ceiling = float(os.environ.get("TRAINING_GRPO_KL_GOVERNOR", "2.5"))
         except (TypeError, ValueError):
-            self._kl_gov_ceiling = 1.0
+            self._kl_gov_ceiling = 2.5
         try:
             self._kl_gov_factor = float(os.environ.get("TRAINING_GRPO_KL_GOVERNOR_FACTOR", "0.5"))
         except (TypeError, ValueError):
