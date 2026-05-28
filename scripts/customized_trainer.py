@@ -839,9 +839,74 @@ class GRPOCustomEvalSaveCallback(CustomEvalSaveCallback):
             )
         except (TypeError, ValueError):
             self._h3_kl_peak_threshold = 0.0
+        # ── KL GOVERNOR (2026-05-28) — PREVENTIVE LR throttle on KL drift ──
+        # Empirical: Dr.GRPO scale_rewards=False drifted KL to 3.196 (reward -180,
+        # divergence). Stable runs sit at KL 0.077-0.258. This governor catches
+        # runaway drift DURING training (not just checkpoint-select) by throttling
+        # LR when rolling-mean KL exceeds ceiling → pulls policy back toward
+        # reference → KL stable → LR effectively self-stabilizing → reward safe.
+        # Default ceiling 1.0 (4x above stable 0.258, well below disaster 3.196):
+        # never fires on healthy runs, only catches genuine drift. 0 = disabled.
+        try:
+            self._kl_gov_ceiling = float(os.environ.get("TRAINING_GRPO_KL_GOVERNOR", "1.0"))
+        except (TypeError, ValueError):
+            self._kl_gov_ceiling = 1.0
+        try:
+            self._kl_gov_factor = float(os.environ.get("TRAINING_GRPO_KL_GOVERNOR_FACTOR", "0.5"))
+        except (TypeError, ValueError):
+            self._kl_gov_factor = 0.5
+        self._kl_gov_window = deque(maxlen=3)  # rolling 3-log mean (smooths spikes)
+        self._kl_gov_throttles = 0
+        self._kl_gov_max_throttles = 4  # floor: don't decay LR to zero
+
+    def _maybe_kl_govern(self, kl, kwargs):
+        """Throttle LR if rolling-mean KL drifts beyond ceiling. Returns True if throttled."""
+        if self._kl_gov_ceiling <= 0 or kl is None:
+            return False
+        if self._kl_gov_throttles >= self._kl_gov_max_throttles:
+            return False
+        try:
+            self._kl_gov_window.append(float(kl))
+        except (TypeError, ValueError):
+            return False
+        if len(self._kl_gov_window) < self._kl_gov_window.maxlen:
+            return False
+        recent = sum(self._kl_gov_window) / len(self._kl_gov_window)
+        if recent <= self._kl_gov_ceiling:
+            return False
+        # Drift detected → throttle LR (scheduler base + live optimizer)
+        sched = kwargs.get("lr_scheduler")
+        opt = kwargs.get("optimizer")
+        f = self._kl_gov_factor
+        modified = False
+        if sched is not None and hasattr(sched, "base_lrs") and sched.base_lrs:
+            sched.base_lrs = [b * f for b in sched.base_lrs]
+            modified = True
+        if opt is not None and getattr(opt, "param_groups", None):
+            for pg in opt.param_groups:
+                if "lr" in pg:
+                    pg["lr"] *= f
+            modified = True
+        if not modified:
+            # Neither scheduler nor optimizer reachable this hook — log once, no count.
+            if self._kl_gov_throttles == 0:
+                print(f"[KL-governor] DRIFT mean_kl={recent:.4f} > {self._kl_gov_ceiling} "
+                      f"but LR handle unavailable in callback kwargs — cannot throttle", flush=True)
+            return False
+        self._kl_gov_throttles += 1
+        self._kl_gov_window.clear()  # reset window so we re-measure post-throttle
+        print(
+            f"[KL-governor] DRIFT mean_kl={recent:.4f} > ceiling={self._kl_gov_ceiling} "
+            f"→ LR x{f} (throttle #{self._kl_gov_throttles}/{self._kl_gov_max_throttles})",
+            flush=True,
+        )
+        return True
 
     def on_log(self, args, state: TrainerState, control: TrainerControl, logs=None, **kwargs):
         """Track reward + kl, compute plateau proxy, fire when stagnated."""
+        # KL governor runs FIRST (preventive) — independent of plateau early-stop.
+        if logs:
+            self._maybe_kl_govern(logs.get("kl"), kwargs)
         if self._h3_fired or not logs:
             return
         reward = logs.get("reward")
