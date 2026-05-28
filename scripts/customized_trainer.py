@@ -884,7 +884,12 @@ class GRPOCustomEvalSaveCallback(CustomEvalSaveCallback):
                 proxy = None
         if len(self._kl_gov_window) < self._kl_gov_window.maxlen:
             return False
-        recent = sum(self._kl_gov_window) / len(self._kl_gov_window)
+        # MEDIAN (not mean) — robust to transient numerical KL spikes.
+        # Validation 2026-05-28 (klstable2): a single-step KL spike to 249.8
+        # (immediately back to 0.7) inflated rolling-MEAN to 83.7 → false fire.
+        # Median of [0.8, 249.8, 0.7] = 0.8 (ignores the spike); sustained drift
+        # (EXP [3.0,3.2,3.1]) median 3.1 still exceeds ceiling → fires correctly.
+        recent = sorted(self._kl_gov_window)[len(self._kl_gov_window) // 2]
         if recent <= self._kl_gov_ceiling:
             return False
         # ── DRIFT GATE (2026-05-28 validation klstable b68ef8e5) ──
