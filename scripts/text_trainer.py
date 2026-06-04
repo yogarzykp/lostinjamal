@@ -278,6 +278,60 @@ def get_log_scale(task_type: str):
     return log_scale_map[task_type]
 
 
+def checkpoint_has_nan_or_inf(checkpoint_dir: str) -> bool:
+    """Scan weights in checkpoint_dir for NaN/Inf.
+
+    Validator scoring sets score=0 when test_loss is NaN
+    (see gradients-ai/G.O.D validator/evaluation/scoring.py).
+    A submission with NaN/Inf weights almost always produces NaN eval loss,
+    so detect early and fall back to add_random_noise so we ship a valid
+    finetune-shaped checkpoint instead.
+
+    Returns False (fail-open) on any read error — do not penalize legit
+    checkpoints if the check itself errors.
+    """
+    import glob
+    try:
+        import torch as _torch
+    except Exception:
+        return False
+    try:
+        shards = sorted(glob.glob(os.path.join(checkpoint_dir, "*.safetensors")))
+        if shards:
+            try:
+                from safetensors import safe_open as _safe_open
+            except Exception:
+                return False
+            # Sample up to 3 shards, 50 tensors each — enough to catch broad NaN.
+            for shard in shards[:3]:
+                try:
+                    with _safe_open(shard, framework="pt") as f:
+                        for key in list(f.keys())[:50]:
+                            t = f.get_tensor(key)
+                            if _torch.isnan(t).any() or _torch.isinf(t).any():
+                                print(f"NaN/Inf found in {shard}::{key}", flush=True)
+                                return True
+                except Exception as e:
+                    print(f"NaN check skipped for {shard}: {e}", flush=True)
+                    continue
+            return False
+        bins = sorted(glob.glob(os.path.join(checkpoint_dir, "*.bin")))
+        for shard in bins[:3]:
+            try:
+                state = _torch.load(shard, map_location="cpu")
+                for k, v in list(state.items())[:50]:
+                    if hasattr(v, "isnan") and (v.isnan().any() or v.isinf().any()):
+                        print(f"NaN/Inf found in {shard}::{k}", flush=True)
+                        return True
+            except Exception as e:
+                print(f"NaN check skipped for {shard}: {e}", flush=True)
+                continue
+        return False
+    except Exception as e:
+        print(f"NaN check failed entirely: {e}", flush=True)
+        return False
+
+
 def main():
     print("---STARTING TEXT TRAINING SCRIPT---", flush=True)
     parser = argparse.ArgumentParser(description="Text Model Training Script")
@@ -740,6 +794,18 @@ def main():
     else:
         print(f"Training successfully done for task {args.task_id}", flush=True)
         train_success = True
+
+    # NaN/Inf guard: validator scores NaN test_loss as 0. If the final checkpoint
+    # contains non-finite weights, treat as failure and fall through to the
+    # add_random_noise fallback so we still ship a finetune-shaped submission.
+    if train_success and checkpoint_has_nan_or_inf(submission_dir):
+        print(f"NaN/Inf in submission checkpoint for task {args.task_id}; falling back to noise", flush=True)
+        train_success = False
+        try:
+            shutil.rmtree(submission_dir)
+            os.makedirs(submission_dir, exist_ok=True)
+        except Exception as e:
+            print(f"Could not clean submission_dir before fallback: {e}", flush=True)
 
     if not train_success:
         print(f"Training failed for task {args.task_id}", flush=True)
