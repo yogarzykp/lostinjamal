@@ -10,7 +10,7 @@ import random
 import utility
 from datasets import Dataset
 from utility import log_info
-from transformers import AutoTokenizer, BitsAndBytesConfig
+from transformers import AutoTokenizer, BitsAndBytesConfig, AutoConfig
 from transformers.trainer_utils import get_last_checkpoint
 import transformers
 import torch
@@ -151,10 +151,23 @@ def main():
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
-    # max_length = get_max_length_config()
-    # if "max_length" in train_request:
-    #     max_length = train_request["max_length"]
-    # default implementation, max_length=1024 (prompt + completion), max_prompt_length=512
+    # Align with validator DPO eval (PR #1160, 2026-05-30): validator now sets
+    # max_length = model.config.max_position_embeddings instead of TRL default 1024.
+    # Train with matching cap so long DPO samples aren't silently truncated only here.
+    try:
+        _model_cfg = AutoConfig.from_pretrained(train_request["model_path"], trust_remote_code=True)
+        _max_pos = (
+            getattr(_model_cfg, "max_position_embeddings", None)
+            or getattr(_model_cfg, "n_positions", None)
+            or 4096
+        )
+    except Exception as _e:
+        log_info(f"Could not read model config for max_length: {_e}")
+        _max_pos = 4096
+    _dpo_max_length = min(int(_max_pos), 4096)
+    training_args.max_length = _dpo_max_length
+    training_args.max_prompt_length = _dpo_max_length // 2
+    log_info(f"DPO max_length={training_args.max_length}, max_prompt_length={training_args.max_prompt_length}")
 
     train_path = os.path.join("datasets", f"dpo_train_{task_id}.json")
     dev_path = os.path.join("datasets", f"dpo_dev_{task_id}.json")
