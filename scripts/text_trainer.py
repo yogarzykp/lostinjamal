@@ -141,6 +141,43 @@ def extract_output_dir(train_cmd: str) -> str:
 FAST_CRASH_THRESHOLD_SECONDS = 60.0  # train_cmd exiting in <60s = bad config signal
 
 
+MIN_OOM_MAX_LENGTH = 512
+
+
+def halve_request_max_length(train_cmd: str) -> int | None:
+    """Halve max_length in the request JSON that train_cmd points at.
+
+    Final rung of the OOM ladder. max_length is not a CLI flag — it lives in the
+    request JSON under train_request — so degrading it means editing that file.
+    Halved, floored at MIN_OOM_MAX_LENGTH, aligned down to a multiple of 64.
+
+    Returns the new value, or None if nothing could be changed (no request_path,
+    unreadable JSON, no max_length, or already at the floor).
+    """
+    try:
+        request_path = extract_value_from_cmd(train_cmd, "request_path")
+        if not request_path or not os.path.exists(request_path):
+            return None
+        with open(request_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        train_request = data.get("train_request")
+        if not isinstance(train_request, dict):
+            return None
+        current = train_request.get("max_length")
+        if not isinstance(current, int) or current <= MIN_OOM_MAX_LENGTH:
+            return None
+        new_len = max(MIN_OOM_MAX_LENGTH, (current // 2) // 64 * 64)
+        if new_len >= current:
+            return None
+        train_request["max_length"] = new_len
+        with open(request_path, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=4, ensure_ascii=False)
+        return new_len
+    except Exception as e:
+        print(f"Could not halve max_length: {e}", flush=True)
+        return None
+
+
 def run_training(
     train_cmd: str,
     log_path: str,
@@ -191,6 +228,22 @@ def run_training(
                                 train_cmd, "use_vllm", "False"
                             )
                             # print(f"disable VLLM {train_cmd}", flush=True)
+                        else:
+                            # Final rung: batch is already 1, so degrade sequence
+                            # length instead of re-running an identical command
+                            # until retries run out (which guarantees no
+                            # checkpoint at all, i.e. a scored zero).
+                            new_len = halve_request_max_length(train_cmd)
+                            if new_len is not None:
+                                print(
+                                    f"Reducing max_length to {new_len} after OOM at batch size 1",
+                                    flush=True,
+                                )
+                            else:
+                                print(
+                                    "max_length already at floor or unavailable; retrying unchanged",
+                                    flush=True,
+                                )
                 elif error_type == VLLM_OOM_ERROR:
                     if task_type == TaskType.GRPOTASK.value:
                         print(f"VLLM OOM error, disable VLLM", flush=True)
@@ -332,6 +385,81 @@ def checkpoint_has_nan_or_inf(checkpoint_dir: str) -> bool:
         return False
 
 
+# Keys the validator's finetune check compares between the base config and ours.
+# Source: gradients-ai/G.O.D validator/evaluation/model_checks.py::model_is_a_finetune
+# — for each key present and non-None on the base config, a missing or differing
+# value on the submission sets architecture_same=False, which scores the task 0.
+VALIDATOR_COMPARED_CONFIG_KEYS = (
+    "architectures",
+    "hidden_size",
+    "n_layer",
+    "intermediate_size",
+    "head_dim",
+    "hidden_act",
+    "model_type",
+    "num_hidden_layers",
+    "num_attention_heads",
+    "num_key_value_heads",
+)
+
+
+def restore_submission_architectures(submission_dir: str, base_model_path: str) -> None:
+    """Restore the `architectures` field on the submitted config.json.
+
+    transformers can re-alias a model class on save (e.g. a Mistral checkpoint
+    written back as LlamaForCausalLM). The validator compares `architectures`
+    verbatim, so an alias silently turns a won task into a zero.
+
+    Deliberately narrow: only `architectures` is rewritten, because it is the one
+    key that legitimately changes through class aliasing while the weights stay
+    valid. The other compared keys are structural — if they differ, the config no
+    longer describes the weights, and overwriting them would produce an unloadable
+    model that masks a real bug. Those are reported only.
+
+    Fail-open: any error leaves the submission untouched.
+    """
+    try:
+        sub_cfg_path = os.path.join(submission_dir, "config.json")
+        if not os.path.exists(sub_cfg_path):
+            # LoRA submissions ship adapter_config.json and no config.json; the
+            # validator resolves architecture through the base model in that case.
+            print("[arch-restore] no config.json in submission (LoRA?) — nothing to do", flush=True)
+            return
+
+        base_cfg_path = os.path.join(base_model_path, "config.json")
+        if not os.path.exists(base_cfg_path):
+            print(f"[arch-restore] base config not found at {base_cfg_path} — skipping", flush=True)
+            return
+
+        with open(base_cfg_path, "r", encoding="utf-8") as f:
+            base_cfg = json.load(f)
+        with open(sub_cfg_path, "r", encoding="utf-8") as f:
+            sub_cfg = json.load(f)
+
+        for key in VALIDATOR_COMPARED_CONFIG_KEYS:
+            base_val = base_cfg.get(key)
+            if base_val is None:
+                continue
+            sub_val = sub_cfg.get(key)
+            if sub_val == base_val:
+                continue
+            if key == "architectures":
+                print(f"[arch-restore] architectures {sub_val} -> {base_val}", flush=True)
+                sub_cfg[key] = base_val
+            else:
+                print(
+                    f"[arch-restore] WARNING: {key} differs (base={base_val} submission={sub_val}); "
+                    f"not rewriting a structural key — validator finetune check may fail",
+                    flush=True,
+                )
+
+        if sub_cfg.get("architectures") == base_cfg.get("architectures"):
+            with open(sub_cfg_path, "w", encoding="utf-8") as f:
+                json.dump(sub_cfg, f, indent=2)
+    except Exception as e:
+        print(f"[arch-restore] failed, leaving submission untouched: {e}", flush=True)
+
+
 def main():
     print("---STARTING TEXT TRAINING SCRIPT---", flush=True)
     parser = argparse.ArgumentParser(description="Text Model Training Script")
@@ -378,7 +506,15 @@ def main():
     )
 
     parser.add_argument(
-        "--reg-ratio", type=float, help="Reg ratio to use for training", default=1.1874
+        "--reg-ratio",
+        type=float,
+        help=(
+            "Global multiplier applied to the final learning rate. Neutral (1.0) by "
+            "default since 2026-08-05; earlier defaults (1.24383 / 1.159624 / 1.1874) "
+            "were inherited from the upstream lineage and silently boosted every LR. "
+            "Set explicitly only for a deliberate, measured experiment."
+        ),
+        default=1.0,
     )
 
     args = parser.parse_args()
@@ -814,6 +950,11 @@ def main():
         run_cmd_with_log(
             add_noise_cmd, os.path.join(ds_folder, f"add_noise_{args.task_id}.log")
         )
+
+    # Last net before upload: the validator rejects a submission whose config
+    # architectures no longer match the base model. Runs on both the trained and
+    # the fallback path, since add_random_noise also writes a fresh config.
+    restore_submission_architectures(submission_dir, model_path)
 
     patch_wandb_symlinks(train_cst.WANDB_LOGS_DIR)
 

@@ -395,9 +395,16 @@ def _compute_per_layer_lr_multipliers(model_path: str) -> Optional[Dict[str, flo
         mlp.gate_proj, mlp.up_proj, mlp.down_proj.
 
     Env gates:
-      PER_LAYER_LR_ENABLED=0 → returns None (skip)
+      PER_LAYER_LR_ENABLED=1 → compute multipliers (default OFF, see below)
+
+    Default OFF since 2026-08-05. Two winner-corpus audits (9 repos 2026-05-28..
+    2026-07-27, 14 repos 2025-08-01..2026-05-21) found discriminative/per-layer LR
+    absent from every single winning submission across both, i.e. a single global
+    scalar LR everywhere. That is not proof it hurts, but we have no measurement
+    showing it helps either, and it costs ~30% step time on small models. Re-enable
+    explicitly if an A/B shows a win.
     """
-    if os.getenv("PER_LAYER_LR_ENABLED", "1") != "1":
+    if os.getenv("PER_LAYER_LR_ENABLED", "0") != "1":
         return None
     try:
         from model_features import extract_weight_stats
@@ -1882,6 +1889,13 @@ def build_adaptive_run_config(
         # Family-aware: SmolLM small data → 5; large data → 0.
         "neftune_noise_alpha": (
             instruct_hp["neftune_noise_alpha"] if instruct_hp
+            # PENDING A/B (2026-08-05): held at 5.0 for instruct until the first
+            # test train. Two winner-corpus audits found NEFTune absent from all 23
+            # audited winning submissions, and mechanically it is a generation-quality
+            # regulariser that characteristically trades away held-out NLL — which is
+            # exactly what this tournament ranks on, at margins as thin as 1.3e-4.
+            # Decision deferred to a measured A/B (alpha 5.0 vs 0.0, same seed,
+            # compare eval loss) rather than changed on absence evidence alone.
             else float(os.getenv("NEFTUNE_NOISE_ALPHA", "5.0" if task_type_lc == "instruct" else "0.0"))
         ),
     }
@@ -2139,55 +2153,8 @@ def build_adaptive_run_config(
         total_steps = max(100, ds_metrics.num_samples * epochs // (batch * gpu_count))
         warmup = adaptive_warmup_steps(total_steps)
 
-    # ----------------------------------------------------------------------
-    # EXP-A 2026-05-15: Dual-strategy "Floating with stable floor"
-    # ----------------------------------------------------------------------
-    # User insight + data: hyper-text 5C7vE26G WON Round 2 (a208c065 Qwen-1.5B)
-    # with tl=1.1048 using SLOW training pattern: lr~5.5e-5, epochs=6, batch=60,
-    # max_grad_norm=0.5, wd=0.005 (vs BOSS fast pattern: lr~1e-4, epochs=3, batch=100).
-    #
-    # KITA Round 2 5D7iEJm5 tl=1.1191 (rank #9, MISSED top 8 BY 0.0011) — extremely
-    # close to advancing. Solution: deploy MIX of fast+slow strategies across our
-    # 3-5 hotkeys to maximize chance one hits winner regime. Validator picks best.
-    #
-    # FLOOR (empirical safe baseline) defined per family in _FAMILY_PROFILES + EXP-2
-    # batch buckets. FLOATING = strategy multiplier applied here (deterministic).
-    #
-    # Env-gated for local testing + tournament slot diversification:
-    #   KITA_STRATEGY=fast (default): BOSS-style, current behavior. lr unchanged.
-    #   KITA_STRATEGY=slow: hyper-text-style. lr×0.4, epochs×1.5, wd=0.005.
-    #   KITA_STRATEGY=auto: pick based on dataset size (small=slow, large=fast).
-    #
-    # Tournament deployment: commit code with KITA_STRATEGY=fast as default. For
-    # diversification, create separate marker commits with strategy hardcoded
-    # (per-slot fork). See `tournament_submit_2026_05_14.md` for marker pattern.
-    #
-    # Skip override for GRPO/DPO — round 3 5C7vE26G TEMAN GRPO catastrophic fail
-    # (tl=5.5309 vs winner 0.0194 = 283× worse). "Slow" pattern incompatible with
-    # KL-drift-sensitive reward training. Instruct only.
-    _kita_strategy = os.getenv("KITA_STRATEGY", "fast").strip().lower()
-    if _kita_strategy == "auto":
-        # Heuristic: small dataset → more epochs help (slow). Large → fast efficient.
-        _kita_strategy = "slow" if ds_metrics.num_samples < 20000 else "fast"
-        print(f"[adaptive] KITA_STRATEGY=auto resolved to '{_kita_strategy}' (ds_n={ds_metrics.num_samples})", flush=True)
-    if _kita_strategy == "slow" and task_type_lc == "instruct":
-        _orig_lr = init_lr
-        _orig_epochs = epochs
-        # Empirical from hyper-text 5C7vE26G round 2 winner training_args.bin:
-        # batch=30 grad_acc=2 epochs=6 warmup_steps=67 max_grad_norm=0.5
-        # wd=0.005 lr=5.479e-5. For our Qwen-1.5B with fast=1.4e-4, slow factor=0.39.
-        init_lr = init_lr * 0.4
-        epochs = max(3, int(epochs * 1.5))  # floor 3, e.g. 4→6
-        if instruct_hp is not None:
-            instruct_hp["weight_decay_default"] = 0.005
-            instruct_hp["weight_decay_small_data"] = 0.005
-        print(f"[adaptive] KITA_STRATEGY=slow override applied (hyper-text round 2 winner pattern):", flush=True)
-        print(f"  lr: {_orig_lr:.3e} → {init_lr:.3e} (×0.4)", flush=True)
-        print(f"  epochs: {_orig_epochs} → {epochs} (×1.5)", flush=True)
-        print(f"  weight_decay: {instruct_hp.get('weight_decay_default', '?') if instruct_hp else '?'}", flush=True)
-
     print(f"[adaptive] arch={arch} param={param_count:,} ds_n={ds_metrics.num_samples} seq_p95={ds_metrics.seq_len_p95}", flush=True)
-    print(f"[adaptive] PLAN: lr={init_lr:.2e} batch={batch} epochs={epochs} max_len={max_length} lora={use_lora} grad_accum={grad_accum} strategy={_kita_strategy}", flush=True)
+    print(f"[adaptive] PLAN: lr={init_lr:.2e} batch={batch} epochs={epochs} max_len={max_length} lora={use_lora} grad_accum={grad_accum}", flush=True)
 
     # HP override hooks (selective port from hyper-text Sprint patches 2026-05-13)
     # - probe_warmup_reduction: cuts probe warmup ~2× for more LR signal
@@ -2242,22 +2209,36 @@ def build_adaptive_run_config(
                   f"1.5×budget={_budget_max_steps*1.5:.0f} → max_steps={_budget_max_steps}", flush=True)
 
     # ------------------------------------------------------------------
-    # EXP-BOSS-2 (2026-05-20): Apply reg_ratio multiplier on final LR.
-    # Root cause: train_info["reg_ratio"] (CLI --reg-ratio default 1.24383
-    # in text_trainer.py:299) was extracted via _compute_instruct_adaptive_hp
-    # into instruct_hp["reg_ratio"] but NEVER multiplied onto learning_rate.
-    # BOSS lion_dance_1 applies × reg_ratio at end of all 3 config files
-    # (instruct_config.py:286, dpo_config.py:232, grpo_config.py:350) with
-    # CLI default 1.159624 — silent +16% LR boost.
-    # Forensic: see research_adaptive_config_diff_2026_05_20.md +
-    # research_lion_dance_1_evolution_2026_05_20.md.
+    # reg_ratio — the single, deliberate LR multiplier site.
+    # ------------------------------------------------------------------
+    # History: introduced 2026-05-20 (EXP-BOSS-2) to mirror the inherited BOSS
+    # lineage, which applied a CLI --reg-ratio at the end of each config module.
+    # The CLI default carried over as 1.24383, later 1.159624, then 1.1874 — so
+    # every run since 2026-05-20 shipped a silent LR boost of roughly +16..24%
+    # that nobody chose per task.
+    #
+    # Audited 2026-08-05 and reset to a neutral 1.0 default (see text_trainer.py
+    # --reg-ratio). Rationale: an unexplained global multiplier on top of an
+    # already family- and dynamics-derived LR is double-counting, and under the
+    # tournament's duplicate judge a tuned scalar is explicitly "cosmetic" — it
+    # can never earn differentiation, it can only distort every LR we ship.
+    #
+    # NOTE: the per-family profile keys `reg_ratio_default` / `reg_ratio_small_data`
+    # (0.60-1.08 in _FAMILY_PROFILES) reach instruct_hp["reg_ratio"] but are NOT
+    # applied here and never have been — they are inert. They are retained as
+    # recorded tuning intent only. Wiring them in would ship behaviour that has
+    # never run in production; do that behind an A/B, not as a refactor.
+    #
+    # This remains the ONLY place learning_rate is scaled by reg_ratio. Keep it so.
     # ------------------------------------------------------------------
     _reg_ratio = train_info.get("reg_ratio", 1.0)
     if _reg_ratio != 1.0 and "learning_rate" in run_config:
         _orig_lr = run_config["learning_rate"]
         run_config["learning_rate"] *= _reg_ratio
-        print(f"[adaptive] EXP-BOSS-2: reg_ratio={_reg_ratio:.5f} applied "
+        print(f"[adaptive] reg_ratio={_reg_ratio:.5f} applied "
               f"(lr {_orig_lr:.2e} → {run_config['learning_rate']:.2e})", flush=True)
+    else:
+        print(f"[adaptive] reg_ratio={_reg_ratio:.5f} (neutral, lr unchanged)", flush=True)
 
     # ------------------------------------------------------------------
     # EXP-HYPER-PORT-E 2026-05-20: per-layer LR multipliers (LARS-style)
@@ -2336,13 +2317,3 @@ def get_adaptive_training_json(task_type: str, train_info: dict) -> dict:
         "train_request": train_request,
         "run_cmd": run_cmd,
     }
-# tournament hotkey slot 1 variant (2026-05-14)
-# Same code as 45f6190 — different commit hash for hotkey routing only
-# tournament hotkey slot 2 variant (2026-05-14)
-# Same code as 45f6190 — different commit hash for hotkey routing only
-# tournament hotkey slot 3 variant (2026-05-14)
-# Same code as 45f6190 — different commit hash for hotkey routing only
-# tournament hotkey slot 4 variant (2026-05-14)
-# Same code as 45f6190 — different commit hash for hotkey routing only
-# tournament hotkey slot 5 variant (2026-05-14)
-# Same code as 45f6190 — different commit hash for hotkey routing only

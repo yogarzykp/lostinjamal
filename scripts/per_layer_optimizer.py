@@ -26,7 +26,7 @@ LoRA-aware: pattern matches lora_A / lora_B parameters, since axolotl + PEFT
 wrap base model layers.
 
 Env gates:
-  PER_LAYER_LR_ENABLED=0  → no-op (skip entire feature, default ON)
+  PER_LAYER_LR_ENABLED=1  → enable the feature (default OFF since 2026-08-05)
   PER_LAYER_LR_FORCE=1    → bypass size gate (default OFF)
   PER_LAYER_LR_PARAM_NUMS → param count for size gate (0 disables gate)
 """
@@ -121,8 +121,8 @@ def apply_per_layer_lr_optimizer(trainer: Any,
     PER_LAYER_LR_FORCE=1. When the env var is unset (=0), the gate
     is inactive and the optimizer applies (backward compat).
     """
-    if os.getenv("PER_LAYER_LR_ENABLED", "1") != "1":
-        print("[per-layer-lr] SKIPPED: PER_LAYER_LR_ENABLED=0", flush=True)
+    if os.getenv("PER_LAYER_LR_ENABLED", "0") != "1":
+        print("[per-layer-lr] SKIPPED: PER_LAYER_LR_ENABLED not set to 1 (default off)", flush=True)
         return False
 
     # Size-gate per-layer-LR. For models <2B params on 1×H100, paged_adamw_8bit

@@ -298,10 +298,11 @@ def get_training_json(train_info: dict) -> dict:
         "warmup_steps": int(os.getenv("INSTRUCT_WARMUP_STEPS", "35")),
         "weight_decay": 0.01,
         "label_smoothing": 0.0,
-        # NEFTune noise (lotob-neftune branch): default 5.0 (paper recommendation
-        # for 7B+; smaller models tolerate similar values). Adds noise to input
-        # embeddings during forward pass. Source: arxiv 2310.05914 (Jain 2023).
-        # Set 0.0 to disable. Env override NEFTUNE_NOISE_ALPHA.
+        # NEFTune noise (arxiv 2310.05914, Jain 2023): adds noise to input embeddings
+        # during the forward pass. Held at 5.0 pending an A/B (see adaptive_config.py):
+        # absent from all 23 audited winning submissions, and it characteristically
+        # trades held-out NLL for generation quality — the wrong trade for a
+        # tournament ranked on eval loss. Resolve by measurement, not by absence.
         "neftune_noise_alpha": float(os.getenv("NEFTUNE_NOISE_ALPHA", "5.0")),
         "use_attn_implementation": (
             "kernels-community/vllm-flash-attn3"
