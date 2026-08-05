@@ -46,8 +46,13 @@ class CustomEvalSaveCallback(TrainerCallback):
         checking_step: int = 100,
         total_steps_all_epochs: int = -1,
         end_time: str = "",
-        checking_mode: str = "none"
+        checking_mode: str = "none",
+        probe_eval_fn: Callable = None,
     ):
+        # probe_eval_fn: optional () -> float returning held-out loss. When set,
+        # LR-probe runs are scored on it instead of the training loss. See
+        # _probe_loss() for why that distinction decides DPO runs.
+        self.probe_eval_fn = probe_eval_fn
         self.function_when_to_evaluate = function_when_to_evaluate
         self.submission_dir = submission_dir
         self.current_best_loss = None
@@ -215,6 +220,50 @@ class CustomEvalSaveCallback(TrainerCallback):
     def compute_loss(self, state: TrainerState, metrics):
         return metrics.get("eval_loss", None)
 
+    def _probe_loss(self, state: TrainerState) -> float:
+        """Score for the current LR-probe run.
+
+        Uses held-out loss when probe_eval_fn is wired, otherwise the last
+        training loss (previous behaviour).
+
+        Why this matters, for DPO especially: the multi-run LR sweep picks the
+        run with the lowest score. DPO has a degenerate minimiser — an LR that is
+        too high collapses the policy's log-probs, which inflates the
+        chosen-minus-rejected margin and drives *training* loss down while the
+        model itself degrades. Selecting on training loss therefore actively
+        prefers the most destructive LR. The validator scores DPO on held-out
+        loss (validator/evaluation/evaluators/dpo.py, BETA_DPO=0.1), so scoring
+        probes the same way aligns selection with what we are actually ranked on.
+
+        Fail-open: any error falls back to the training loss so a probe run is
+        never lost to an eval failure.
+        """
+        train_loss = None
+        try:
+            train_loss = state.log_history[-1]["loss"]
+        except Exception:
+            pass
+
+        if self.probe_eval_fn is None:
+            return train_loss
+
+        try:
+            eval_loss = float(self.probe_eval_fn())
+            if eval_loss != eval_loss:  # NaN
+                raise ValueError("probe eval returned NaN")
+            print(
+                f"[probe] scoring on held-out loss={eval_loss:.6f} "
+                f"(train loss was {train_loss})",
+                flush=True,
+            )
+            return eval_loss
+        except Exception as exc:
+            print(
+                f"[probe] held-out eval failed ({exc}); falling back to train loss {train_loss}",
+                flush=True,
+            )
+            return train_loss
+
     def on_step_end(self, args, state: TrainerState, control: TrainerControl, **kwargs):
         # Custom logic to decide whether to save or evaluate
         # print(f"************* on_step_end: {state.global_step}, check eval", flush=True)
@@ -270,9 +319,9 @@ class CustomEvalSaveCallback(TrainerCallback):
                 control.should_training_stop = True
                 control.should_save = False
                 args.save_strategy = "no"
-                # save the current loss of this step to the state;
-                last_log = state.log_history[-1]
-                my_state["train"]["current_loss"] = last_log["loss"]
+                # save the score of this probe run to the state; held-out loss when
+                # probe_eval_fn is wired, otherwise the training loss (see _probe_loss)
+                my_state["train"]["current_loss"] = self._probe_loss(state)
                 my_state["mode"] = "continue"
                 if n > MAX_TRIES:
                     n = MAX_TRIES
@@ -290,9 +339,9 @@ class CustomEvalSaveCallback(TrainerCallback):
         elif state.global_step == self.checking_step and self.checking_mode == "second_time": # at second time, we don't estimate the training time again, just save the current_loss
             log_content = f"Checking the model at step: {state.global_step} where check_mode=second_time"            
             my_state = get_state()
-            current_loss = state.log_history[-1]["loss"]
+            current_loss = self._probe_loss(state)
             my_state["train"]["current_loss"] = current_loss
-                
+
             control.should_training_stop = True
 
             # Check if current_loss > current min_loss --> do not save to save time and space

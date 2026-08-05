@@ -152,10 +152,18 @@ def dedup_samples(
 def dedup_from_env(samples: list[dict]) -> tuple[list[dict], dict]:
     """Read env flags and run dedup.
 
-    Returns (samples, stats). If INSTRUCT_DEDUP != "1", returns input unchanged
-    with stats={"enabled": False}.
+    Returns (samples, stats). Set INSTRUCT_DEDUP=0 to disable.
+
+    Default ON since 2026-08-05. Previously this was opt-in via INSTRUCT_DEDUP=1
+    and the flag was never exported anywhere, so production shipped with no dedup
+    at all. Only the exact-hash stage runs by default (O(n), stdlib); the pairwise
+    Jaccard stage stays opt-in behind INSTRUCT_DEDUP_JACCARD because it is O(n^2).
+    Duplicate rows inflate the apparent size of a dataset, waste a slice of a
+    fixed time budget re-learning the same rows, and — together with the split
+    policy in data/split_policy.py — are the main route by which dev loss stops
+    measuring generalisation.
     """
-    if os.getenv("INSTRUCT_DEDUP") != "1":
+    if os.getenv("INSTRUCT_DEDUP", "1") != "1":
         return samples, {"enabled": False, "input": len(samples)}
 
     try:

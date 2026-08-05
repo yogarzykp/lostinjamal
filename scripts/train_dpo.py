@@ -313,6 +313,18 @@ def main():
         checking_step = total_steps_per_epoch - 2
     
 
+    eval_save_callback = CustomEvalSaveCallback(
+        WhenToEvalHandler(train_request["end_time"], train_request["save_before_remaining_time"], periodic_save_steps=periodic_save_steps, steps_per_epoch=total_steps_per_epoch, max_steps=max_steps),
+        train_request["submission_dir"],
+        training_args.output_dir,
+        train_request["model_name"],
+        max_steps,
+        checking_step=checking_step,
+        total_steps_all_epochs=total_steps_all_epochs,
+        end_time=train_request["end_time"],
+        checking_mode=train_request.get("checking_mode", "none")
+    )
+
     trainer = DPOTrainer(
         model=model,
         ref_model=ref_model,
@@ -321,21 +333,26 @@ def main():
         eval_dataset=dev_ds,
         processing_class=tokenizer,
         peft_config=peft_config,
-        callbacks=[
-            CustomEvalSaveCallback(
-                WhenToEvalHandler(train_request["end_time"], train_request["save_before_remaining_time"], periodic_save_steps=periodic_save_steps, steps_per_epoch=total_steps_per_epoch, max_steps=max_steps),
-                train_request["submission_dir"],
-                training_args.output_dir,
-                train_request["model_name"],
-                max_steps,
-                checking_step=checking_step,
-                total_steps_all_epochs=total_steps_all_epochs,
-                end_time=train_request["end_time"],
-                checking_mode=train_request.get("checking_mode", "none")
-            )
-        ],
+        callbacks=[eval_save_callback],
     )
-    
+
+    # Score LR-probe runs on held-out DPO loss instead of training loss.
+    # DPO's degenerate minimiser means a too-high LR collapses the policy's
+    # log-probs, inflating the chosen-rejected margin so training loss falls while
+    # the model degrades — so training-loss selection prefers the worst LR. The
+    # validator scores DPO on held-out loss, so we select the same way.
+    # Disable with DPO_PROBE_EVAL=0.
+    if os.getenv("DPO_PROBE_EVAL", "1") == "1":
+        def _probe_eval():
+            metrics = trainer.evaluate()
+            return metrics["eval_loss"]
+
+        eval_save_callback.probe_eval_fn = _probe_eval
+        log_info("[probe] DPO LR probes will be scored on held-out dev loss")
+    else:
+        log_info("[probe] DPO_PROBE_EVAL=0 — probes scored on training loss")
+
+
     # EXP-HYPER-PORT-E 2026-05-20: per-layer LR optimizer override (LARS-style).
     # Reads multipliers from train_request (computed in adaptive_config), rebuilds
     # optimizer with per-layer param_groups. Fail-soft: any error → default optimizer.

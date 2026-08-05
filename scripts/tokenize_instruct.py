@@ -179,7 +179,7 @@ def split_dataset(
     with open(total_data_path, "r") as file:
         data = json.load(file)
 
-    # Optional pre-split dedup (opt-in via INSTRUCT_DEDUP=1).
+    # Pre-split dedup (default on; set INSTRUCT_DEDUP=0 to disable).
     # Exact hash + optional Jaccard n-gram. Stdlib+numpy only, no Docker deps.
     try:
         from data.dedup_knn import dedup_from_env
@@ -195,9 +195,19 @@ def split_dataset(
     if max_data_size > 0:
         data = data[:max_data_size]
 
-    # Split the dataset into train and dev
-    dev_items = data[:dev_size]
-    train_items = data[dev_size:]
+    # Proportional, leak-controlled split. Replaces shuffle + fixed 200-row slice:
+    # 200 rows is a 40% holdout on a small task and statistically useless on a
+    # large one, and a positional slice lets near-duplicate rows straddle the
+    # split, which inflates the dev loss that checkpoint selection reads.
+    # Falls back to the legacy behaviour if the policy module is unavailable.
+    try:
+        from data.split_policy import leak_safe_split, INSTRUCT_KEYS
+        train_items, dev_items, split_stats = leak_safe_split(data, INSTRUCT_KEYS, seed=seed)
+        print(f"[split] {split_stats}", flush=True)
+    except Exception as exc:
+        print(f"[split] policy unavailable ({exc}) — legacy slice", flush=True)
+        dev_items = data[:dev_size]
+        train_items = data[dev_size:]
     # Save the train and dev datasets
     with open(train_data_path, "w") as file:
         before_len = len(train_items)
