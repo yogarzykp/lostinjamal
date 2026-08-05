@@ -1,28 +1,44 @@
 """Read validator-provided baseline_stats from BASELINE_STATS_PATH env var.
 
-Ported 2026-05-15 from hyper-text/scripts/baseline_stats_reader.py (minimal core).
+The validator's model-prep container profiles the base model and the dataset
+BEFORE our training container starts, writes the result to the shared cache
+volume, and hands us the path (G.O.D trainer/runtime.py: writes
+`baseline_stats_{task_id}.json`, sets BASELINE_STATS_PATH). This is free
+measurement on the exact GPU we are about to train on.
 
-Validator's model-prep container (G.O.D commit a7ee3686, feature/model-prep-container
-merged via PR #1096) computes pre-training stats:
-  - init_loss (forward pass on dev split with untrained adapter)
-  - grad_norms (one backward pass, p50/p95/max distribution)
-  - gradient_noise_scale (McCandlish 2018 estimator)
-  - activation_rms (per-layer)
-  - dataset distributions (seq_length, near_dup, vocab_coverage, bits_per_byte)
-  - weight_stats (max_abs_ratio, rms by group)
-  - DPO-specific: ref_log_probs distribution
-  - GRPO-specific: baseline_reward_scores (untrained-model rewards)
+AUTHORITATIVE SCHEMA — G.O.D core/models/model_prep_models.py, verified
+2026-08-05. Discriminated union on task_type: instruct | dpo | grpo | env.
 
-Path passed to miner container via BASELINE_STATS_PATH env var.
-Schema: G.O.D/core/models/model_prep_models.py (discriminated union by task_type).
+  dataset:
+    total_tokens, num_records, near_duplicate_rate, bits_per_byte,
+    vocab_size, unique_tokens_in_data, vocab_coverage_ratio,
+    seq_length_distribution {mean, p50, p95, p99, max}
+    instruct: prompt_tokens, completion_tokens, completion_length_distribution
+    dpo:      prompt_tokens, chosen_tokens, rejected_tokens,
+              chosen_length_distribution, rejected_length_distribution,
+              chosen_rejected_length_ratio
+    grpo:     prompt_tokens, prompt_length_distribution
+  weights:
+    by_group: {group_name: {weight_rms, weight_norm, max_abs}}
+  training:
+    init_loss, init_loss_std, activation_rms {layer: rms},
+    output_entropy, output_entropy_std
+    instruct: masked_completion_loss
+    dpo:      ref_log_prob_chosen, ref_log_prob_rejected, implicit_reward_gap
+    grpo:     baseline_reward_scores {func_name: score}
+  throughput (optional):
+    tokens_per_sec, seq_len, micro_batch_size, n_gpus, gpu_name
 
-Fail-soft: returns None on any error (legacy task without baseline, missing file,
-parse error). Consumers MUST handle None gracefully.
+CORRECTION 2026-08-05: an earlier version of this docstring described
+`grad_norms` and `gradient_noise_scale`. NEITHER EXISTS — grepping the whole
+G.O.D repository returns zero occurrences of `gradient_noise_scale`, and
+`grad_norms` is absent from the schema. That description came from a port of a
+different codebase and was never reconciled. The accessor that read
+`training.grad_norms` always returned None and has been removed. Do not plan
+against fields without checking model_prep_models.py first.
 
-Use cases in adaptive_config (current):
-  - init_loss → drives adaptive_epochs_from_init_loss (replaces 2.5 placeholder)
-  - grad_norms p95 → max_grad_norm calibration (future hook)
-  - GRPO baseline_reward_scores → β tuning (future hook)
+Fail-soft: returns None on any error (legacy task without baseline, missing
+file, parse error). Consumers MUST handle None gracefully.
 """
 
 from __future__ import annotations
@@ -100,33 +116,6 @@ def get_init_loss(baseline_stats: Optional[dict]) -> Optional[float]:
         v = training.get("init_loss")
         if isinstance(v, (int, float)):
             return float(v)
-    return None
-
-
-def get_grad_norms_p95(baseline_stats: Optional[dict]) -> Optional[float]:
-    """Extract grad_norms p95 from validator baseline_stats.
-
-    Use case: tighten max_grad_norm when validator observed outlier grads
-    (replaces our static weight-ratio outlier heuristic).
-
-    Returns None if not present.
-    """
-    if not isinstance(baseline_stats, dict):
-        return None
-    training = baseline_stats.get("training") or {}
-    gn = training.get("grad_norms")
-    if not isinstance(gn, dict):
-        return None
-    # Schema may give {"p50": ..., "p95": ..., "max": ...} OR raw per-layer dict
-    p95 = gn.get("p95")
-    if isinstance(p95, (int, float)):
-        return float(p95)
-    # Fall back: compute from per-layer values if available
-    if all(isinstance(v, (int, float)) for v in gn.values()):
-        vals = sorted(float(v) for v in gn.values())
-        if vals:
-            idx = max(0, int(len(vals) * 0.95) - 1)
-            return float(vals[idx])
     return None
 
 
@@ -246,6 +235,124 @@ def suggest_grpo_beta_from_baseline(
     return (new_beta, reason)
 
 
+def get_init_loss_std(baseline_stats: Optional[dict]) -> Optional[float]:
+    """training.init_loss_std — spread of the pre-training loss probe.
+
+    A large spread relative to init_loss means the base model's loss varies a lot
+    across the dev batch, i.e. the task is heterogeneous. Useful as a confidence
+    term: noisy evidence should move a learning-rate prior less than clean
+    evidence does.
+    """
+    return _training_float(baseline_stats, "init_loss_std")
+
+
+def get_output_entropy(baseline_stats: Optional[dict]) -> Optional[float]:
+    """training.output_entropy — base model's predictive entropy before training.
+
+    High entropy means the base model is unsure on this data (far from the task),
+    low entropy means it is already confident (close to the task).
+    """
+    return _training_float(baseline_stats, "output_entropy")
+
+
+def get_masked_completion_loss(baseline_stats: Optional[dict]) -> Optional[float]:
+    """training.masked_completion_loss — instruct only.
+
+    Loss over completion tokens alone, which is closer to what we actually train
+    on than the whole-sequence init_loss.
+    """
+    return _training_float(baseline_stats, "masked_completion_loss")
+
+
+def _training_float(baseline_stats: Optional[dict], key: str) -> Optional[float]:
+    if not isinstance(baseline_stats, dict):
+        return None
+    training = baseline_stats.get("training")
+    if not isinstance(training, dict):
+        return None
+    v = training.get(key)
+    return float(v) if isinstance(v, (int, float)) else None
+
+
+def get_weight_rms(baseline_stats: Optional[dict]) -> Optional[float]:
+    """Aggregate weight RMS across layer groups (weights.by_group[*].weight_rms).
+
+    Combined in quadrature — RMS values are root-mean-squares, so the correct
+    aggregate of several groups is sqrt(mean(rms^2)), not the arithmetic mean.
+
+    Weight scale sets how large a parameter update of a given learning rate is
+    in relative terms, which is why it belongs in a learning-rate estimate at
+    all. Returns None when the block is absent.
+    """
+    if not isinstance(baseline_stats, dict):
+        return None
+    weights = baseline_stats.get("weights")
+    if not isinstance(weights, dict):
+        return None
+    by_group = weights.get("by_group")
+    if not isinstance(by_group, dict) or not by_group:
+        return None
+    squares = []
+    for group in by_group.values():
+        if isinstance(group, dict):
+            rms = group.get("weight_rms")
+            if isinstance(rms, (int, float)) and rms > 0:
+                squares.append(float(rms) ** 2)
+    if not squares:
+        return None
+    return (sum(squares) / len(squares)) ** 0.5
+
+
+def get_throughput(baseline_stats: Optional[dict]) -> Optional[dict]:
+    """throughput block — measured fwd+bwd speed on the actual training GPU.
+
+    The validator's prep container times a real forward+backward pass before our
+    container starts and hands us the result. Returns a dict with:
+        tokens_per_sec (float), seq_len (int), micro_batch_size (int),
+        n_gpus (int), gpu_name (str)
+
+    This is worth more than it looks: it is a measured throughput number for
+    this model on this hardware, available before step 0 and costing us none of
+    the training budget. The block is optional in the schema, so None is normal
+    on older tasks.
+    """
+    if not isinstance(baseline_stats, dict):
+        return None
+    tp = baseline_stats.get("throughput")
+    if not isinstance(tp, dict):
+        return None
+    tps = tp.get("tokens_per_sec")
+    if not isinstance(tps, (int, float)) or tps <= 0:
+        return None
+    return {
+        "tokens_per_sec": float(tps),
+        "seq_len": int(tp.get("seq_len") or 0),
+        "micro_batch_size": int(tp.get("micro_batch_size") or 0),
+        "n_gpus": int(tp.get("n_gpus") or 0),
+        "gpu_name": str(tp.get("gpu_name") or ""),
+    }
+
+
+def get_dataset_stat(baseline_stats: Optional[dict], key: str) -> Optional[Any]:
+    """Any field under the dataset block (total_tokens, num_records, vocab_coverage_ratio, ...)."""
+    if not isinstance(baseline_stats, dict):
+        return None
+    dataset = baseline_stats.get("dataset")
+    if not isinstance(dataset, dict):
+        return None
+    return dataset.get(key)
+
+
+def get_seq_len_p95(baseline_stats: Optional[dict]) -> Optional[int]:
+    """dataset.seq_length_distribution.p95 — measured by the validator on the real dataset."""
+    dist = get_dataset_stat(baseline_stats, "seq_length_distribution")
+    if isinstance(dist, dict):
+        v = dist.get("p95")
+        if isinstance(v, (int, float)):
+            return int(v)
+    return None
+
+
 if __name__ == "__main__":
     # Smoke test (manual)
     import sys
@@ -254,6 +361,11 @@ if __name__ == "__main__":
     result = maybe_read_baseline_stats()
     print(f"Loaded: {result is not None}")
     if result:
-        print(f"  init_loss: {get_init_loss(result)}")
-        print(f"  grad_norms_p95: {get_grad_norms_p95(result)}")
-        print(f"  grpo_reward: {get_grpo_baseline_reward(result)}")
+        print(f"  init_loss:        {get_init_loss(result)}")
+        print(f"  init_loss_std:    {get_init_loss_std(result)}")
+        print(f"  output_entropy:   {get_output_entropy(result)}")
+        print(f"  weight_rms (agg): {get_weight_rms(result)}")
+        print(f"  throughput:       {get_throughput(result)}")
+        print(f"  seq_len_p95:      {get_seq_len_p95(result)}")
+        print(f"  total_tokens:     {get_dataset_stat(result, 'total_tokens')}")
+        print(f"  grpo_reward:      {get_grpo_baseline_reward(result)}")

@@ -1841,6 +1841,31 @@ def build_adaptive_run_config(
         _fa_factor = 0.02 if _supports_fa else 0.06
         _step_time_est = max(0.5, _fa_factor * _effective_batch * (max_length / 1024.0))
 
+    # Prefer the validator's MEASURED throughput over the heuristic above.
+    # The model-prep container times a real fwd+bwd on this model on this GPU
+    # before our container starts and passes tokens_per_sec through
+    # baseline_stats (G.O.D ThroughputStats). Two hardcoded constants cannot
+    # cover a 0.1B-71B model pool on varying hardware; a measurement can.
+    # Falls back silently to the heuristic when the probe is absent or
+    # implausible — see throughput_model.resolve_step_seconds.
+    _step_time_source = "heuristic"
+    try:
+        from baseline_stats_reader import get_throughput
+        from throughput_model import resolve_step_seconds
+
+        _probe = get_throughput(_baseline_stats)
+        _step_time_est, _step_time_source = resolve_step_seconds(
+            _probe,
+            fallback_estimate=_step_time_est,
+            batch=batch,
+            grad_accum=grad_accum,
+            max_length=max_length,
+            n_gpus=gpu_count,
+            gradient_checkpointing=True,
+        )
+    except Exception as _exc:
+        print(f"[adaptive] step-time probe unavailable ({_exc}) — heuristic", flush=True)
+
     _budget_steps = int(_budget_seconds / _step_time_est)
     # Floor: must allow at least 1 eval cycle (periodic_save_steps=500)
     _eval_floor = 550
@@ -1851,7 +1876,7 @@ def build_adaptive_run_config(
     # Cap max_steps based on budget — but don't override existing GRPO tiny-cap if smaller
     _budget_max_steps = max(_eval_floor, _budget_steps)
     print(f"[adaptive] EXP-T hours_budget={_hours_budget}h step_time_est={_step_time_est:.1f}s "
-          f"→ max_steps_budget={_budget_max_steps}", flush=True)
+          f"({_step_time_source}) → max_steps_budget={_budget_max_steps}", flush=True)
 
     # Common run_config keys (matches legacy structure)
     run_config = {
