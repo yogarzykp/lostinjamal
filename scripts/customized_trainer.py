@@ -53,6 +53,11 @@ class CustomEvalSaveCallback(TrainerCallback):
         # LR-probe runs are scored on it instead of the training loss. See
         # _probe_loss() for why that distinction decides DPO runs.
         self.probe_eval_fn = probe_eval_fn
+        # Optional () -> float returning held-out loss for the CURRENT contents of
+        # submission_dir. Gates the WSM merge: without it the merge is written
+        # unverified, with it a merge that does not beat the best single
+        # checkpoint is rolled back. Wired by the train_*.py entry points.
+        self.merge_eval_fn = None
         self.function_when_to_evaluate = function_when_to_evaluate
         self.submission_dir = submission_dir
         self.current_best_loss = None
@@ -460,6 +465,25 @@ class CustomEvalSaveCallback(TrainerCallback):
         if state.global_step < 2 or eval_loss is None:
             return
         print(f"GO INTO CUSTOMIZED EVALUATE AT STEP: {state.global_step}", flush=True)
+
+        # Label side of the estimator dataset: what this configuration scored.
+        # Paired with the config record adaptive_config wrote before training.
+        try:
+            from telemetry import record_outcome
+
+            record_outcome(
+                eval_loss=float(eval_loss),
+                step=int(state.global_step),
+                learning_rate=(
+                    float(state.log_history[-1].get("learning_rate"))
+                    if state.log_history and state.log_history[-1].get("learning_rate") is not None
+                    else None
+                ),
+                epoch=getattr(state, "epoch", None),
+                output_dir=self.output_dir,
+            )
+        except Exception:
+            pass
         # Track for window smoothing
         self.eval_history.append(float(eval_loss))
         # WSM: record latest eval_loss+step pair so on_save can track ckpt to pool.
@@ -806,8 +830,32 @@ class CustomEvalSaveCallback(TrainerCallback):
             print(f"[WSM] average fail (keeping best-only): {exc}", flush=True)
             return
 
-        # Write merged adapter to submission_dir, overwriting the best-only adapter
+        # Write merged adapter to submission_dir, overwriting the best-only adapter.
+        #
+        # ADMISSION TEST (2026-08-05). Averaging is not free: a merge of top-K
+        # checkpoints can land WORSE than the single best one, and this function
+        # overwrites the submission either way. That made souping a coin flip on
+        # the one artefact we are scored on. Wortsman 2022 ("model soups") admits
+        # a candidate only when it measurably improves held-out loss, which makes
+        # the result never worse than the best single member.
+        #
+        # We take the cheap form of that guarantee: back up the best-only adapter,
+        # write the merge, evaluate once, and roll back if it did not improve.
+        # One extra evaluation instead of K, and the submission can only get
+        # better. Without merge_eval_fn wired there is no measurement to gate on,
+        # so we keep the previous behaviour and say so.
         dst_path = os.path.join(self.submission_dir, weight_filename)
+        backup_path = dst_path + ".prewsm"
+        best_single = self.current_best_loss
+        gate_enabled = self.merge_eval_fn is not None and best_single is not None
+
+        try:
+            if gate_enabled:
+                shutil.copy2(dst_path, backup_path)
+        except Exception as exc:
+            print(f"[WSM] could not back up best-only adapter ({exc}) — skipping merge", flush=True)
+            return
+
         try:
             if weight_filename.endswith(".safetensors"):
                 from safetensors.torch import save_file
@@ -817,12 +865,66 @@ class CustomEvalSaveCallback(TrainerCallback):
             losses = [f"{e['loss']:.6e}" for e in pool]
             steps = [e["step"] for e in pool]
             print(
-                f"[WSM] MERGED top-{len(pool)} adapters to {dst_path}: "
+                f"[WSM] merged top-{len(pool)} adapters to {dst_path}: "
                 f"steps={steps} losses={losses}",
                 flush=True,
             )
         except Exception as exc:
             print(f"[WSM] save fail (keeping best-only): {exc}", flush=True)
+            self._wsm_restore(backup_path, dst_path)
+            return
+
+        if not gate_enabled:
+            print(
+                "[WSM] ACCEPTED unverified: no merge_eval_fn wired, so the merge "
+                "could not be compared against the best single checkpoint",
+                flush=True,
+            )
+            return
+
+        try:
+            merged_loss = float(self.merge_eval_fn())
+        except Exception as exc:
+            print(f"[WSM] REJECTED: merged adapter failed to evaluate ({exc})", flush=True)
+            self._wsm_restore(backup_path, dst_path)
+            return
+
+        if merged_loss != merged_loss:  # NaN
+            print("[WSM] REJECTED: merged adapter evaluated to NaN", flush=True)
+            self._wsm_restore(backup_path, dst_path)
+            return
+
+        if merged_loss < best_single:
+            print(
+                f"[WSM] ACCEPTED: merged {merged_loss:.6f} < best single "
+                f"{best_single:.6f} (improvement {best_single - merged_loss:.6f})",
+                flush=True,
+            )
+            self.current_best_loss = merged_loss
+            try:
+                os.remove(backup_path)
+            except Exception:
+                pass
+        else:
+            print(
+                f"[WSM] REJECTED: merged {merged_loss:.6f} >= best single "
+                f"{best_single:.6f} — restoring best-only submission",
+                flush=True,
+            )
+            self._wsm_restore(backup_path, dst_path)
+
+    def _wsm_restore(self, backup_path: str, dst_path: str) -> None:
+        """Put the pre-merge adapter back. Best effort, loud on failure.
+
+        A failure here is serious — it means the submission holds a merge we
+        could not verify — so it is logged rather than swallowed.
+        """
+        try:
+            if os.path.isfile(backup_path):
+                shutil.move(backup_path, dst_path)
+                print(f"[WSM] restored pre-merge adapter to {dst_path}", flush=True)
+        except Exception as exc:
+            print(f"[WSM] RESTORE FAILED ({exc}) — submission holds the merged adapter", flush=True)
 
     def on_train_end(self, args, state, control, **kwargs):
         """End of training — trigger WSM merge if eligible."""

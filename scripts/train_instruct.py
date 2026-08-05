@@ -464,6 +464,9 @@ def main():
             checking_mode=train_request.get("checking_mode", "none")
         )
     ]
+    # Held by name, not by index: the list is appended to below, so [-1] would
+    # stop pointing at this callback.
+    _eval_save_callback = callbacks_list[-1]
 
     # Optional observability callbacks (opt-in, fail-closed on Redis error)
     if os.getenv("INSTRUCT_METRICS_REDIS") == "1":
@@ -511,6 +514,36 @@ def main():
         )
     except Exception as _exc:
         log_info(f"[per-layer-lr] hook failed (skipped): {type(_exc).__name__}: {_exc}")
+
+    # Gate the WSM merge on measured held-out loss.
+    #
+    # The merge writes an averaged adapter over the best-only submission. Nothing
+    # guaranteed the average was actually better, so souping could silently
+    # downgrade the one artefact we are scored on. This hook loads the merged
+    # adapter that was just written and evaluates it, so the callback can roll
+    # back a merge that does not beat the best single checkpoint.
+    #
+    # Note it must LOAD from disk: trainer.evaluate() alone scores the in-memory
+    # model, which at train end is the final training state, not the merge.
+    # Any failure here raises, and the callback treats that as a rejection —
+    # failing toward keeping the verified best-only submission.
+    # Disable with TRAINING_WSM_GATE=0.
+    if os.getenv("TRAINING_WSM_GATE", "1") == "1":
+        def _merge_eval():
+            from peft import set_peft_model_state_dict
+            from safetensors.torch import load_file
+
+            sub = train_request["submission_dir"]
+            path = os.path.join(sub, "adapter_model.safetensors")
+            if not os.path.isfile(path):
+                raise FileNotFoundError(f"no merged adapter at {path}")
+            set_peft_model_state_dict(trainer.model, load_file(path))
+            return trainer.evaluate()["eval_loss"]
+
+        _eval_save_callback.merge_eval_fn = _merge_eval
+        log_info("[WSM] merge will be gated on held-out loss")
+    else:
+        log_info("[WSM] TRAINING_WSM_GATE=0 — merge written unverified")
 
     # last_checkpoint = get_last_checkpoint(training_args.output_dir)
     # log_info(f"last_checkpoint: {last_checkpoint}")
