@@ -266,3 +266,82 @@ def test_wild_disagreement_is_rejected_in_both_directions():
 def test_bad_local_measurement_is_returned_untouched(measured):
     got, _ = correct_seq_len_p95(_seq_stats(1800), measured)
     assert got == measured
+
+
+# --------------------------------------------------------------------------
+# Item 4 — near_duplicate_rate
+# --------------------------------------------------------------------------
+
+from baseline_signals import (  # noqa: E402
+    ENV_NEARDUP,
+    NEAR_DUP_SKIP_BELOW,
+    dedup_crosscheck,
+    should_skip_dedup,
+)
+
+
+def _dup_stats(rate):
+    return {"dataset": {"near_duplicate_rate": rate}}
+
+
+DUP_BROKEN = [
+    pytest.param(None, id="absent"),
+    pytest.param({}, id="empty"),
+    pytest.param({"dataset": None}, id="dataset-none"),
+    pytest.param({"dataset": {}}, id="dataset-empty"),
+    pytest.param(_dup_stats(None), id="rate-none"),
+    pytest.param(_dup_stats("0.0"), id="rate-string"),
+    pytest.param(_dup_stats(True), id="rate-bool"),
+    pytest.param(_dup_stats(float("nan")), id="rate-nan"),
+    pytest.param(_dup_stats(-0.1), id="rate-negative"),
+    pytest.param(_dup_stats(1.5), id="rate-above-one"),
+    pytest.param("nope", id="payload-string"),
+]
+
+
+@pytest.mark.parametrize("payload", DUP_BROKEN)
+def test_broken_payload_never_skips_dedup(payload):
+    """Default must be to RUN dedup. Skipping on bad data would leave duplicates
+    in the dev split that every selection decision reads."""
+    skip, reason = should_skip_dedup(payload)
+    assert skip is False
+    assert isinstance(reason, str) and reason
+
+
+def test_dedup_switch_off_never_skips(monkeypatch):
+    monkeypatch.setenv(ENV_NEARDUP, "0")
+    skip, reason = should_skip_dedup(_dup_stats(0.0))
+    assert skip is False
+    assert ENV_NEARDUP in reason
+
+
+def test_skips_only_when_validator_saw_essentially_none():
+    assert should_skip_dedup(_dup_stats(0.0))[0] is True
+    assert should_skip_dedup(_dup_stats(NEAR_DUP_SKIP_BELOW / 2))[0] is True
+
+
+@pytest.mark.parametrize("rate", [NEAR_DUP_SKIP_BELOW, 0.01, 0.08, 0.59, 1.0])
+def test_runs_dedup_at_or_above_threshold(rate):
+    skip, reason = should_skip_dedup(_dup_stats(rate))
+    assert skip is False
+    assert "running dedup" in reason
+
+
+def test_crosscheck_returns_none_without_data():
+    assert dedup_crosscheck(None, 10, 100) is None
+    assert dedup_crosscheck(_dup_stats(0.1), 10, 0) is None
+
+
+def test_crosscheck_flags_us_removing_far_more_than_validator_saw():
+    line = dedup_crosscheck(_dup_stats(0.02), removed=400, total=1000)
+    assert "WARNING" in line
+
+
+def test_crosscheck_notes_near_dups_our_exact_pass_leaves():
+    line = dedup_crosscheck(_dup_stats(0.60), removed=10, total=1000)
+    assert "near-duplicates" in line
+
+
+def test_crosscheck_is_quiet_when_the_two_agree():
+    line = dedup_crosscheck(_dup_stats(0.12), removed=80, total=1000)
+    assert "WARNING" not in line and "note:" not in line

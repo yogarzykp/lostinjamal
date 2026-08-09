@@ -181,12 +181,31 @@ def split_dataset(
 
     # Pre-split dedup (default on; set INSTRUCT_DEDUP=0 to disable).
     # Exact hash + optional Jaccard n-gram. Stdlib+numpy only, no Docker deps.
+    #
+    # The validator's model-prep already measured near_duplicate_rate over the
+    # whole dataset. When it reports essentially none, the pass has nothing to
+    # remove and the time is better spent training. When it does run, we compare
+    # our removal rate against that measurement — not to change behaviour, but
+    # because a large divergence means one of the two is reading different
+    # fields, which otherwise only shows up as unexplained score loss.
     try:
+        from baseline_signals import dedup_crosscheck, should_skip_dedup
+        from baseline_stats_reader import read_cached
         from data.dedup_knn import dedup_from_env
-        deduped, stats = dedup_from_env(data)
-        if stats.get("enabled"):
-            print(f"[dedup] {stats}", flush=True)
-            data = deduped
+
+        _bs = read_cached()
+        _skip, _skip_reason = should_skip_dedup(_bs)
+        if _skip:
+            print(f"[dedup] skipped — {_skip_reason}", flush=True)
+        else:
+            before = len(data)
+            deduped, stats = dedup_from_env(data)
+            if stats.get("enabled"):
+                print(f"[dedup] {stats}", flush=True)
+                data = deduped
+                line = dedup_crosscheck(_bs, removed=before - len(data), total=before)
+                if line:
+                    print(f"[dedup] {line}", flush=True)
     except Exception as exc:
         print(f"[dedup] skipped ({exc}) — continuing without dedup", flush=True)
 

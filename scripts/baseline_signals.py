@@ -166,3 +166,76 @@ def correct_seq_len_p95(baseline_stats, measured_p95: int):
         return prep_p95, f"raised {measured_p95}->{prep_p95} from validator full-dataset p95"
 
     return measured_p95, f"measured p95 adequate (validator {prep_p95}, {ratio:.2f}x)"
+
+
+# Below this the dataset has essentially no duplicates and a dedup pass is time
+# spent to remove nothing. Deliberately far below any rate worth acting on, so
+# the skip only fires when the answer is unambiguous.
+NEAR_DUP_SKIP_BELOW = 0.005
+
+
+def should_skip_dedup(baseline_stats):
+    """Whether the dedup pass can be skipped because the validator saw no duplicates.
+
+    Returns (skip, reason).
+
+    Dedup now runs on every task by default. On a clean dataset that pass is pure
+    overhead against a fixed deadline. The validator already measured
+    `dataset.near_duplicate_rate` over the whole dataset, so when it reports
+    essentially zero we can spend that time training instead.
+
+    The threshold is set an order of magnitude below anything actionable, and the
+    default is to run: an unnecessary dedup pass costs seconds, while skipping a
+    needed one leaves duplicates in training data and — worse — in the dev split
+    that every selection decision reads.
+    """
+    if not _enabled(ENV_NEARDUP):
+        return False, f"{ENV_NEARDUP}=0"
+
+    try:
+        from baseline_stats_reader import get_dataset_stat
+    except Exception as exc:
+        return False, f"reader unavailable ({type(exc).__name__})"
+
+    rate = get_dataset_stat(baseline_stats, "near_duplicate_rate")
+    if isinstance(rate, bool) or not isinstance(rate, (int, float)):
+        return False, "no near_duplicate_rate"
+    rate = float(rate)
+    if math.isnan(rate) or rate < 0.0 or rate > 1.0:
+        return False, f"near_duplicate_rate out of range ({rate})"
+
+    if rate < NEAR_DUP_SKIP_BELOW:
+        return True, f"validator near_duplicate_rate={rate:.4f} < {NEAR_DUP_SKIP_BELOW}"
+    return False, f"validator near_duplicate_rate={rate:.4f} — running dedup"
+
+
+def dedup_crosscheck(baseline_stats, removed: int, total: int):
+    """Compare our dedup's removal rate against the validator's measurement.
+
+    Returns a human-readable line, or None when there is nothing to compare.
+
+    This changes no behaviour — it is a bug detector. Our dedup hashes
+    instruction+output after canonicalisation; the validator computes its own
+    near-duplicate rate over the same data. The two will not match exactly (ours
+    is exact-match, theirs is near-duplicate, so theirs should be the larger),
+    but they should be in the same neighbourhood. A large divergence means one of
+    the two is looking at different fields — which is exactly the kind of silent
+    mis-wiring that would otherwise only show up as unexplained score loss.
+    """
+    try:
+        from baseline_stats_reader import get_dataset_stat
+    except Exception:
+        return None
+
+    rate = get_dataset_stat(baseline_stats, "near_duplicate_rate")
+    if isinstance(rate, bool) or not isinstance(rate, (int, float)) or not total:
+        return None
+
+    ours = removed / total
+    theirs = float(rate)
+    line = f"dedup crosscheck: ours(exact)={ours:.4f} validator(near)={theirs:.4f}"
+    if ours > theirs + 0.10:
+        return line + " — WARNING: we removed far more than the validator saw duplicates"
+    if theirs > ours + 0.30:
+        return line + " — note: validator saw many near-duplicates our exact pass leaves in"
+    return line
