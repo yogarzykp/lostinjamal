@@ -1048,18 +1048,34 @@ def build_adaptive_run_config(
     model_path = train_info["model_path"]
     task_id = train_info.get("task_id", "")
 
-    # Validator-provided BASELINE_STATS (post G.O.D feature/model-prep-container
-    # merge 2026-05-13). JSON env var with model weight stats, dataset stats,
-    # init_loss, grad norms. Empty/missing on pre-merge or non-augmented tasks.
-    # Spec: docs/tourn_miner.md (BASELINE_STATS env var, "Optional, safe to ignore")
+    # Validator-provided baseline stats — the payload augmentation detection reads.
+    #
+    # BUGFIX 2026-08-09: this only ever read an inline `BASELINE_STATS` JSON env
+    # var. The validator does not set that. It writes
+    # baseline_stats_{task_id}.json onto the shared cache volume and passes the
+    # PATH in `BASELINE_STATS_PATH` (G.O.D trainer/runtime.py:218 and :301;
+    # grepping the whole validator repo for a bare "BASELINE_STATS" env returns
+    # nothing). So this dict was empty on every real task, and augmentation
+    # detection — which needs weights.by_group[*].weight_rms — silently never
+    # fired, on the ~50% of text tasks that are augmented
+    # (AUGMENTATION_PROBABILITY = 0.5). Read the file first, keep the inline var
+    # as an override for local testing.
     baseline_stats: Dict = {}
+    try:
+        from baseline_stats_reader import read_cached
+
+        baseline_stats = read_cached() or {}
+    except Exception as _exc:
+        print(f"[adaptive] baseline stats file read failed (skipped): {_exc}", flush=True)
     try:
         _bs_raw = os.getenv("BASELINE_STATS", "").strip()
         if _bs_raw:
             baseline_stats = json.loads(_bs_raw)
-            print(f"[adaptive] BASELINE_STATS env present: keys={list(baseline_stats.keys())}", flush=True)
+            print(f"[adaptive] BASELINE_STATS env override: keys={list(baseline_stats.keys())}", flush=True)
     except Exception as _exc:
         print(f"[adaptive] BASELINE_STATS parse failed (skipped): {_exc}", flush=True)
+    if baseline_stats:
+        print(f"[adaptive] baseline stats available: keys={sorted(baseline_stats.keys())}", flush=True)
 
     # Recover original base model from anonymized model_dir via fingerprint.
     # Validator scrubs `_name_or_path` from config.json but PRESERVES the
@@ -1771,10 +1787,23 @@ def build_adaptive_run_config(
             print(f"[adaptive] augmentation detection failed (skipped): {_exc}", flush=True)
 
     if aug_info.get("detected_type") == "MAGNITUDE_PRUNING":
-        # Pruned weights need slightly higher LR to recover lost capacity.
-        # Range: 5-15% weights zeroed; modest +15% LR bump.
-        init_lr *= 1.15
-        print(f"[adaptive] MAGNITUDE_PRUNING → init_lr×1.15 = {init_lr:.2e}", flush=True)
+        # Neutralised 2026-08-09. The reasoning ("pruned weights need a higher LR
+        # to recover capacity") is plausible but the 1.15 was never measured, and
+        # this fires on roughly one task in eight (AUGMENTATION_PROBABILITY 0.5 x
+        # MAGNITUDE_PRUNING weight 0.25). Under winner-take-all scoring an
+        # unmeasured 15% LR change flips outcomes in both directions, and it is
+        # the same class of uncalibrated constant we declined to invent for the
+        # learning-rate estimator — consistency demands declining it here too.
+        # Detection still runs and is still logged; only the multiplier is 1.0.
+        # Restore a value once an A/B on augmented tasks supports one.
+        _pruning_lr_factor = float(os.getenv("AUG_PRUNING_LR_FACTOR", "1.0"))
+        if _pruning_lr_factor != 1.0:
+            init_lr *= _pruning_lr_factor
+        print(
+            f"[adaptive] MAGNITUDE_PRUNING detected → init_lr×{_pruning_lr_factor} "
+            f"= {init_lr:.2e} (factor unmeasured, default 1.0)",
+            flush=True,
+        )
     elif aug_info.get("detected_type") == "LAYER_REINIT":
         # Random reinit needs longer warmup so reinit'd layer can converge with
         # rest of network. Double existing warmup; floor 70 if previously zero.
