@@ -1156,6 +1156,25 @@ def build_adaptive_run_config(
         )
         print(f"[adaptive] WARN: using conservative dataset defaults (no path or no tokenizer)", flush=True)
 
+    # Our p95 comes from a 500-record sample; the validator's model-prep measured
+    # the whole dataset. On a dataset whose long examples are rare or clustered,
+    # the sample under-reports the tail — and p95 sets max_length, so an
+    # under-report silently truncates real training data. The correction only
+    # raises, never lowers: truncation is irreversible, extra context just costs
+    # compute the batch scaling already absorbs. Disable with BASELINE_USE_SEQLEN=0.
+    try:
+        from baseline_signals import correct_seq_len_p95
+        from baseline_stats_reader import read_cached
+
+        _corrected_p95, _p95_reason = correct_seq_len_p95(
+            read_cached(), ds_metrics.seq_len_p95
+        )
+        if _corrected_p95 != ds_metrics.seq_len_p95:
+            print(f"[adaptive] seq_len p95: {_p95_reason}", flush=True)
+            ds_metrics.seq_len_p95 = _corrected_p95
+    except Exception as _e:
+        print(f"[adaptive] seq_len p95 correction skipped ({type(_e).__name__}: {_e})", flush=True)
+
     # Sensor 3: GPU
     gpu = measure_gpu()
 
@@ -1468,8 +1487,8 @@ def build_adaptive_run_config(
     _baseline_stats = None
     _baseline_init_loss = None
     try:
-        from baseline_stats_reader import maybe_read_baseline_stats, get_init_loss
-        _baseline_stats = maybe_read_baseline_stats()
+        from baseline_stats_reader import read_cached, get_init_loss
+        _baseline_stats = read_cached()
         if _baseline_stats is not None:
             _baseline_init_loss = get_init_loss(_baseline_stats)
             if _baseline_init_loss is not None:

@@ -94,6 +94,26 @@ def maybe_read_baseline_stats(
     return data
 
 
+_CACHE: dict = {}
+
+
+def read_cached(env_var: str = "BASELINE_STATS_PATH") -> Optional[dict]:
+    """maybe_read_baseline_stats with memoisation.
+
+    The payload is consumed from several points in the config builder. Reading
+    and logging it once per consumer is noise in a tournament log and pointless
+    file I/O; the file cannot change during a run.
+    """
+    if env_var not in _CACHE:
+        _CACHE[env_var] = maybe_read_baseline_stats(env_var)
+    return _CACHE[env_var]
+
+
+def reset_cache() -> None:
+    """Drop the memoised payload. For tests."""
+    _CACHE.clear()
+
+
 def get_init_loss(baseline_stats: Optional[dict]) -> Optional[float]:
     """Extract init_loss from validator baseline_stats.
 

@@ -188,3 +188,81 @@ def test_substitution_can_move_the_epoch_count():
     assert epochs_from_loss(with_completion) > epochs_from_loss(with_init), (
         "expected the completion-masked signal to buy an extra epoch on this shape"
     )
+
+
+# --------------------------------------------------------------------------
+# Item 1 — sequence-length p95 correction
+# --------------------------------------------------------------------------
+
+from baseline_signals import (  # noqa: E402
+    ENV_SEQLEN,
+    SEQ_LEN_DISAGREEMENT_RATIO,
+    SEQ_LEN_UNDERESTIMATE_RATIO,
+    correct_seq_len_p95,
+)
+
+
+def _seq_stats(p95):
+    return {"dataset": {"seq_length_distribution": {"mean": 1.0, "p50": 1, "p95": p95, "p99": 1, "max": 1}}}
+
+
+SEQ_BROKEN = [
+    pytest.param(None, id="absent"),
+    pytest.param({}, id="empty"),
+    pytest.param({"dataset": None}, id="dataset-none"),
+    pytest.param({"dataset": {}}, id="dataset-empty"),
+    pytest.param({"dataset": {"seq_length_distribution": None}}, id="dist-none"),
+    pytest.param({"dataset": {"seq_length_distribution": {}}}, id="dist-empty"),
+    pytest.param({"dataset": {"seq_length_distribution": {"p95": None}}}, id="p95-none"),
+    pytest.param({"dataset": {"seq_length_distribution": {"p95": "900"}}}, id="p95-string"),
+    pytest.param({"dataset": {"seq_length_distribution": {"p95": 0}}}, id="p95-zero"),
+    pytest.param({"dataset": {"seq_length_distribution": {"p95": -5}}}, id="p95-negative"),
+    pytest.param("nope", id="payload-string"),
+]
+
+
+@pytest.mark.parametrize("payload", SEQ_BROKEN)
+def test_seqlen_broken_payload_keeps_measured_exactly(payload):
+    got, reason = correct_seq_len_p95(payload, 900)
+    assert got == 900
+    assert isinstance(reason, str) and reason
+
+
+def test_seqlen_switch_off_keeps_measured(monkeypatch):
+    monkeypatch.setenv(ENV_SEQLEN, "0")
+    got, reason = correct_seq_len_p95(_seq_stats(4000), 900)
+    assert got == 900
+    assert ENV_SEQLEN in reason
+
+
+def test_raises_when_sample_under_reported_the_tail():
+    """The failure this exists to prevent: a 500-record sample missing long examples."""
+    got, reason = correct_seq_len_p95(_seq_stats(1800), 900)
+    assert got == 1800
+    assert "raised" in reason
+
+
+def test_never_lowers_a_measured_p95():
+    """One-directional by design: truncating real data is irreversible, extra context is not."""
+    got, reason = correct_seq_len_p95(_seq_stats(400), 900)
+    assert got == 900, "validator p95 must never pull our max_length down"
+
+
+def test_small_disagreement_keeps_measured():
+    got, _ = correct_seq_len_p95(_seq_stats(int(900 * (SEQ_LEN_UNDERESTIMATE_RATIO - 0.05))), 900)
+    assert got == 900
+
+
+def test_wild_disagreement_is_rejected_in_both_directions():
+    high = int(900 * SEQ_LEN_DISAGREEMENT_RATIO * 1.5)
+    low = int(900 / (SEQ_LEN_DISAGREEMENT_RATIO * 1.5))
+    for prep in (high, low):
+        got, reason = correct_seq_len_p95(_seq_stats(prep), 900)
+        assert got == 900
+        assert "disagrees" in reason
+
+
+@pytest.mark.parametrize("measured", [0, -1, None, "900", 1.5])
+def test_bad_local_measurement_is_returned_untouched(measured):
+    got, _ = correct_seq_len_p95(_seq_stats(1800), measured)
+    assert got == measured

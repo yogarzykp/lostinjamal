@@ -107,3 +107,62 @@ def _init_loss_or(baseline_stats, fallback: float, note: str = ""):
     if init is not None:
         return fallback, f"{prefix}init_loss implausible ({init})"
     return fallback, f"{prefix}no measured loss"
+
+
+# Our own p95 comes from a 500-record sample; if it sits below the validator's
+# full-dataset p95 by more than this, the sample missed the tail.
+SEQ_LEN_UNDERESTIMATE_RATIO = 1.15
+
+# Beyond this the two numbers are not describing the same thing (different
+# tokenizer, different prompt formatting, or a schema change) and neither should
+# override the other.
+SEQ_LEN_DISAGREEMENT_RATIO = 4.0
+
+
+def correct_seq_len_p95(baseline_stats, measured_p95: int):
+    """Raise a sampled sequence-length p95 when the validator's full-dataset one is higher.
+
+    Returns (p95, reason).
+
+    We estimate p95 by tokenizing 500 records (dynamics_utils.measure_dataset).
+    The validator's model-prep tokenizes the whole dataset and publishes
+    `dataset.seq_length_distribution`. On a dataset whose long examples are rare
+    or clustered late, a 500-record sample under-reports the tail — and p95 sets
+    max_length, so under-reporting it silently truncates real training data. That
+    loss is irreversible; excess context merely costs some compute, which the
+    existing batch-vs-max_length scaling already absorbs.
+
+    So the correction is deliberately ONE-DIRECTIONAL: the validator's number can
+    raise ours, never lower it. Asymmetric because the two errors are asymmetric.
+
+    Guard for the case where the numbers disagree wildly: the validator measured
+    the raw dataset with its own tokenizer while we measure our formatted,
+    templated text, so a moderate offset is expected and a large one means they
+    are not describing the same quantity. Past SEQ_LEN_DISAGREEMENT_RATIO we keep
+    our own measurement, which is at least on the text we will actually train on.
+    """
+    if not _enabled(ENV_SEQLEN):
+        return measured_p95, f"{ENV_SEQLEN}=0"
+    if not isinstance(measured_p95, int) or measured_p95 <= 0:
+        return measured_p95, "no local measurement"
+
+    try:
+        from baseline_stats_reader import get_seq_len_p95
+    except Exception as exc:
+        return measured_p95, f"reader unavailable ({type(exc).__name__})"
+
+    prep_p95 = get_seq_len_p95(baseline_stats)
+    if not isinstance(prep_p95, int) or prep_p95 <= 0:
+        return measured_p95, "no validator seq_length_distribution"
+
+    ratio = prep_p95 / measured_p95
+    if ratio > SEQ_LEN_DISAGREEMENT_RATIO or ratio < (1.0 / SEQ_LEN_DISAGREEMENT_RATIO):
+        return measured_p95, (
+            f"validator p95={prep_p95} disagrees with measured {measured_p95} "
+            f"({ratio:.1f}x) — keeping measured"
+        )
+
+    if ratio >= SEQ_LEN_UNDERESTIMATE_RATIO:
+        return prep_p95, f"raised {measured_p95}->{prep_p95} from validator full-dataset p95"
+
+    return measured_p95, f"measured p95 adequate (validator {prep_p95}, {ratio:.2f}x)"
