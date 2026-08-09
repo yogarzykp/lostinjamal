@@ -1473,19 +1473,33 @@ def build_adaptive_run_config(
         if _baseline_stats is not None:
             _baseline_init_loss = get_init_loss(_baseline_stats)
             if _baseline_init_loss is not None:
-                print(f"[adaptive] baseline_stats init_loss={_baseline_init_loss:.3f} "
-                      f"(replaces 2.5 placeholder)", flush=True)
+                print(f"[adaptive] baseline_stats init_loss={_baseline_init_loss:.3f}", flush=True)
     except Exception as _e:
         print(f"[adaptive] baseline_stats reader fail-soft: {type(_e).__name__}: {_e}", flush=True)
 
-    # Epochs from init_loss — use validator's actual measurement when available
+    # Epochs from the measured starting loss.
+    #
+    # For instruct we prefer `masked_completion_loss` over `init_loss`: the epoch
+    # heuristic asks "how far is the base model from this task", and instruct
+    # training only ever computes loss on completion tokens — which is also what
+    # the validator scores. init_loss averages prompt tokens in, and on a
+    # long-prompt dataset that understates the remaining headroom. Same heuristic,
+    # better-matched input. Falls back to init_loss, then to the placeholder.
+    # See scripts/baseline_signals.py; disable with BASELINE_USE_COMPLETION_LOSS=0.
     _override_init_loss = os.getenv("ADAPTIVE_INIT_LOSS_OVERRIDE")
     if _override_init_loss:
         init_loss_estimate = float(_override_init_loss)
-    elif _baseline_init_loss is not None:
-        init_loss_estimate = _baseline_init_loss
+        _loss_signal_source = "ADAPTIVE_INIT_LOSS_OVERRIDE"
     else:
-        init_loss_estimate = 2.5  # placeholder fallback (legacy tasks without baseline)
+        try:
+            from baseline_signals import resolve_epoch_loss_signal
+
+            init_loss_estimate, _loss_signal_source = resolve_epoch_loss_signal(
+                _baseline_stats, task_type_lc, fallback=2.5
+            )
+        except Exception as _e:
+            init_loss_estimate, _loss_signal_source = 2.5, f"fallback ({type(_e).__name__})"
+    print(f"[adaptive] epoch loss signal={init_loss_estimate:.3f} ({_loss_signal_source})", flush=True)
     epochs = adaptive_epochs_from_init_loss(init_loss_estimate, ds_metrics.num_samples, param_count)
 
     # ----------------------------------------------------------------------

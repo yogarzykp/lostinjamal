@@ -271,7 +271,12 @@ def _training_float(baseline_stats: Optional[dict], key: str) -> Optional[float]
     if not isinstance(training, dict):
         return None
     v = training.get(key)
-    return float(v) if isinstance(v, (int, float)) else None
+    # bool is a subclass of int in Python, so `isinstance(True, (int, float))` is
+    # True and a stray boolean would arrive downstream as a perfectly plausible
+    # loss of 1.0. Reject it explicitly.
+    if isinstance(v, bool) or not isinstance(v, (int, float)):
+        return None
+    return float(v)
 
 
 def get_weight_rms(baseline_stats: Optional[dict]) -> Optional[float]:
