@@ -239,3 +239,52 @@ def dedup_crosscheck(baseline_stats, removed: int, total: int):
     if theirs > ours + 0.30:
         return line + " — note: validator saw many near-duplicates our exact pass leaves in"
     return line
+
+
+# Above this the reference model already separates chosen from rejected strongly:
+# there is little preference signal left to learn and a lot of room to overfit.
+DPO_GAP_WIDE = 2.0
+
+
+def dpo_epoch_guard(baseline_stats, epochs: int):
+    """Cap DPO epochs when the reference model already separates the pairs.
+
+    Returns (epochs, reason).
+
+    `implicit_reward_gap` is |ref_log_prob_chosen - ref_log_prob_rejected|,
+    measured by the validator on the base model before we train. A wide gap means
+    the reference already prefers the chosen response, so most of what DPO can
+    add is margin inflation rather than new preference — and continuing to train
+    against an already-separated pair set is a direct route to the degenerate
+    minimiser that makes training loss fall while the policy degrades.
+
+    DELIBERATELY ONE-DIRECTIONAL. The tempting other half — narrow gap, so train
+    harder — needs a calibrated mapping from gap to epochs that we do not have,
+    and inventing one is exactly the unmeasured guess we refused to make for the
+    learning-rate estimator. Capping on a wide gap is a guard whose worst case is
+    leaving a little training on the table; raising epochs on a narrow gap has a
+    worst case of overfitting into a collapsed policy. Only one of those is safe
+    to build without measurement.
+    """
+    if not _enabled(ENV_DPO_GAP):
+        return epochs, f"{ENV_DPO_GAP}=0"
+    if not isinstance(epochs, int) or epochs <= 1:
+        return epochs, "epochs already minimal"
+
+    try:
+        from baseline_stats_reader import _training_float
+    except Exception as exc:
+        return epochs, f"reader unavailable ({type(exc).__name__})"
+
+    gap = _training_float(baseline_stats, "implicit_reward_gap")
+    if gap is None:
+        return epochs, "no implicit_reward_gap"
+    if math.isnan(gap) or math.isinf(gap):
+        return epochs, f"implicit_reward_gap not finite ({gap})"
+
+    if abs(gap) > DPO_GAP_WIDE:
+        return max(1, epochs - 1), (
+            f"implicit_reward_gap={abs(gap):.3f} > {DPO_GAP_WIDE} — reference already "
+            f"separates the pairs, capping epochs {epochs}->{max(1, epochs - 1)}"
+        )
+    return epochs, f"implicit_reward_gap={abs(gap):.3f} — no cap"

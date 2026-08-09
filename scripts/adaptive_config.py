@@ -1521,6 +1521,21 @@ def build_adaptive_run_config(
     print(f"[adaptive] epoch loss signal={init_loss_estimate:.3f} ({_loss_signal_source})", flush=True)
     epochs = adaptive_epochs_from_init_loss(init_loss_estimate, ds_metrics.num_samples, param_count)
 
+    # DPO only: cap epochs when the reference model already separates the pairs.
+    # A wide implicit_reward_gap means little preference signal is left to learn
+    # and continuing mostly inflates the margin — the route to DPO's degenerate
+    # minimiser. Guard-only: it never raises epochs, because the mapping for
+    # "narrow gap, train harder" is not one we have measured.
+    # Disable with BASELINE_USE_DPO_GAP=0.
+    if task_type_lc == "dpo":
+        try:
+            from baseline_signals import dpo_epoch_guard
+
+            epochs, _gap_reason = dpo_epoch_guard(_baseline_stats, epochs)
+            print(f"[adaptive] dpo epoch guard: {_gap_reason}", flush=True)
+        except Exception as _e:
+            print(f"[adaptive] dpo epoch guard skipped ({type(_e).__name__}: {_e})", flush=True)
+
     # ----------------------------------------------------------------------
     # Phase 1 (2026-05-02): Family-aware Instruct HP — RICHER than master-text
     # ----------------------------------------------------------------------

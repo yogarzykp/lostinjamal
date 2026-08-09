@@ -345,3 +345,73 @@ def test_crosscheck_notes_near_dups_our_exact_pass_leaves():
 def test_crosscheck_is_quiet_when_the_two_agree():
     line = dedup_crosscheck(_dup_stats(0.12), removed=80, total=1000)
     assert "WARNING" not in line and "note:" not in line
+
+
+# --------------------------------------------------------------------------
+# Item 2 — DPO implicit_reward_gap (guard-only)
+# --------------------------------------------------------------------------
+
+from baseline_signals import DPO_GAP_WIDE, ENV_DPO_GAP, dpo_epoch_guard  # noqa: E402
+
+
+def _gap_stats(gap):
+    return {"task_type": "dpo", "training": {"implicit_reward_gap": gap}}
+
+
+GAP_BROKEN = [
+    pytest.param(None, id="absent"),
+    pytest.param({}, id="empty"),
+    pytest.param({"training": None}, id="training-none"),
+    pytest.param({"training": {}}, id="training-empty"),
+    pytest.param(_gap_stats(None), id="gap-none"),
+    pytest.param(_gap_stats("2.5"), id="gap-string"),
+    pytest.param(_gap_stats(True), id="gap-bool"),
+    pytest.param(_gap_stats(float("nan")), id="gap-nan"),
+    pytest.param(_gap_stats(float("inf")), id="gap-inf"),
+    pytest.param("nope", id="payload-string"),
+]
+
+
+@pytest.mark.parametrize("payload", GAP_BROKEN)
+def test_broken_payload_leaves_epochs_untouched(payload):
+    got, reason = dpo_epoch_guard(payload, 3)
+    assert got == 3
+    assert isinstance(reason, str) and reason
+
+
+def test_gap_switch_off_leaves_epochs_untouched(monkeypatch):
+    monkeypatch.setenv(ENV_DPO_GAP, "0")
+    got, reason = dpo_epoch_guard(_gap_stats(9.0), 3)
+    assert got == 3
+    assert ENV_DPO_GAP in reason
+
+
+def test_wide_gap_caps_epochs_by_one():
+    got, reason = dpo_epoch_guard(_gap_stats(DPO_GAP_WIDE + 0.5), 3)
+    assert got == 2
+    assert "capping" in reason
+
+
+def test_wide_negative_gap_also_caps():
+    """The magnitude is what matters — sign only says which side the ref prefers."""
+    assert dpo_epoch_guard(_gap_stats(-(DPO_GAP_WIDE + 0.5)), 3)[0] == 2
+
+
+@pytest.mark.parametrize("gap", [0.0, 0.4, 1.2, DPO_GAP_WIDE])
+def test_narrow_gap_never_raises_epochs(gap):
+    """The 'train harder on a narrow gap' half is deliberately NOT built:
+    it needs a calibrated mapping we do not have."""
+    for epochs in (1, 2, 3, 4):
+        got, _ = dpo_epoch_guard(_gap_stats(gap), epochs)
+        assert got == epochs, "guard must never increase epochs"
+
+
+def test_never_caps_below_one():
+    assert dpo_epoch_guard(_gap_stats(50.0), 1)[0] == 1
+    assert dpo_epoch_guard(_gap_stats(50.0), 2)[0] == 1
+
+
+@pytest.mark.parametrize("epochs", [0, 1, -1, None, "3", 2.5])
+def test_non_capable_epoch_values_pass_through(epochs):
+    got, _ = dpo_epoch_guard(_gap_stats(50.0), epochs)
+    assert got == epochs
