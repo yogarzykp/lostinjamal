@@ -76,19 +76,34 @@ def resolve_dataset_path(task_type: str, task_id: str) -> Optional[str]:
 # Subset rule selectors (decision logic with traceable rules)
 # ---------------------------------------------------------------------------
 
-def _select_lora_config(param_count: int, task_type: str) -> Dict:
+def _select_lora_config(param_count: int, task_type: str, use_kl: bool = False) -> Dict:
     """LoRA decision: use for large models, rank scales with param_count.
 
     Rules (decision-traceable):
     - DPO/GRPO: LoRA if param > 1.5B (memory + reference model overhead)
     - Instruct: LoRA if param > 5B (full FT works for smaller)
     - r ∈ [64, 256] scaling with √(param/2B)
+
+    KL-flagged instruct tasks always take the LoRA path, whatever the size.
+    Two reasons, and they point the same way:
+
+    * The scored metric on those tasks is eval_loss + kl_coef * KL(finetuned ||
+      base), so drift from the base model is penalised directly. A low-rank
+      adapter constrains drift structurally; full fine-tuning does not.
+    * Training the composite objective needs reference logits from the base
+      model at every step. Under LoRA that is `disable_adapter()` on the same
+      weights — no second model, no extra memory. Under full fine-tuning it
+      means holding a frozen copy, which is the cost that would otherwise make
+      the exact objective impractical.
+
+    A KL-flagged task is also where full fine-tuning's advantage — unconstrained
+    capacity to move away from the base — is worth the least.
     """
     if param_count is None:
         return {"use_lora": False}
 
     threshold = 1.5e9 if task_type in ("dpo", "grpo") else 5e9
-    if param_count <= threshold:
+    if param_count <= threshold and not use_kl:
         return {"use_lora": False}
 
     r = max(64, min(256, int(64 * (param_count / 2e9) ** 0.5)))
@@ -1194,9 +1209,29 @@ def build_adaptive_run_config(
     # Sensor 3: GPU
     gpu = measure_gpu()
 
+    # Is this instruct task KL-weighted? The validator flags ~20% of them and
+    # then ranks on eval_loss + kl_coef * KL(finetuned || base). That changes two
+    # decisions here: the adapter policy (below) and, downstream in
+    # train_instruct.py, the training objective itself.
+    _kl_on, _kl_coef, _kl_reason = False, None, "not checked"
+    try:
+        from kl_objective import read_kl_config
+
+        _kl_on, _kl_coef, _kl_reason = read_kl_config()
+    except Exception as _e:
+        print(f"[adaptive] KL config read failed ({type(_e).__name__}: {_e})", flush=True)
+    if _kl_on:
+        print(f"[adaptive] KL-weighted task: {_kl_reason}", flush=True)
+
     # Decisions
-    lora_cfg = _select_lora_config(param_count, task_type_lc)
+    lora_cfg = _select_lora_config(param_count, task_type_lc, use_kl=_kl_on)
     use_lora = lora_cfg.get("use_lora", False)
+    if _kl_on and use_lora and param_count is not None and param_count <= 5e9:
+        print(
+            f"[adaptive] KL task → LoRA forced at {param_count/1e9:.2f}B "
+            f"(constrains drift, and gives free reference logits via disable_adapter)",
+            flush=True,
+        )
     max_length = _select_max_length(ds_metrics.seq_len_p95, model_max_position=model_max_position)
 
     # EXP-HYPER-PORT-A 2026-05-20: adaptive-seq-len — halve max_length when
@@ -2414,6 +2449,20 @@ def get_adaptive_training_json(task_type: str, train_info: dict) -> dict:
     # disabled / weight extraction failed (no key in run_config).
     if "per_layer_lr_multipliers" in run_config:
         train_request["per_layer_lr_multipliers"] = run_config["per_layer_lr_multipliers"]
+
+    # Carry the KL decision to the trainer. train_instruct.py reads these to
+    # switch on the composite objective and the weighted checkpoint metric; the
+    # env vars are readable there too, but routing through train_request puts the
+    # decision and its reason into the request JSON we dump for every run.
+    try:
+        from kl_objective import read_kl_config
+
+        _use_kl, _coef, _reason = read_kl_config()
+    except Exception as _e:
+        _use_kl, _coef, _reason = False, None, f"read failed ({type(_e).__name__})"
+    train_request["use_kl"] = _use_kl
+    train_request["kl_coef"] = _coef
+    train_request["kl_reason"] = _reason
 
     # Record the evidence we had and the config we derived from it. This is the
     # feature side of the dataset a learning-rate estimator will eventually be

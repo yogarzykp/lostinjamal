@@ -492,14 +492,38 @@ def main():
         except Exception as exc:
             print(f"[train_instruct] Failed to load ExperimentLoggerCallback: {exc}", flush=True)
 
-    trainer = Trainer(
-        model=model,
-        tokenizer=tokenizer,
-        args=training_args,
-        train_dataset=train_ds,
-        eval_dataset=dev_ds,
-        callbacks=callbacks_list,
-    )
+    # On a KL-flagged task the validator ranks us on eval_loss + kl_coef * KL
+    # against the base model, so train that objective rather than plain CE.
+    # Reference logits come from disable_adapter() on the same weights, which is
+    # why adaptive_config forces the LoRA path for these tasks. Falls back to the
+    # stock Trainer whenever the flag is off — see scripts/kl_objective.py.
+    _use_kl = bool(train_request.get("use_kl"))
+    _kl_coef = train_request.get("kl_coef")
+    if _use_kl and _kl_coef:
+        from kl_trainer_mixin import KLWeightedTrainerMixin
+
+        class _KLTrainer(KLWeightedTrainerMixin, Trainer):
+            pass
+
+        log_info(f"[kl] composite objective: {train_request.get('kl_reason')}")
+        trainer = _KLTrainer(
+            model=model,
+            tokenizer=tokenizer,
+            args=training_args,
+            train_dataset=train_ds,
+            eval_dataset=dev_ds,
+            callbacks=callbacks_list,
+            kl_coef=float(_kl_coef),
+        )
+    else:
+        trainer = Trainer(
+            model=model,
+            tokenizer=tokenizer,
+            args=training_args,
+            train_dataset=train_ds,
+            eval_dataset=dev_ds,
+            callbacks=callbacks_list,
+        )
 
     trainer.tokenizer = tokenizer
 
@@ -544,6 +568,43 @@ def main():
         log_info("[WSM] merge will be gated on held-out loss")
     else:
         log_info("[WSM] TRAINING_WSM_GATE=0 — merge written unverified")
+
+    # Rank checkpoints by the metric the validator ranks by. Training the
+    # composite objective is only half the job: without this, we would optimise
+    # eval_loss + kl_coef*KL and then submit whichever checkpoint minimised plain
+    # eval_loss. The KL here is measured on the dev set the same way the
+    # validator measures it on its held-out set.
+    if _use_kl and _kl_coef:
+        from kl_objective import instruct_kl_tensor
+
+        def _kl_metric():
+            base = getattr(trainer.model, "module", trainer.model)
+            disable = getattr(base, "disable_adapter", None)
+            if disable is None:
+                raise RuntimeError("no adapter to disable — cannot measure reference")
+
+            loader = trainer.get_eval_dataloader()
+            total, count = 0.0, 0
+            base.eval()
+            with torch.no_grad():
+                for batch in loader:
+                    batch = {k: v.to(trainer.args.device) for k, v in batch.items() if hasattr(v, "to")}
+                    labels = batch.get("labels")
+                    if labels is None:
+                        continue
+                    fwd = {k: v for k, v in batch.items() if k in ("input_ids", "attention_mask", "position_ids")}
+                    ft_logits = base(**fwd).logits
+                    with disable():
+                        ref_logits = base(**fwd).logits
+                    n = int((labels != -100).sum().item())
+                    if n:
+                        total += float(instruct_kl_tensor(ref_logits, ft_logits, labels)) * n
+                        count += n
+            return total / count if count else 0.0
+
+        _eval_save_callback.kl_coef = float(_kl_coef)
+        _eval_save_callback.kl_metric_fn = _kl_metric
+        log_info(f"[kl] checkpoint selection weighted by kl_coef={_kl_coef}")
 
     # last_checkpoint = get_last_checkpoint(training_args.output_dir)
     # log_info(f"last_checkpoint: {last_checkpoint}")

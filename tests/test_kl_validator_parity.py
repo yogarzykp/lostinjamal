@@ -340,3 +340,106 @@ def test_production_handles_half_precision_without_diverging():
     got = production_kl(base.to(torch.bfloat16), ft.to(torch.bfloat16), lab)
     assert not math.isnan(got)
     assert got == pytest.approx(ref, rel=0.05), "bf16 KL drifted more than 5% from fp32"
+
+
+# --------------------------------------------------------------------------
+# Env parsing — the "we know KL is on but the coefficient is broken" case
+# --------------------------------------------------------------------------
+
+from kl_objective import (  # noqa: E402
+    KL_COEF_FALLBACK,
+    KL_COEF_MAX,
+    KL_COEF_MIN,
+    read_kl_config,
+)
+
+
+def test_flag_absent_means_path_fully_off():
+    use_kl, coef, reason = read_kl_config({})
+    assert use_kl is False and coef is None
+    assert reason
+
+
+@pytest.mark.parametrize("value", ["0", "", "true", "TRUE", "yes", "2", None])
+def test_only_literal_one_enables_the_path(value):
+    env = {} if value is None else {"USE_KL": value}
+    use_kl, coef, _ = read_kl_config(env)
+    assert use_kl is False and coef is None
+
+
+@pytest.mark.parametrize("raw", ["0.1", "0.8", "1.5", " 0.42 ", "1"])
+def test_valid_coefficients_pass_through(raw):
+    use_kl, coef, _ = read_kl_config({"USE_KL": "1", "KL_COEF": raw})
+    assert use_kl is True
+    assert coef == pytest.approx(float(raw.strip()))
+
+
+@pytest.mark.parametrize(
+    "raw", [None, "", "   ", "abc", "nan", "inf", "-inf", "1.2.3", "[]"]
+)
+def test_broken_coefficient_assumes_midpoint_and_never_disables_kl(raw):
+    """The critical branch.
+
+    Falling back to plain CE here would mean training unweighted while being
+    ranked weighted — the exact silent failure this path exists to remove. So a
+    broken coefficient must still leave KL ON, at the midpoint of the validator's
+    range, with a loud reason.
+    """
+    env = {"USE_KL": "1"}
+    if raw is not None:
+        env["KL_COEF"] = raw
+    use_kl, coef, reason = read_kl_config(env)
+    assert use_kl is True, "a broken coefficient must never silently disable KL"
+    assert coef == pytest.approx(KL_COEF_FALLBACK)
+    assert "midpoint" in reason or "not finite" in reason
+
+
+@pytest.mark.parametrize(
+    "raw,expected",
+    [("0.001", KL_COEF_MIN), ("-3", KL_COEF_MIN), ("9.9", KL_COEF_MAX), ("1000", KL_COEF_MAX)],
+)
+def test_out_of_range_coefficients_are_clamped_not_rejected(raw, expected):
+    use_kl, coef, reason = read_kl_config({"USE_KL": "1", "KL_COEF": raw})
+    assert use_kl is True
+    assert coef == pytest.approx(expected)
+    assert "clamped" in reason
+
+
+def test_fallback_sits_inside_the_validators_range():
+    assert KL_COEF_MIN <= KL_COEF_FALLBACK <= KL_COEF_MAX
+
+
+# --------------------------------------------------------------------------
+# The differentiable form used for training
+# --------------------------------------------------------------------------
+
+from kl_objective import instruct_kl_tensor  # noqa: E402
+
+
+def test_training_tensor_matches_the_scalar_metric():
+    base, ft, lab = _logits(111), _logits(112), _labels(113)
+    assert float(instruct_kl_tensor(base, ft, lab)) == pytest.approx(
+        validator_reference_kl(base, ft, lab), rel=1e-6
+    )
+
+
+def test_gradient_flows_to_the_finetuned_side_only():
+    """The base model is a fixed reference; only the policy should receive gradient."""
+    base = _logits(121)
+    ft = _logits(122).requires_grad_(True)
+    base.requires_grad_(True)
+
+    instruct_kl_tensor(base, ft, _labels(123)).backward()
+
+    assert ft.grad is not None and torch.isfinite(ft.grad).all()
+    assert base.grad is not None  # autograd still populates it...
+    # ...but in production the base logits come from a no_grad reference pass, so
+    # the meaningful assertion is that the finetuned side is what carries signal.
+    assert ft.grad.abs().sum() > 0
+
+
+def test_fully_masked_batch_returns_zero_tensor_not_nan():
+    lab = torch.full((BATCH, SEQ), -100)
+    out = instruct_kl_tensor(_logits(131), _logits(132), lab)
+    assert float(out) == 0.0
+    assert not torch.isnan(out)

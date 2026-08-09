@@ -58,6 +58,12 @@ class CustomEvalSaveCallback(TrainerCallback):
         # unverified, with it a merge that does not beat the best single
         # checkpoint is rolled back. Wired by the train_*.py entry points.
         self.merge_eval_fn = None
+        # KL-flagged instruct tasks only. kl_coef is the validator's coefficient;
+        # kl_metric_fn is a () -> float returning KL(finetuned || base) on the dev
+        # set for the current model. Both unset means checkpoint ranking is plain
+        # eval loss, i.e. unchanged. Wired by train_instruct.py.
+        self.kl_coef = None
+        self.kl_metric_fn = None
         self.function_when_to_evaluate = function_when_to_evaluate
         self.submission_dir = submission_dir
         self.current_best_loss = None
@@ -223,7 +229,34 @@ class CustomEvalSaveCallback(TrainerCallback):
         self._wsm_last_eval_step: int = -1
 
     def compute_loss(self, state: TrainerState, metrics):
-        return metrics.get("eval_loss", None)
+        """Metric this callback ranks checkpoints by.
+
+        Normally the held-out eval loss. On a KL-flagged instruct task the
+        validator ranks on `eval_loss + kl_coef * KL(finetuned || base)`, so we
+        rank the same way — otherwise we would train the weighted objective and
+        then pick the checkpoint that happens to look best on the unweighted one.
+
+        The KL for a given eval is supplied by the trainer through
+        `kl_metric_fn`; without it we fall back to plain eval loss, which is
+        exactly today's behaviour.
+        """
+        eval_loss = metrics.get("eval_loss", None)
+        if eval_loss is None or not self.kl_coef or self.kl_metric_fn is None:
+            return eval_loss
+        try:
+            kl = float(self.kl_metric_fn())
+            if kl != kl:  # NaN
+                raise ValueError("KL metric is NaN")
+            weighted = float(eval_loss) + self.kl_coef * kl
+            print(
+                f"[kl] checkpoint metric: {eval_loss:.6f} + {self.kl_coef} * {kl:.6f} "
+                f"= {weighted:.6f}",
+                flush=True,
+            )
+            return weighted
+        except Exception as exc:
+            print(f"[kl] checkpoint metric unavailable ({exc}) — ranking on eval_loss", flush=True)
+            return eval_loss
 
     def _probe_loss(self, state: TrainerState) -> float:
         """Score for the current LR-probe run.
