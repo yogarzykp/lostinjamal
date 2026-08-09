@@ -569,6 +569,23 @@ def main():
     else:
         log_info("[WSM] TRAINING_WSM_GATE=0 — merge written unverified")
 
+    # Per-example eval losses, recorded to telemetry on every eval.
+    # Observational only — see the note in customized_trainer.on_evaluate. The
+    # vector is what lets us check, after these runs, whether win-rate selection
+    # would have chosen differently than the mean did.
+    from per_example_eval import collect_per_example_losses, enabled as _pe_enabled
+
+    if _pe_enabled():
+        def _per_example_eval():
+            return collect_per_example_losses(
+                trainer.model,
+                trainer.get_eval_dataloader(),
+                device=trainer.args.device,
+            )
+
+        _eval_save_callback.per_example_eval_fn = _per_example_eval
+        log_info("[per-example] recording per-example eval losses to telemetry")
+
     # Rank checkpoints by the metric the validator ranks by. Training the
     # composite objective is only half the job: without this, we would optimise
     # eval_loss + kl_coef*KL and then submit whichever checkpoint minimised plain

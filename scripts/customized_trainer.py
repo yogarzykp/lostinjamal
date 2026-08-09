@@ -64,6 +64,11 @@ class CustomEvalSaveCallback(TrainerCallback):
         # eval loss, i.e. unchanged. Wired by train_instruct.py.
         self.kl_coef = None
         self.kl_metric_fn = None
+        # Optional () -> list[float] returning one token-averaged loss per dev
+        # example, in scored order. Purely observational: it is written to
+        # telemetry and nothing reads it back. Wired by the train_*.py entry
+        # points; unset means no per-example record for this run.
+        self.per_example_eval_fn = None
         self.function_when_to_evaluate = function_when_to_evaluate
         self.submission_dir = submission_dir
         self.current_best_loss = None
@@ -517,6 +522,54 @@ class CustomEvalSaveCallback(TrainerCallback):
             )
         except Exception:
             pass
+
+        # Record per-example eval losses. LOGGING ONLY — nothing below reads
+        # this, and selection stays on the mean.
+        #
+        # The validator is moving knockout and boss rounds onto an example-by-
+        # example comparison (PR #1345). We are not following yet: group rounds
+        # are still mean-ranked, the PR is unmerged, and the selection stack it
+        # would touch has not run on a GPU. But the vector is free to capture on
+        # runs we are doing anyway, and having it lets us ask afterwards —
+        # against real data — whether win-rate selection would ever have picked a
+        # different checkpoint than the mean did. That measurement, not the PR,
+        # is what should decide adoption.
+        #
+        # Costs one extra forward pass over the dev set per eval. Set
+        # EMIT_PER_EXAMPLE_LOSSES=0 to skip it.
+        try:
+            from per_example_eval import (
+                collect_per_example_losses,
+                enabled,
+                summarise,
+                vector_fingerprint,
+            )
+
+            if enabled() and self.per_example_eval_fn is not None:
+                vec = self.per_example_eval_fn()
+                if vec:
+                    stats = summarise(vec)
+                    print(
+                        f"[per-example] step={state.global_step} {stats} "
+                        f"fp={vector_fingerprint(vec)}",
+                        flush=True,
+                    )
+                    from telemetry import record
+
+                    record(
+                        "per_example_eval",
+                        {
+                            "step": int(state.global_step),
+                            "eval_loss_reported": float(eval_loss),
+                            "summary": stats,
+                            "fingerprint": vector_fingerprint(vec),
+                            "losses": vec,
+                        },
+                        output_dir=self.output_dir,
+                    )
+        except Exception as _exc:
+            print(f"[per-example] skipped ({type(_exc).__name__}: {_exc})", flush=True)
+
         # Track for window smoothing
         self.eval_history.append(float(eval_loss))
         # WSM: record latest eval_loss+step pair so on_save can track ckpt to pool.
