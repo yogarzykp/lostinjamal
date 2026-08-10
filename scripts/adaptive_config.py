@@ -1463,6 +1463,31 @@ def build_adaptive_run_config(
             )
             batch = _vocab_cap
 
+    # A KL task pays for a SECOND full [batch, seq, vocab] logits tensor: the
+    # reference forward under disable_adapter(), live at the same time as the
+    # student's. The batch buckets above were fitted on runs that produce one.
+    #
+    # Measured 2026-08-10 on this exact path — SmolLM-135M, vocab 49152, batch
+    # 70, seq 2048 — the reference forward asked for 13.12 GiB and OOM'd. The
+    # KL term is caught and the step silently continues on plain CE, so the run
+    # LOOKS fine while training on the wrong objective for a task the validator
+    # scores with KL. Chunking the KL math (kl_objective.kl_per_token_chunked)
+    # bounds the arithmetic temporaries but cannot shrink the logits tensor
+    # itself, so the batch has to come down.
+    #
+    # Quartering is sized to the cause, not picked round: two bf16 logits
+    # tensors plus the chunked fp32 working set is roughly 4x the single-tensor
+    # budget the buckets assume. The grad-accum step below sees the smaller
+    # batch and raises accumulation, so the effective batch barely moves.
+    if _kl_on and batch > 1:
+        _kl_batch = max(1, batch // 4)
+        print(
+            f"[adaptive] KL task → batch {batch}→{_kl_batch} "
+            f"(reference logits double the peak; grad-accum compensates)",
+            flush=True,
+        )
+        batch = _kl_batch
+
     # Init LR — heuristic from arch+param (LRRT can refine in Phase 2)
     # Range: log-scale based on param_count (smaller = higher LR for non-Instruct path).
     # Tiny bucket added 2026-05-03 from f5fbe40f GRPO 135M LOSE: winner used 8e-6
