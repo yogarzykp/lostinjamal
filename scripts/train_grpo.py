@@ -57,6 +57,7 @@ from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 import yaml
 from tokenize_grpo import get_dataset
 from customized_trainer import resize_if_needed, set_generation_config, CustomEvalSaveCallback, GRPOCustomEvalSaveCallback, WhenToEvalHandler, init_wandb
+from attn_fallback import load_with_attn_fallback
 
 LOCAL_RANK = int(os.getenv("LOCAL_RANK", "0"))
 GRPO_DEFAULT_NUM_GENERATIONS = 2
@@ -409,7 +410,14 @@ def main():
     else:
         model_class = transformers.AutoModelForCausalLM
 
-    model = model_class.from_pretrained(train_request["model_path"], **model_kwargs)
+    # Wrapping only the first load: the helper downgrades model_kwargs in place,
+    # so the PEFT load below inherits the working setting.
+    model = load_with_attn_fallback(
+        model_class.from_pretrained,
+        train_request["model_path"],
+        model_kwargs=model_kwargs,
+        log=log_info,
+    )
 
     # some model need to set the generation config or encounter the invalid generation config error
     set_generation_config(train_request["model_name"], model)

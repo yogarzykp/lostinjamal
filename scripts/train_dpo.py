@@ -50,6 +50,7 @@ import bitsandbytes as bnb
 import yaml
 from tokenize_dpo import get_dataset
 from transformers.modeling_utils import is_deepspeed_zero3_enabled
+from attn_fallback import load_with_attn_fallback
 
 
 
@@ -239,7 +240,14 @@ def main():
     else:
         model_class = transformers.AutoModelForCausalLM
 
-    model = model_class.from_pretrained(train_request["model_path"], **model_kwargs)
+    # Wrapping only the first load: the helper downgrades model_kwargs in place,
+    # so the ref-model and PEFT loads below inherit the working setting.
+    model = load_with_attn_fallback(
+        model_class.from_pretrained,
+        train_request["model_path"],
+        model_kwargs=model_kwargs,
+        log=log_info,
+    )
     if len(training_args.fsdp) > 0 or is_deepspeed_zero3_enabled():
         # set gradient checkpointing to True with use_reentrant=True for deepspeed
         log_info("Setting gradient checkpointing to True with use_reentrant=True for deepspeed")

@@ -1,7 +1,7 @@
 """
 EXP-HYPER-PORT-E 2026-05-20 — LARS-style per-layer LR application.
 
-Source: /Users/zulist/Documents/text/hyper-text/scripts/per_layer_optimizer.py
+Source: per_layer_optimizer.py
 Tournament audit 2026-05-20: winner 5C7vE26G77n7 uses per-layer LR optimizer
 with 12 param-groups. Fingerprint:
     [per-layer-lr] custom optimizer built: 12 groups,

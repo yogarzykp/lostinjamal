@@ -224,7 +224,7 @@ def _grpo_vanilla_batch_cap(param_count: int) -> int:
 #   B. depth-warmup: √depth scaling of warmup_steps for deeper models
 #   C. gqa-batch-boost: GQA-aware batch boost (×1.20 when gqa_ratio >= 4)
 #
-# Source: /Users/zulist/Documents/text/hyper-text/scripts/hp_override.py
+# Source: hp_override.py
 #   A: _maybe_adaptive_sequence_len (lines 960-1088, Sprint C7)
 #   B: _maybe_depth_scaled_warmup (lines 702-742, Sprint A3)
 #   C: _maybe_gqa_batch_boost (lines 845-886, Sprint A1)

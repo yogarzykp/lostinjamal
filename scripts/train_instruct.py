@@ -32,6 +32,7 @@ import bitsandbytes as bnb
 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 import yaml
 from state_manager import get_state, set_state
+from attn_fallback import load_with_attn_fallback
 
 LOCAL_RANK = int(os.getenv("LOCAL_RANK", "0"))
 
@@ -177,11 +178,15 @@ def load_model(training_args: TrainingArguments, model_path: str, token_nums: in
         log_info(f"Using {attn_implementation} as the attention implementation")
     log_info(f"Using attn_implementation: {attn_implementation}")
     
-    model = model_class.from_pretrained(
+    model = load_with_attn_fallback(
+        model_class.from_pretrained,
         model_path,
-        # trust_remote_code=True, remove this because we already filter the model architecture, it will not be used with liger-kernel 
-        torch_dtype=torch.bfloat16,
-        attn_implementation=attn_implementation,
+        model_kwargs=dict(
+            # trust_remote_code=True, remove this because we already filter the model architecture, it will not be used with liger-kernel
+            torch_dtype=torch.bfloat16,
+            attn_implementation=attn_implementation,
+        ),
+        log=log_info,
     )
     # model.resize_token_embeddings(token_nums)
     return model

@@ -1,7 +1,7 @@
 """
 EXP-HYPER-PORT-E 2026-05-20 — minimal weight-stats extraction (CPU-only).
 
-Source slice from /Users/zulist/Documents/text/hyper-text/scripts/model_features.py.
+Source slice from model_features.py.
 Only includes the parts needed for per-layer LR multiplier computation
 (extract_weight_stats + helpers). Skips arch/shape extraction since adaptive_config
 already pulls those via AutoConfig.
