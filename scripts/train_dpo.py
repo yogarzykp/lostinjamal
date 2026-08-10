@@ -155,7 +155,7 @@ def main():
     # max_length = model.config.max_position_embeddings instead of TRL default 1024.
     # Train with matching cap so long DPO samples aren't silently truncated only here.
     try:
-        _model_cfg = AutoConfig.from_pretrained(train_request["model_path"], trust_remote_code=True)
+        _model_cfg = AutoConfig.from_pretrained(train_request["model_path"], trust_remote_code=False)
         _max_pos = (
             getattr(_model_cfg, "max_position_embeddings", None)
             or getattr(_model_cfg, "n_positions", None)

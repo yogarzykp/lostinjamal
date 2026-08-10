@@ -47,7 +47,7 @@ def detect_arch_family(model_path: str) -> str:
     Survives model_name anonymization (per Gradients roadmap).
     """
     try:
-        cfg = AutoConfig.from_pretrained(model_path, trust_remote_code=True)
+        cfg = AutoConfig.from_pretrained(model_path, trust_remote_code=False)
     except Exception as e:
         print(f"[dynamics] AutoConfig failed: {e}", flush=True)
         return "unknown"
@@ -87,7 +87,7 @@ def get_param_count(model_path: str) -> Optional[int]:
     vs SwiGLU 3×).
     """
     try:
-        cfg = AutoConfig.from_pretrained(model_path, trust_remote_code=True)
+        cfg = AutoConfig.from_pretrained(model_path, trust_remote_code=False)
     except Exception:
         return None
     h = getattr(cfg, "hidden_size", None)

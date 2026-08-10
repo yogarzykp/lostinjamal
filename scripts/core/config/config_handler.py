@@ -61,7 +61,7 @@ def update_flash_attention(config: dict, model: str):
 
 def update_model_info(config: dict, model: str, job_id: str = "", expected_repo_name: str | None = None):
     logger.info("WE ARE UPDATING THE MODEL INFO")
-    tokenizer = AutoTokenizer.from_pretrained(model, trust_remote_code=True)
+    tokenizer = AutoTokenizer.from_pretrained(model, trust_remote_code=False)
     if tokenizer.pad_token_id is None and tokenizer.eos_token_id is not None:
         config["special_tokens"] = {"pad_token": tokenizer.eos_token}
 

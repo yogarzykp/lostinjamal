@@ -28,7 +28,7 @@ def _resolve_max_length(model_path: str) -> int | None:
     """
     try:
         from transformers import AutoConfig
-        cfg = AutoConfig.from_pretrained(model_path, trust_remote_code=True)
+        cfg = AutoConfig.from_pretrained(model_path, trust_remote_code=False)
         max_emb = getattr(cfg, "max_position_embeddings", None)
         if max_emb and max_emb < 2 * VALIDATOR_SEQUENCE_LEN:
             return ceil(max_emb / 2)
