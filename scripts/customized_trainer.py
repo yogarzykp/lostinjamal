@@ -69,6 +69,17 @@ class CustomEvalSaveCallback(TrainerCallback):
         # telemetry and nothing reads it back. Wired by the train_*.py entry
         # points; unset means no per-example record for this run.
         self.per_example_eval_fn = None
+
+        # BUGFIX 2026-08-10, found on the first real GPU run. The best-checkpoint
+        # gate in on_save reads self._h3_last_proxy, but only the GRPO subclass
+        # ever assigned it — so on instruct and DPO the first save raised
+        # AttributeError and killed the run. The gate's own comment says
+        # "_h3_last_proxy=None (non-GRPO / no proxy yet) -> always save (legacy)",
+        # i.e. None was the intended non-GRPO value; it was simply never set on
+        # the base class. Initialising both here restores that intent and leaves
+        # the GRPO path unchanged (it overwrites them as before).
+        self._h3_last_proxy: Optional[float] = None
+        self._submission_proxy: Optional[float] = None
         self.function_when_to_evaluate = function_when_to_evaluate
         self.submission_dir = submission_dir
         self.current_best_loss = None
