@@ -449,31 +449,33 @@ class CustomEvalSaveCallback(TrainerCallback):
                         print(f"No checkpoint found, just save the model at step: {state.global_step}", flush=True)
                         control.should_evaluate = False
                         self.save_only = True
-                    # BUGFIX 2026-08-10: actually stop at the deadline.
-                    #
-                    # This branch used to only eval and save. The handler's own
-                    # end_time check latches (`not self.run_eval`), so it fired
-                    # once and never again — training then ran on past the budget.
-                    # Observed on the first real GPU run: end_time 04:29, still
-                    # training at 05:13, 44 minutes over.
-                    #
-                    # That is not merely untidy. text_trainer's post-training
-                    # safety nets — the NaN/Inf scan of the final checkpoint and
-                    # restore_submission_architectures — only run after
-                    # trainer.train() RETURNS. A container killed by the validator
-                    # at hours_to_complete skips both, and the architectures
-                    # restore is what keeps the validator's is_finetune check from
-                    # failing the submission outright. So an overrun does not cost
-                    # a few ranks; it can cost the whole submission.
-                    #
-                    # Stopping here hands control back so those nets run, with the
-                    # eval and save above already done.
-                    print(
-                        f"[deadline] stopping at step {state.global_step} — budget reached; "
-                        f"handing back so the post-training checks can run",
-                        flush=True,
-                    )
-                    control.should_training_stop = True
+
+            if when_to_eval["reason"] == "end_time":
+                # BUGFIX 2026-08-10: actually stop at the deadline.
+                #
+                # This branch used to only eval and save. The handler's own
+                # end_time check latches (`not self.run_eval`), so it fired
+                # once and never again — training then ran on past the budget.
+                # Observed on the first real GPU run: end_time 04:29, still
+                # training at 05:13, 44 minutes over.
+                #
+                # That is not merely untidy. text_trainer's post-training
+                # safety nets — the NaN/Inf scan of the final checkpoint and
+                # restore_submission_architectures — only run after
+                # trainer.train() RETURNS. A container killed by the validator
+                # at hours_to_complete skips both, and the architectures
+                # restore is what keeps the validator's is_finetune check from
+                # failing the submission outright. So an overrun does not cost
+                # a few ranks; it can cost the whole submission.
+                #
+                # Stopping here hands control back so those nets run, with the
+                # eval and save above already done.
+                print(
+                    f"[deadline] stopping at step {state.global_step} — budget reached; "
+                    f"handing back so the post-training checks can run",
+                    flush=True,
+                )
+                control.should_training_stop = True
         return control
 
 

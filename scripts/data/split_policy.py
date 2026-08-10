@@ -144,6 +144,23 @@ def leak_safe_split(
         else:
             train.extend(bucket)
 
+    # A templated dataset — one instruction repeated over thousands of rows — puts
+    # every row in a single oversized bucket, and the loop above sends all of them
+    # to train. An empty dev set is not a degraded split, it is a dead run: the
+    # packer divides by len(dev) and raises before training starts, so the task
+    # scores nothing. A dev set that leaks is strictly better than no submission,
+    # so when the leak-free carve comes up empty we take rows anyway and say so.
+    forced_leak = 0
+    if not dev and train:
+        forced_leak = min(target, max(1, len(train) // 2))
+        dev = train[:forced_leak]
+        train = train[forced_leak:]
+
+    # The mirror case: a tiny dataset can put every bucket in dev and leave
+    # nothing to train on. Training is the point, so it wins the last row.
+    if not train and len(dev) > 1:
+        train, dev = dev[1:], dev[:1]
+
     stats = {
         "n": n,
         "buckets": len(buckets),
@@ -152,5 +169,6 @@ def leak_safe_split(
         "target": target,
         "dev": len(dev),
         "train": len(train),
+        "forced_leak": forced_leak,
     }
     return train, dev, stats

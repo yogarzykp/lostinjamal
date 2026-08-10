@@ -19,6 +19,13 @@ FALLBACK_ATTN = "sdpa"
 _NON_FLASH = ("eager", FALLBACK_ATTN)
 
 
+def _is_oom(exc: BaseException) -> bool:
+    """Detected by name and message so this module never has to import torch."""
+    if type(exc).__name__ in ("OutOfMemoryError", "CUDAOutOfMemoryError"):
+        return True
+    return "out of memory" in str(exc).lower()
+
+
 def load_with_attn_fallback(loader, *args, model_kwargs, log=print, **kwargs):
     """``loader(*args, **model_kwargs, **kwargs)``, retried once without flash attention.
 
@@ -30,6 +37,13 @@ def load_with_attn_fallback(loader, *args, model_kwargs, log=print, **kwargs):
         return loader(*args, **model_kwargs, **kwargs)
     except Exception as exc:
         if requested is None or requested in _NON_FLASH:
+            raise
+        # An OOM is not a missing kernel. Retrying would fail again — the first
+        # attempt's allocations are still resident — and the second traceback
+        # would blame sdpa, hiding the real cause from the OOM ladder in
+        # text_trainer, which recovers by lowering batch size and max_length.
+        # Let it through untouched.
+        if _is_oom(exc):
             raise
         log(
             f"attn_implementation={requested} unavailable "
