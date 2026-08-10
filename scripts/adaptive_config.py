@@ -179,6 +179,14 @@ def _select_grpo_max_completion(seq_len_p95: int) -> int:
     return min(1024, max(512, int(seq_len_p95 * 1.2)))
 
 
+# Sequence length the 1-GPU empirical batch buckets below were most likely fitted
+# at. Used to scale those buckets when a task's max_length exceeds it — see the
+# note at the bucket site. Stated as a constant because it is an assumption about
+# historical runs, not a measurement, and a hidden assumption is what let the
+# length bug go unnoticed in the first place.
+BUCKET_REFERENCE_LEN = 1024
+
+
 def _grpo_vanilla_batch_cap(param_count: int) -> int:
     """Vanilla bucket batch ceilings from scripts/grpo_config.py:GRPO_CONFIG.
 
@@ -1356,8 +1364,35 @@ def build_adaptive_run_config(
         else:
             # 10B+: conservative scale-down (no verified data, scale ~2× from 7B).
             _bucket = 4 if _is_dpo else 14
-        batch = min(batch, _bucket)
-        print(f"[adaptive] 1-GPU empirical bucket: batch={batch} (target={_bucket} for param={param_count/1e9:.2f}B)", flush=True)
+        # These buckets are absolute counts fitted from observed winning runs, and
+        # nothing in them refers to sequence length — so they silently assume the
+        # length those runs used. `estimate_max_batch_size` above already scales
+        # with seq_len (activations are linear in it), but once a bucket binds,
+        # that scaling is discarded: the same batch at twice the length is twice
+        # the activation memory.
+        #
+        # That assumption was safe only while max_length was systematically too
+        # small. Correcting the length measurement raises it, so the buckets have
+        # to move with it or the first attempt OOMs and the ladder pays for it in
+        # wasted minutes against a hard deadline.
+        #
+        # BUCKET_REFERENCE_LEN is an assumption, stated rather than hidden: the
+        # legacy `_select_max_length` floor is 1024, and the validator halving
+        # rule lands most models there, so it is the length these buckets were
+        # most likely fitted at. Scaling is ONE-DIRECTIONAL — a longer sequence
+        # shrinks the bucket, a shorter one never inflates it — because the
+        # buckets are safety limits and relaxing an empirical limit on a guess is
+        # not something a measurement supports.
+        _bucket_scaled = _bucket
+        if max_length > BUCKET_REFERENCE_LEN:
+            _bucket_scaled = max(1, int(_bucket * BUCKET_REFERENCE_LEN / max_length))
+            print(
+                f"[adaptive] batch bucket scaled for length: {_bucket} -> {_bucket_scaled} "
+                f"(max_length={max_length} vs reference {BUCKET_REFERENCE_LEN})",
+                flush=True,
+            )
+        batch = min(batch, _bucket_scaled)
+        print(f"[adaptive] 1-GPU empirical bucket: batch={batch} (target={_bucket_scaled} for param={param_count/1e9:.2f}B)", flush=True)
     env_batch = os.getenv("INSTRUCT_BATCH_OVERRIDE")
     if env_batch:
         try:

@@ -282,6 +282,39 @@ def tokenize_dataset(
 
     print(f"Dumped {len(result)} samples to {output_path}")
 
+    # Ground-truth check on our own length measurement.
+    #
+    # `measure_dataset` estimates sequence lengths by tokenizing raw fields; this
+    # is the tokenized dataset that will actually be trained on, so it is the only
+    # place the estimate can be compared against reality. A silent 24x error in
+    # that estimate is what sized max_length at 512 on a task whose real p95 was
+    # 1513, truncating the tail of nearly half the batches with nothing in the log
+    # to show for it.
+    #
+    # Logs only — never raises, never alters the run. A diagnostic is not worth
+    # trading a tournament submission for. Compares against the max_length the
+    # plan chose, so it also reveals a cap set below the data it has to hold.
+    try:
+        realized = sorted(len(dp.get("input_ids", [])) for dp in result)
+        if realized:
+            r_p95 = realized[min(len(realized) - 1, int(0.95 * len(realized)))]
+            over = sum(1 for x in realized if x >= max_length)
+            print(
+                f"[len-check] tokenized dataset p95={r_p95} max={realized[-1]} "
+                f"vs planned max_length={max_length}; "
+                f"{over}/{len(realized)} ({over / len(realized) * 100:.1f}%) reach the cap",
+                flush=True,
+            )
+            if over / len(realized) > 0.10:
+                print(
+                    f"[len-check] WARNING: {over / len(realized) * 100:.1f}% of examples hit "
+                    f"max_length={max_length} — the cap is truncating real training "
+                    f"signal, check the sequence-length measurement",
+                    flush=True,
+                )
+    except Exception as exc:
+        print(f"[len-check] skipped ({type(exc).__name__}: {exc})", flush=True)
+
     with open(output_path, "w") as file:
         json.dump(result, file, ensure_ascii=False)
 
