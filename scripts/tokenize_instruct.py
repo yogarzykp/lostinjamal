@@ -219,14 +219,22 @@ def split_dataset(
     # large one, and a positional slice lets near-duplicate rows straddle the
     # split, which inflates the dev loss that checkpoint selection reads.
     # Falls back to the legacy behaviour if the policy module is unavailable.
-    try:
-        from data.split_policy import leak_safe_split, INSTRUCT_KEYS
-        train_items, dev_items, split_stats = leak_safe_split(data, INSTRUCT_KEYS, seed=seed)
-        print(f"[split] {split_stats}", flush=True)
-    except Exception as exc:
-        print(f"[split] policy unavailable ({exc}) — legacy slice", flush=True)
+    # Gated so a run can be bisected against the legacy behaviour — the split is a
+    # behavioural change like the rest, and a baseline measurement is only a
+    # baseline if every new mechanism is off. Set INSTRUCT_SPLIT_POLICY=0.
+    if os.getenv("INSTRUCT_SPLIT_POLICY", "1") != "1":
+        print(f"[split] INSTRUCT_SPLIT_POLICY=0 — legacy shuffle+slice, dev_size={dev_size}", flush=True)
         dev_items = data[:dev_size]
         train_items = data[dev_size:]
+    else:
+        try:
+            from data.split_policy import leak_safe_split, INSTRUCT_KEYS
+            train_items, dev_items, split_stats = leak_safe_split(data, INSTRUCT_KEYS, seed=seed)
+            print(f"[split] {split_stats}", flush=True)
+        except Exception as exc:
+            print(f"[split] policy unavailable ({exc}) — legacy slice", flush=True)
+            dev_items = data[:dev_size]
+            train_items = data[dev_size:]
     # Save the train and dev datasets
     with open(train_data_path, "w") as file:
         before_len = len(train_items)

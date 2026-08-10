@@ -51,6 +51,7 @@ case "$STAGE" in
     export BASELINE_USE_NEARDUP=0
     export BASELINE_USE_DPO_GAP=0
     export TRAINING_WSM_GATE=0
+    export INSTRUCT_SPLIT_POLICY=0
     export EMIT_PER_EXAMPLE_LOSSES=1   # observational, safe in every stage
     export REG_RATIO_ARG="--reg-ratio 1.1874"   # the value that was live before 2026-08-05
     unset USE_KL KL_COEF || true
