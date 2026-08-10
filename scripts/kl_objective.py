@@ -57,6 +57,14 @@ KL_COEF_MAX = 1.5
 KL_COEF_FALLBACK = 0.8
 
 
+# Element budget for one fp32 temporary inside kl_per_token. The softmax is over
+# the vocab axis, so every position is independent and we can walk the sequence
+# in slices without changing a single per-token value. 2**27 elements is 512 MB
+# per fp32 temporary; kl_per_token holds several at once, so this keeps the
+# transient peak in the low gigabytes whatever the model and vocab are.
+KL_CHUNK_ELEMENTS = 2 ** 27
+
+
 def kl_per_token(base_logits: torch.Tensor, finetuned_logits: torch.Tensor) -> torch.Tensor:
     """KL(finetuned || base) at every position, summed over vocab.
 
@@ -66,6 +74,35 @@ def kl_per_token(base_logits: torch.Tensor, finetuned_logits: torch.Tensor) -> t
     ft_log_probs = F.log_softmax(finetuned_logits.float(), dim=-1)
     ft_probs = ft_log_probs.exp()
     return (ft_probs * (ft_log_probs - base_log_probs)).sum(dim=-1)
+
+
+def kl_per_token_chunked(
+    base_logits: torch.Tensor,
+    finetuned_logits: torch.Tensor,
+    chunk_elements: int = KL_CHUNK_ELEMENTS,
+) -> torch.Tensor:
+    """kl_per_token with the sequence walked in slices to bound peak memory.
+
+    Bitwise-identical to kl_per_token: log_softmax reduces over the vocab axis,
+    so a position's value never depends on any other position. Only the peak
+    number of live fp32 [batch, seq, vocab] temporaries changes.
+
+    This matters because the unchunked form OOMs on real tasks — a 13 GiB
+    allocation failure was observed on a 135M model — and the caller then falls
+    back to an unweighted metric, which silently corrupts checkpoint selection.
+    """
+    batch, seq, vocab = finetuned_logits.shape
+    per_position = max(1, batch * vocab)
+    chunk = max(1, min(seq, chunk_elements // per_position))
+    if chunk >= seq:
+        return kl_per_token(base_logits, finetuned_logits)
+    return torch.cat(
+        [
+            kl_per_token(base_logits[:, i:i + chunk], finetuned_logits[:, i:i + chunk])
+            for i in range(0, seq, chunk)
+        ],
+        dim=1,
+    )
 
 
 def instruct_kl_tensor(
@@ -79,7 +116,7 @@ def instruct_kl_tensor(
     Returns a zero tensor when nothing is trainable, matching the validator's
     early return rather than dividing by zero.
     """
-    kl = kl_per_token(base_logits, finetuned_logits)
+    kl = kl_per_token_chunked(base_logits, finetuned_logits)
     mask = (labels != -100).to(kl.dtype)
     total = mask.sum()
     if total.item() == 0:

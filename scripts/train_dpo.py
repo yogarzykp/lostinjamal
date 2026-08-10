@@ -301,12 +301,18 @@ def main():
     if is_main_process(LOCAL_RANK):
         set_state(state)
     
-    total_steps_per_epoch = len(train_ds) // (
-                training_args.per_device_train_batch_size
-                * training_args.gradient_accumulation_steps
-                * training_args.world_size
-            )
-    
+    # Recomputed here because batch/accum may have moved since the first
+    # estimate. Same guarded form as above, not a bare `//`: a dataset smaller
+    # than one effective batch floors this to 0, and WhenToEvalHandler then does
+    # `global_step % steps_per_epoch` (customized_trainer.py:1509) and dies with
+    # ZeroDivisionError on the first step. ceil also stops a partial last batch
+    # from being dropped from the count.
+    _eff_batch_now = max(_MIN_BATCH_FLOOR, training_args.per_device_train_batch_size
+                         * training_args.gradient_accumulation_steps
+                         * training_args.world_size)
+    total_steps_per_epoch = max(1, _math.ceil(len(train_ds) / _eff_batch_now))
+
+
     total_steps_all_epochs = total_steps_per_epoch * training_args.num_train_epochs
     log_info(f"total_steps_per_epoch: {total_steps_per_epoch}; total_steps_all_epochs: {total_steps_all_epochs}")
     

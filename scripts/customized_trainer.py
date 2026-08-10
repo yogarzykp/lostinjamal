@@ -271,8 +271,32 @@ class CustomEvalSaveCallback(TrainerCallback):
             )
             return weighted
         except Exception as exc:
-            print(f"[kl] checkpoint metric unavailable ({exc}) — ranking on eval_loss", flush=True)
-            return eval_loss
+            # Never hand back a plain eval_loss here. The weighted metric runs
+            # ~1.4x higher than the unweighted one, so a checkpoint whose KL
+            # measurement failed would beat every checkpoint whose KL succeeded,
+            # and selection would be decided by memory pressure rather than by
+            # the model. Retry once with the cache dropped — the failure is
+            # nearly always transient OOM — and if it still fails, rank the
+            # checkpoint last. Discarding one checkpoint is a small loss;
+            # letting it win every comparison corrupts the whole run.
+            print(f"[kl] checkpoint metric failed ({exc}) — retrying with cache cleared", flush=True)
+            try:
+                import torch
+
+                torch.cuda.empty_cache()
+                kl = float(self.kl_metric_fn())
+                if kl != kl:
+                    raise ValueError("KL metric is NaN")
+                weighted = float(eval_loss) + self.kl_coef * kl
+                print(f"[kl] checkpoint metric (retry): {weighted:.6f}", flush=True)
+                return weighted
+            except Exception as exc2:
+                print(
+                    f"[kl] checkpoint metric unavailable after retry ({exc2}) — "
+                    f"ranking this checkpoint last rather than on an incomparable number",
+                    flush=True,
+                )
+                return float("inf")
 
     def _probe_loss(self, state: TrainerState) -> float:
         """Score for the current LR-probe run.
