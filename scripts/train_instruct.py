@@ -109,21 +109,33 @@ def load_lora_model(training_args: TrainingArguments, model_path: str, lora_args
     else:
         model_class = transformers.AutoModelForCausalLM
 
-    model = model_class.from_pretrained(
+    # Same attention resolution as the full-weight loader below: honour the
+    # explicit override, then fall back to sdpa if the kernel will not load.
+    # This path is what KL-flagged tasks take (KL forces LoRA), so leaving it
+    # unguarded cost the whole task whenever flash-attn was unavailable.
+    attn_implementation = "flash_attention_2" if not training_args.disable_fa else "eager"
+    if training_args.use_attn_implementation:
+        attn_implementation = training_args.use_attn_implementation
+    log_info(f"load_lora_model using attn_implementation: {attn_implementation}")
+
+    model = load_with_attn_fallback(
+        model_class.from_pretrained,
         model_path,
-        attn_implementation="flash_attention_2" if not training_args.disable_fa else "eager",
-        torch_dtype=torch.bfloat16,
-        quantization_config=(
-            BitsAndBytesConfig(
-                load_in_4bit=True,
-                bnb_4bit_use_double_quant=True,
-                bnb_4bit_quant_type="nf4",
-                attn_implementation="flash_attention_2" if not training_args.disable_fa else "eager",
-                bnb_4bit_compute_dtype=torch.bfloat16,
-            )
-            if lora_args.q_lora
-            else None
+        model_kwargs=dict(
+            attn_implementation=attn_implementation,
+            torch_dtype=torch.bfloat16,
+            quantization_config=(
+                BitsAndBytesConfig(
+                    load_in_4bit=True,
+                    bnb_4bit_use_double_quant=True,
+                    bnb_4bit_quant_type="nf4",
+                    bnb_4bit_compute_dtype=torch.bfloat16,
+                )
+                if lora_args.q_lora
+                else None
+            ),
         ),
+        log=log_info,
     )
     # do not resize tokem embeddings in LOra --> will encounter size mismatch error in evaluation 
     # model.resize_token_embeddings(token_nums)
