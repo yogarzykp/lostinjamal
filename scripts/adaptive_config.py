@@ -2393,6 +2393,36 @@ def build_adaptive_run_config(
         print(f"[adaptive] per_layer_lr_multipliers compute failed (skipped): "
               f"{type(_exc).__name__}: {_exc}", flush=True)
 
+    # Record the evidence we had and the config we derived from it. This is the
+    # feature side of the dataset a learning-rate estimator will eventually be
+    # fitted on; the label side is written by the trainer callback on evaluate.
+    # Never writes into submission_dir — see telemetry.py.
+    #
+    # Lives here rather than in get_adaptive_training_json because every input
+    # it records (arch, param_count, the step-time source, the dataset metrics)
+    # is local to this function.
+    try:
+        from baseline_stats_reader import read_cached
+        from telemetry import record_config
+
+        record_config(
+            task_type=task_type_lc,
+            baseline_stats=read_cached(),
+            run_config=run_config,
+            extra={
+                "arch": arch,
+                "family": _family_resolved,
+                "param_count": param_count,
+                "step_time_est": _step_time_est,
+                "step_time_source": _step_time_source,
+                "num_samples": ds_metrics.num_samples,
+                "seq_len_p95": ds_metrics.seq_len_p95,
+            },
+            output_dir=train_info.get("output_dir"),
+        )
+    except Exception as _exc:
+        print(f"[telemetry] config record skipped ({type(_exc).__name__}: {_exc})", flush=True)
+
     return run_config, arch
 
 
@@ -2463,30 +2493,6 @@ def get_adaptive_training_json(task_type: str, train_info: dict) -> dict:
     train_request["use_kl"] = _use_kl
     train_request["kl_coef"] = _coef
     train_request["kl_reason"] = _reason
-
-    # Record the evidence we had and the config we derived from it. This is the
-    # feature side of the dataset a learning-rate estimator will eventually be
-    # fitted on; the label side is written by the trainer callback on evaluate.
-    # Never writes into submission_dir — see telemetry.py.
-    try:
-        from telemetry import record_config
-
-        record_config(
-            task_type=task_type_lc,
-            baseline_stats=_baseline_stats,
-            run_config=run_config,
-            extra={
-                "arch": arch,
-                "family": _family_resolved,
-                "param_count": param_count,
-                "step_time_est": _step_time_est,
-                "step_time_source": _step_time_source,
-                "num_samples": ds_metrics.num_samples,
-            },
-            output_dir=train_info.get("output_dir"),
-        )
-    except Exception as _exc:
-        print(f"[telemetry] config record skipped ({_exc})", flush=True)
 
     return {
         "train_request": train_request,
