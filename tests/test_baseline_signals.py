@@ -196,7 +196,7 @@ def test_substitution_can_move_the_epoch_count():
 
 from baseline_signals import (  # noqa: E402
     ENV_SEQLEN,
-    SEQ_LEN_DISAGREEMENT_RATIO,
+    SEQ_LEN_ALARM_RATIO,
     SEQ_LEN_UNDERESTIMATE_RATIO,
     correct_seq_len_p95,
 )
@@ -253,13 +253,33 @@ def test_small_disagreement_keeps_measured():
     assert got == 900
 
 
-def test_wild_disagreement_is_rejected_in_both_directions():
-    high = int(900 * SEQ_LEN_DISAGREEMENT_RATIO * 1.5)
-    low = int(900 / (SEQ_LEN_DISAGREEMENT_RATIO * 1.5))
-    for prep in (high, low):
-        got, reason = correct_seq_len_p95(_seq_stats(prep), 900)
-        assert got == 900
-        assert "disagrees" in reason
+def test_wild_disagreement_still_raises_but_raises_an_alarm():
+    """The rejection branch was removed deliberately.
+
+    It was written on the assumption that our own p95 was roughly right and a
+    large gap meant the validator was measuring something else. The first real
+    run inverted that: our measurement was wrong by 24x, so the guard would only
+    ever have rejected the correct value and preserved the bug. A raise is
+    cheap — the batch ladder absorbs extra length — while truncation is
+    permanent, so we now always take the larger and shout about the divergence.
+    """
+    high = int(900 * SEQ_LEN_ALARM_RATIO * 1.5)
+    got, reason = correct_seq_len_p95(_seq_stats(high), 900)
+    assert got == high, "validator's larger p95 must be taken, not rejected"
+    assert "ALARM" in reason
+
+
+def test_alarm_fires_when_validator_is_far_below_us_too():
+    """Divergence in either direction means one of the two is measuring wrong."""
+    low = int(900 / (SEQ_LEN_ALARM_RATIO * 1.5))
+    got, reason = correct_seq_len_p95(_seq_stats(low), 900)
+    assert got == 900, "still never lowers"
+    assert "ALARM" in reason
+
+
+def test_no_alarm_when_the_two_broadly_agree():
+    got, reason = correct_seq_len_p95(_seq_stats(1000), 900)
+    assert "ALARM" not in reason
 
 
 @pytest.mark.parametrize("measured", [0, -1, None, "900", 1.5])

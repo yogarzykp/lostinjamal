@@ -1171,7 +1171,13 @@ def build_adaptive_run_config(
     ds_path = resolve_dataset_path(task_type_lc, task_id)
     if ds_path and tokenizer is not None:
         try:
-            ds_metrics = measure_dataset(ds_path, tokenizer, max_samples=500)
+            ds_metrics = measure_dataset(
+                ds_path,
+                tokenizer,
+                max_samples=500,
+                field_map=(train_info.get("dataset_type") or {}),
+                task_type=task_type_lc,
+            )
             print(f"[adaptive] dataset metrics: n={ds_metrics.num_samples} p95={ds_metrics.seq_len_p95}", flush=True)
         except Exception as e:
             print(f"[adaptive] WARN: measure_dataset failed ({e}), using defaults", flush=True)
@@ -1232,13 +1238,31 @@ def build_adaptive_run_config(
             f"(constrains drift, and gives free reference logits via disable_adapter)",
             flush=True,
         )
-    max_length = _select_max_length(ds_metrics.seq_len_p95, model_max_position=model_max_position)
+    # max_length must cover the sequence we actually train on. Prefer the
+    # field-mapped measurement; seq_len_p95 comes from a first-match field chain
+    # that selects `output` on a standard instruct row and therefore describes
+    # the completion alone — it under-reported by 24x on a real task and
+    # truncated the long tail of every batch. Falls back to the legacy value when
+    # no field map was available.
+    _len_p95 = ds_metrics.full_seq_p95 or ds_metrics.seq_len_p95
+    _len_p95_src = "full_seq_p95" if ds_metrics.full_seq_p95 else "seq_len_p95 (legacy chain)"
+    print(f"[adaptive] max_length sized from {_len_p95_src}={_len_p95}", flush=True)
+    max_length = _select_max_length(_len_p95, model_max_position=model_max_position)
 
     # EXP-HYPER-PORT-A 2026-05-20: adaptive-seq-len — halve max_length when
     # token p99 << current cap (port from hyper-text Sprint C7). Reduces
     # padding compute (kernel cycles wasted on masked positions).
     # Fingerprint tag preserved for grep compat with winner 5C7vE26G77n7.
-    _p99_for_halving = ds_metrics.seq_len_p99 or ds_metrics.seq_len_p95
+    # Same correction as above: this halves max_length when the p99 sits well
+    # below the cap, so it must read the p99 of the TRAINED sequence. Fed the
+    # completion-only p99 it fired on almost every instruct task and halved a cap
+    # that was already too small.
+    _p99_for_halving = (
+        ds_metrics.full_seq_p99
+        or ds_metrics.full_seq_p95
+        or ds_metrics.seq_len_p99
+        or ds_metrics.seq_len_p95
+    )
     max_length = _maybe_halve_max_length_from_p99(max_length, _p99_for_halving)
 
     # VRAM-aware batch

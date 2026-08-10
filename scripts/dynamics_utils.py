@@ -340,12 +340,105 @@ class DatasetMetrics:
     completion_len_p95: Optional[int] = None
     has_chat_template_signal: bool = False
 
+    # BUGFIX 2026-08-10 — the fields above come from a single "pick the first
+    # field that exists" chain (text, then output, then chosen, then prompt, …).
+    # On a standard instruct row {instruct, input, output} that chain selects
+    # `output`, so seq_len_* described the COMPLETION only and never the prompt.
+    # Measured on a real task: p95 came out 64 tokens where the trained sequence
+    # was 1513 — a 24x underestimate that sized max_length at 512 and truncated
+    # the long tail of every batch.
+    #
+    # The fix is not to change what seq_len_* means, because two consumers want
+    # two different quantities from it: instruct max_length needs the whole
+    # trained sequence, while GRPO's completion-length heuristic was tuned
+    # against the prompt-side number. So both are carried explicitly and each
+    # consumer names the one it wants. seq_len_* keeps the legacy chain value so
+    # nothing silently changes meaning under an existing caller.
+    #
+    # Populated only when measure_dataset is given a field_map; otherwise None
+    # and callers fall back to seq_len_*.
+    full_seq_p95: Optional[int] = None   # prompt + input + completion, as trained
+    full_seq_p99: Optional[int] = None
+    full_seq_max: Optional[int] = None
+    prompt_p95: Optional[int] = None     # prompt side alone
 
-def measure_dataset(dataset_path: str, tokenizer, max_samples: int = 1000) -> DatasetMetrics:
+
+def _tok_len(tokenizer, text: str) -> int:
+    """Token count, tolerant of tokenizer quirks."""
+    if not text:
+        return 0
+    try:
+        return len(tokenizer(text).input_ids)
+    except Exception:
+        try:
+            return len(tokenizer.encode(text))
+        except Exception:
+            return 0
+
+
+def _row_lengths(row: dict, tokenizer, field_map: dict, task_type: str):
+    """(prompt_tokens, full_sequence_tokens) for one row, per the task's field map.
+
+    field_map is the dataset_type the validator handed us — the same mapping the
+    tokenizer uses to build the trained sequence, so this measures the thing that
+    actually has to fit inside max_length rather than whichever key happened to
+    come first in a fallback chain.
+
+    DPO: both chosen and rejected are trained, so the longer of the two is what
+    binds max_length.
+    """
+    tt = (task_type or "").lower()
+
+    if "dpo" in tt:
+        prompt = str(row.get(field_map.get("field_prompt") or "prompt", "") or "")
+        chosen = str(row.get(field_map.get("field_chosen") or "chosen", "") or "")
+        rejected = str(row.get(field_map.get("field_rejected") or "rejected", "") or "")
+        p = _tok_len(tokenizer, prompt)
+        return p, p + max(_tok_len(tokenizer, chosen), _tok_len(tokenizer, rejected))
+
+    if "grpo" in tt:
+        prompt = str(row.get(field_map.get("field_prompt") or "prompt", "") or "")
+        p = _tok_len(tokenizer, prompt)
+        return p, p
+
+    # instruct / chat
+    parts_prompt = []
+    for key in ("field_system", "field_instruction", "field_input"):
+        name = field_map.get(key)
+        if name:
+            v = row.get(name)
+            if isinstance(v, str) and v.strip():
+                parts_prompt.append(v)
+    if not parts_prompt:
+        for name in ("instruct", "instruction", "input", "prompt"):
+            v = row.get(name)
+            if isinstance(v, str) and v.strip():
+                parts_prompt.append(v)
+
+    out_name = field_map.get("field_output") or "output"
+    completion = row.get(out_name)
+    completion = completion if isinstance(completion, str) else ""
+
+    p = _tok_len(tokenizer, "\n\n".join(parts_prompt))
+    return p, p + _tok_len(tokenizer, completion)
+
+
+def measure_dataset(
+    dataset_path: str,
+    tokenizer,
+    max_samples: int = 1000,
+    field_map: dict = None,
+    task_type: str = "instruct",
+) -> DatasetMetrics:
     """Probe dataset for length distribution. Handles both JSON array + JSONL.
 
-    For seq_len_p95 → use to set max_length adaptively (no validator-blind 4096).
     Robust to: malformed JSON, missing fields, both JSON-array and JSONL formats.
+
+    seq_len_* come from a legacy first-match field chain and are kept unchanged so
+    existing callers keep their meaning. When `field_map` is supplied, full_seq_*
+    and prompt_p95 are also computed by measuring exactly the fields the task
+    trains on — see the note on DatasetMetrics for why that distinction exists and
+    what it cost us before it did.
 
     BUGFIX 2026-05-02: previously returned `max(n_samples, 1000)` which clipped
     to the SAMPLED count (capped by max_samples=500). For 4000-record TOFU
@@ -354,6 +447,8 @@ def measure_dataset(dataset_path: str, tokenizer, max_samples: int = 1000) -> Da
     before sampling) so adaptive can pick correct medium/large branch.
     """
     seq_lens: List[int] = []
+    prompt_lens: List[int] = []
+    full_lens: List[int] = []
     n_samples = 0
     chat_signal = False
     objs: List = []
@@ -394,6 +489,19 @@ def measure_dataset(dataset_path: str, tokenizer, max_samples: int = 1000) -> Da
     for obj in objs:
         if not isinstance(obj, dict):
             continue
+
+        # Measure exactly what the task trains on, when we know the mapping.
+        # Kept separate from the legacy chain below so no existing consumer
+        # silently changes meaning — see the note on DatasetMetrics.
+        if field_map:
+            try:
+                p_len, f_len = _row_lengths(obj, tokenizer, field_map, task_type)
+                if f_len > 0:
+                    prompt_lens.append(p_len)
+                    full_lens.append(f_len)
+            except Exception:
+                pass
+
         # Check common field names for both instruct + DPO + GRPO datasets
         text = (
             obj.get("text")
@@ -431,6 +539,32 @@ def measure_dataset(dataset_path: str, tokenizer, max_samples: int = 1000) -> Da
     # Use actual_total when known (post-bugfix); fall back to sampled count
     # (legacy behavior) only when file couldn't be parsed at all.
     final_num_samples = actual_total if actual_total > 0 else max(n_samples, 1000)
+
+    def _pct(values, q):
+        if not values:
+            return None
+        s = sorted(values)
+        return s[min(len(s) - 1, int(q * len(s)))]
+
+    full_p95 = _pct(full_lens, 0.95)
+    if full_p95 is not None:
+        print(
+            f"[dynamics] field-mapped lengths: prompt_p95={_pct(prompt_lens, 0.95)} "
+            f"full_seq_p95={full_p95} full_seq_p99={_pct(full_lens, 0.99)} "
+            f"(legacy chain p95={p95})",
+            flush=True,
+        )
+        if p95 > 0 and full_p95 / p95 > 2.0:
+            # Loud, because this is precisely the divergence that hid a 24x
+            # underestimate: the legacy chain was measuring the completion while
+            # the trained sequence was far longer.
+            print(
+                f"[dynamics] NOTE: legacy chain p95={p95} is {full_p95 / p95:.1f}x "
+                f"below the field-mapped measurement — the chain is measuring a "
+                f"different quantity than the one that must fit in max_length",
+                flush=True,
+            )
+
     return DatasetMetrics(
         num_samples=final_num_samples,
         seq_len_p50=p50,
@@ -438,6 +572,10 @@ def measure_dataset(dataset_path: str, tokenizer, max_samples: int = 1000) -> Da
         seq_len_p99=p99,
         seq_len_max=max(seq_lens),
         has_chat_template_signal=chat_signal,
+        full_seq_p95=full_p95,
+        full_seq_p99=_pct(full_lens, 0.99),
+        full_seq_max=max(full_lens) if full_lens else None,
+        prompt_p95=_pct(prompt_lens, 0.95),
     )
 
 

@@ -113,10 +113,9 @@ def _init_loss_or(baseline_stats, fallback: float, note: str = ""):
 # full-dataset p95 by more than this, the sample missed the tail.
 SEQ_LEN_UNDERESTIMATE_RATIO = 1.15
 
-# Beyond this the two numbers are not describing the same thing (different
-# tokenizer, different prompt formatting, or a schema change) and neither should
-# override the other.
-SEQ_LEN_DISAGREEMENT_RATIO = 4.0
+# Ratio at which the two measurements are no longer plausibly describing the same
+# quantity. This is an ALARM, not a veto — see correct_seq_len_p95.
+SEQ_LEN_ALARM_RATIO = 2.0
 
 
 def correct_seq_len_p95(baseline_stats, measured_p95: int):
@@ -135,11 +134,21 @@ def correct_seq_len_p95(baseline_stats, measured_p95: int):
     So the correction is deliberately ONE-DIRECTIONAL: the validator's number can
     raise ours, never lower it. Asymmetric because the two errors are asymmetric.
 
-    Guard for the case where the numbers disagree wildly: the validator measured
-    the raw dataset with its own tokenizer while we measure our formatted,
-    templated text, so a moderate offset is expected and a large one means they
-    are not describing the same quantity. Past SEQ_LEN_DISAGREEMENT_RATIO we keep
-    our own measurement, which is at least on the text we will actually train on.
+    NO REJECTION THRESHOLD. An earlier version refused the validator's number
+    when the two disagreed by more than 4x, on the theory that such a gap meant
+    they were measuring different quantities. That reasoning was inverted by the
+    first real run: our own measurement was systematically wrong by 24x (it read
+    the completion field instead of the trained sequence), so the guard's only
+    observed effect would have been to reject the correct value and preserve the
+    bug. Since a raise is harmless — over-length costs compute the batch ladder
+    absorbs, while truncation loses data permanently — we now always take the
+    larger of the two.
+
+    The ratio survives as an ALARM: past SEQ_LEN_ALARM_RATIO we still take the
+    validator's number but say loudly that our own primitive disagrees, because
+    that divergence is the cheapest available signal that a measurement bug
+    exists. That is exactly the check that would have caught the 24x error on day
+    one, on any task where baseline stats are present.
     """
     if not _enabled(ENV_SEQLEN):
         return measured_p95, f"{ENV_SEQLEN}=0"
@@ -156,16 +165,19 @@ def correct_seq_len_p95(baseline_stats, measured_p95: int):
         return measured_p95, "no validator seq_length_distribution"
 
     ratio = prep_p95 / measured_p95
-    if ratio > SEQ_LEN_DISAGREEMENT_RATIO or ratio < (1.0 / SEQ_LEN_DISAGREEMENT_RATIO):
-        return measured_p95, (
-            f"validator p95={prep_p95} disagrees with measured {measured_p95} "
-            f"({ratio:.1f}x) — keeping measured"
+    alarm = ""
+    if ratio > SEQ_LEN_ALARM_RATIO or ratio < (1.0 / SEQ_LEN_ALARM_RATIO):
+        alarm = (
+            f" [ALARM] our seq-len measurement disagrees with the validator by "
+            f"{ratio:.1f}x — suspect a measurement bug, not a tokenizer difference"
         )
 
     if ratio >= SEQ_LEN_UNDERESTIMATE_RATIO:
-        return prep_p95, f"raised {measured_p95}->{prep_p95} from validator full-dataset p95"
+        return prep_p95, (
+            f"raised {measured_p95}->{prep_p95} from validator full-dataset p95{alarm}"
+        )
 
-    return measured_p95, f"measured p95 adequate (validator {prep_p95}, {ratio:.2f}x)"
+    return measured_p95, f"measured p95 adequate (validator {prep_p95}, {ratio:.2f}x){alarm}"
 
 
 # Below this the dataset has essentially no duplicates and a dedup pass is time
