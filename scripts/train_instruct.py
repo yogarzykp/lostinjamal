@@ -579,7 +579,17 @@ def main():
             if not os.path.isfile(path):
                 raise FileNotFoundError(f"no merged adapter at {path}")
             set_peft_model_state_dict(trainer.model, load_file(path))
-            return trainer.evaluate()["eval_loss"]
+            # Score the merge with the SAME function that ranked the individual
+            # checkpoints, not a raw eval_loss. On a KL task compute_loss returns
+            # eval_loss + kl_coef * KL, which runs well above the unweighted
+            # number — so comparing a raw eval_loss against a weighted baseline
+            # would accept every merge on exactly the tasks where the merge is
+            # least understood. Routing both sides through one function means the
+            # two can never drift apart again.
+            #
+            # The adapter is already loaded above, so the KL this computes is the
+            # merged model's. state is unused by compute_loss.
+            return _eval_save_callback.compute_loss(None, trainer.evaluate())
 
         _eval_save_callback.merge_eval_fn = _merge_eval
         log_info("[WSM] merge will be gated on held-out loss")

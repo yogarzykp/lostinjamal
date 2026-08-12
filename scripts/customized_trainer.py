@@ -990,16 +990,39 @@ class CustomEvalSaveCallback(TrainerCallback):
         # We take the cheap form of that guarantee: back up the best-only adapter,
         # write the merge, evaluate once, and roll back if it did not improve.
         # One extra evaluation instead of K, and the submission can only get
-        # better. Without merge_eval_fn wired there is no measurement to gate on,
-        # so we keep the previous behaviour and say so.
+        # better.
+        #
+        # BUGFIX 2026-08-10: the gate never armed. It read `current_best_loss`,
+        # which is only assigned when state is restored from Redis (a PREVIOUS
+        # probe run's loss — the wrong baseline anyway) or after an earlier
+        # accepted merge. The live best for this run is maintained by on_evaluate
+        # in `best_checkpoint_info`. So on an ordinary run best_single was None,
+        # the gate was off, the backup was skipped, and the merge overwrote the
+        # scored artefact unverified with nothing to roll back to.
         dst_path = os.path.join(self.submission_dir, weight_filename)
         backup_path = dst_path + ".prewsm"
-        best_single = self.current_best_loss
-        gate_enabled = self.merge_eval_fn is not None and best_single is not None
+
+        best_single = None
+        if self.best_checkpoint_info is not None:
+            best_single = self.best_checkpoint_info.get("loss")
+        if best_single is None:
+            best_single = self.current_best_loss
+
+        if self.merge_eval_fn is None or best_single is None:
+            # No way to measure the merge. Writing it anyway is a coin flip on the
+            # one file we are scored on, and the best-only checkpoint in place is
+            # already measured, so leave it alone. Previously this branch wrote
+            # the merge and printed "ACCEPTED unverified".
+            print(
+                f"[WSM] SKIPPED: nothing to verify the merge against "
+                f"(merge_eval_fn={'wired' if self.merge_eval_fn else 'missing'}, "
+                f"best_single={best_single}) — keeping the best-only submission",
+                flush=True,
+            )
+            return
 
         try:
-            if gate_enabled:
-                shutil.copy2(dst_path, backup_path)
+            shutil.copy2(dst_path, backup_path)
         except Exception as exc:
             print(f"[WSM] could not back up best-only adapter ({exc}) — skipping merge", flush=True)
             return
@@ -1020,14 +1043,6 @@ class CustomEvalSaveCallback(TrainerCallback):
         except Exception as exc:
             print(f"[WSM] save fail (keeping best-only): {exc}", flush=True)
             self._wsm_restore(backup_path, dst_path)
-            return
-
-        if not gate_enabled:
-            print(
-                "[WSM] ACCEPTED unverified: no merge_eval_fn wired, so the merge "
-                "could not be compared against the best single checkpoint",
-                flush=True,
-            )
             return
 
         try:
