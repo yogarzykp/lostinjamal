@@ -87,8 +87,20 @@ common_gates() {
     && pass "$name" "training completed" \
     || fail "$name" "no 'Training successfully done' — post-training checks did not run"
 
+  # Tracebacks alone do not mean failure here: the OOM ladder deliberately crashes an
+  # attempt, halves the batch and relaunches, so a recovered OOM leaves a traceback in
+  # the log of a perfectly good run. Only an incomplete run makes them damning — and
+  # `Training successfully done` above already gates that. So report the count when the
+  # run finished, and fail on it only when it did not.
   local tb; tb=$(grep -aci "^Traceback" "$log")
-  [ "$tb" = "0" ] && pass "$name" "no tracebacks" || fail "$name" "$tb traceback(s) in log"
+  if [ "$tb" = "0" ]; then
+    pass "$name" "no tracebacks"
+  elif grep -aq "Training successfully done" "$log"; then
+    local retried; retried=$(grep -aco "FAST-CRASH" "$log")
+    pass "$name" "$tb traceback(s) from $retried recovered retry/retries, run completed"
+  else
+    fail "$name" "$tb traceback(s) and the run did not complete"
+  fi
 
   [ -s "$sub/model.safetensors" ] || [ -s "$sub/adapter_model.safetensors" ] \
     && pass "$name" "model artefact written" || fail "$name" "no model artefact in $sub"
@@ -198,7 +210,12 @@ for p in "${PATHS[@]}"; do
                 "$SMOKE_DIR/run_instruct_replay.sh" b >"$LOGS/gate_instruct.out" 2>&1
               common_gates instruct "$LOGS/b.log" "/app/checkpoints/$INSTRUCT_TASK/gate-instruct"
               instruct_gates instruct "$LOGS/b.log" ;;
-    kl)       TASK_ID=$INSTRUCT_TASK MODEL=unsloth/Qwen2-1.5B-Instruct HOURS=$HOURS REPO_NAME=gate-kl REPO_DIR=$REPO_DIR \
+    # KL's key assertion is that a WEIGHTED checkpoint metric was computed, and that can
+    # only happen at an eval. Too short a budget and the deadline preempts the first eval,
+    # so the gate reports "the KL path did not run" when the truth is "the run had no time
+    # to get there". Give it its own, longer budget rather than weakening the assertion —
+    # the assertion is the whole point of the KL path.
+    kl)       TASK_ID=$INSTRUCT_TASK MODEL=unsloth/Qwen2-1.5B-Instruct HOURS=${KL_HOURS:-0.6} REPO_NAME=gate-kl REPO_DIR=$REPO_DIR \
                 "$SMOKE_DIR/run_instruct_replay.sh" kl >"$LOGS/gate_kl.out" 2>&1
               common_gates kl "$LOGS/kl.log" "/app/checkpoints/$INSTRUCT_TASK/gate-kl"
               kl_gates kl "$LOGS/kl.log" ;;
