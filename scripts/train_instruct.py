@@ -292,17 +292,16 @@ def main():
         )
         t2 = datetime.datetime.now()
         log_info(f"time for packing train_ds: {(t2 - t1).total_seconds()}")
-        t1 = datetime.datetime.now()
-        dev_ds = PackedDataset(
-            dev_ds,
-            tokenizer,
-            max_input_length=max_length,
-            max_packed_size=training_args.max_packed_size,
-        )
-        t2 = datetime.datetime.now()
-        log_info(f"time for packing dev_ds: {(t2 - t1).total_seconds()}")
+        # dev_ds is deliberately NOT packed. The validator scores a flat mean over
+        # EXAMPLES of each example's token-mean CE, with per_device_eval_batch_size
+        # pinned to 1 (validator/evaluation/evaluators/instruct_text.py:178-186).
+        # A packed dev "example" is many rows glued together, so packing turns our
+        # eval_loss into a token-weighted mean — a different functional from the one
+        # we are ranked on. We would then be selecting checkpoints, and gating the
+        # WSM merge, on a number nobody scores. Leaving dev unpacked costs a few
+        # seconds per eval and makes our metric the validator's metric.
         log_info(f"train_ds: {train_ds.stat()}")
-        log_info(f"dev_ds: {dev_ds.stat()}")
+        log_info(f"dev_ds left unpacked to match the validator's per-example mean")
 
     # ── Cross-lingual detection (Instruct only) ──────────────────────────
     # Measures tokenizer fertility (tokens/char) on raw training text +

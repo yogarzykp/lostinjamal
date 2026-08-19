@@ -36,6 +36,19 @@ def log_info(message: str, event_name: str = "print"):
 
 
 def pad_sequence(sequence: list[int], pad_value: int, max_length: int, padding_side: str) -> list[int]:
+    # Truncate before padding. `[pad] * (max_length - len(sequence))` is [] when the
+    # row is already longer than max_length, so without this the row came back
+    # unpadded AND over-length and the batch collated ragged. That was harmless only
+    # while max_length was a fixed 2048 that tokenisation had already enforced; the
+    # moment max_length can shrink under a row (the OOM ladder halves it in the
+    # request JSON, and tokenisation does not re-run) it becomes a crash.
+    #
+    # Keep the TAIL. In instruct SFT the prompt is masked and the completion carries
+    # every trainable label, so dropping from the front costs context while dropping
+    # from the back would leave a row with no labels at all — which trains nothing
+    # and which the validator filters out of its own eval set.
+    if len(sequence) > max_length:
+        sequence = sequence[-max_length:]
     if padding_side == "left":
         return [pad_value] * (max_length - len(sequence)) + sequence
     else:

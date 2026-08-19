@@ -513,8 +513,8 @@ _FAMILY_PROFILES = {
         "packing": False,
         "max_packed_size": 1,
         "max_length_cap": 2048,
-        "neftune_alpha_small_data": 5,
-        "neftune_alpha_default": 3,
+        "neftune_alpha_small_data": 0,
+        "neftune_alpha_default": 0,
         "warmup_steps_small_data": 15,
         "warmup_steps_default": 35,
         "lr_default": 4.3e-4,        # was 6.2e-4 — empirical 360M cell median
@@ -670,7 +670,7 @@ _FAMILY_PROFILES = {
         "packing": True,
         "max_packed_size": 2,
         "max_length_cap": 4096,
-        "neftune_alpha_small_data": 5,
+        "neftune_alpha_small_data": 0,
         "neftune_alpha_default": 0,
         "warmup_steps_small_data": 35,
         "warmup_steps_default": 35,
@@ -901,7 +901,7 @@ def _apply_task_character_overrides(
         # Reasoning: keep moderate LR, NEFTune helps generalize, more epochs
         # Same data-size-aware adjustment for budget safety
         hp["learning_rate"] = min(hp["learning_rate"], 3e-4)
-        hp["neftune_noise_alpha"] = max(hp.get("neftune_noise_alpha", 0), 3)
+        hp["neftune_noise_alpha"] = 0  # scored on held-out CE; noise does not help it
         data_size = profile.get("actual_total", 10000)
         if data_size < 10_000:
             hp["epoch_num"] = max(hp.get("epoch_num", 3), 4)
@@ -1271,7 +1271,22 @@ def build_adaptive_run_config(
         or ds_metrics.seq_len_p99
         or ds_metrics.seq_len_p95
     )
-    max_length = _maybe_halve_max_length_from_p99(max_length, _p99_for_halving)
+    # Halving is only lossless when the LONGEST row still fits underneath it.
+    # A p99 rule leaves the top 1% of rows tokenised-away but still scored against
+    # us; the validator evaluates the full held-out set, so those rows are pure
+    # loss. Gate on the true max and fall back to the eval window otherwise —
+    # padding compute is cheaper than rows we never see.
+    _halved = _maybe_halve_max_length_from_p99(max_length, _p99_for_halving)
+    _true_max = getattr(ds_metrics, "full_seq_max", None)
+    if _halved < max_length and (_true_max is None or _true_max > _halved):
+        print(
+            f"[adaptive] declining max_length halve {max_length}->{_halved}: "
+            f"longest row is {_true_max} and would be dropped from training "
+            f"while still being scored",
+            flush=True,
+        )
+    else:
+        max_length = _halved
 
     # VRAM-aware batch
     batch = estimate_max_batch_size(
@@ -2507,6 +2522,19 @@ def build_adaptive_run_config(
     except Exception as _exc:
         print(f"[telemetry] config record skipped ({type(_exc).__name__}: {_exc})", flush=True)
 
+    # Mirror the legacy guard (instruct_config.py:340-344). Packing needs flash
+    # attention's varlen path; without it the packed block is attended as one
+    # sequence and rows bleed into each other. The legacy config has always had
+    # this check, the adaptive path never did — so on any family that disables FA
+    # we were packing anyway and training on contaminated blocks.
+    if str(run_config.get("disable_fa", "")).lower() == "true" and run_config.get("packing") == "True":
+        print(
+            "[adaptive] packing disabled: disable_fa is set, and packing without "
+            "flash-attn lets rows attend across block boundaries",
+            flush=True,
+        )
+        run_config["packing"] = "False"
+
     return run_config, arch
 
 
@@ -2552,6 +2580,17 @@ def get_adaptive_training_json(task_type: str, train_info: dict) -> dict:
     train_request["adjust_batch_size"] = False
     train_request["periodic_save_steps"] = 500
     train_request["checking_step"] = 80
+    # Plumb the sequence length we planned. Without this the key is absent and
+    # FOUR consumers silently fall back to scripts/test_axolotl.yml's 2048:
+    #   tokenize_instruct.py:351  -> drops every row over 2048 from the dataset
+    #   train_instruct.py:240     -> trains at 2048 whatever we computed
+    #   estimate_max_batch_size   -> sizes VRAM for a length we never use
+    #   halve_request_max_length  -> returns None, so the OOM ladder's last rung
+    #                                could never fire on an instruct task
+    # _select_max_length already mirrors the validator's halving rule, so this
+    # connects a correct computation to its consumers rather than inventing policy.
+    train_request["max_length"] = run_config["max_length"]
+
     train_request["adaptive_meta"] = {
         "arch_family": arch_family,
         "version": "v1_static",  # v1 = no init_loss/LRRT, v2 will add

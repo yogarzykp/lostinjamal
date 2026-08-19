@@ -14,7 +14,11 @@ from transformers.trainer_utils import is_main_process
 import wandb
 import torch
 from state_manager import get_state, set_state
-MAX_TRIES = 9
+# Capped from 9 on 2026-08-19. Each try relaunches train_instruct.py as a fresh OS
+# process and pays model load + dataset load + packing again, for 80 steps that are
+# thrown away (save_strategy=no). On a 2-4h budget nine of those is 25-60 minutes of
+# training time spent on cold starts. Three still explores; the rest was waste.
+MAX_TRIES = 3
 
 
 MIS_MATCH_VOCAB_SIZE_MODELS = [
