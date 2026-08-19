@@ -45,7 +45,22 @@ def _canonical_text(sample: dict, instruct_keys: tuple[str, ...], output_keys: t
         if isinstance(v, str) and v.strip():
             output = v
             break
-    return f"{instruct.strip()}\n---\n{output.strip()}"
+    if instruct or output:
+        return f"{instruct.strip()}\n---\n{output.strip()}"
+
+    # No configured field held text. That is not evidence the rows are alike — it
+    # means we are looking in the wrong place. A ChatTask row carries only
+    # `conversations`, a LIST of turns, so the loops above find nothing and every
+    # row canonicalises to the same empty string: measured on a real chat dataset
+    # this collapsed 3000 rows to 1 and left the split with zero training rows.
+    #
+    # Fall back to the whole row, serialised deterministically. Genuinely identical
+    # rows still collide, different ones no longer do, and nothing here has to know
+    # the shape of a task type it was not written for.
+    try:
+        return json.dumps(sample, sort_keys=True, ensure_ascii=False, default=str)
+    except Exception:
+        return repr(sorted(sample.items(), key=lambda kv: kv[0]))
 
 
 def _md5(text: str) -> str:
