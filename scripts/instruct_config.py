@@ -226,6 +226,7 @@ def get_run_cmd(config: dict, gpu_nums: int):
     --eval_accumulation_steps 1 \
     --eval_strategy no \
     --save_strategy epoch \
+    --save_total_limit 3 \
     --logging_steps 5 \
     --learning_rate {learning_rate} \
     --weight_decay {weight_decay} \

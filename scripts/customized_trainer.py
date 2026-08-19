@@ -504,6 +504,36 @@ class CustomEvalSaveCallback(TrainerCallback):
                     flush=True,
                 )
                 control.should_training_stop = True
+
+                # Ending the run is not enough: the OUTER loop in text_trainer keeps
+                # relaunching until the shared state reaches "finish", and that
+                # transition normally happens in the checking_mode branch above —
+                # which only runs once global_step reaches checking_step. Stopping at
+                # the deadline can preempt that, and then the subprocess exits
+                # SUCCESSFULLY with the state still "initial", so text_trainer starts
+                # another run, and another. Measured: 244 launches for one task and
+                # 700 GB of per-attempt output dirs before the disk gave out.
+                #
+                # Before the deadline stop existed this could not happen — a run
+                # always overran far enough to reach checking_step and set the state
+                # itself. Fixing the overrun exposed the missing transition, so the
+                # deadline has to make it. Same assignment and the same main-process
+                # guard the `n <= 0` path above uses.
+                if getattr(self, "checking_mode", "none") != "none":
+                    try:
+                        _st = get_state()
+                        _st["mode"] = "finish"
+                        if is_main_process(LOCAL_RANK):
+                            set_state(_st)
+                        print(
+                            "[deadline] probe preempted by the budget — state set to "
+                            "'finish' so the outer loop stops relaunching",
+                            flush=True,
+                        )
+                    except Exception as _exc:
+                        # Never let bookkeeping kill a run that is otherwise done; the
+                        # hard cap in text_trainer is the backstop for this path.
+                        print(f"[deadline] could not set finish state ({_exc})", flush=True)
         return control
 
 

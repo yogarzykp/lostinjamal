@@ -460,6 +460,12 @@ def restore_submission_architectures(submission_dir: str, base_model_path: str) 
         print(f"[arch-restore] failed, leaving submission untouched: {e}", flush=True)
 
 
+# Ceiling on training relaunches for ONE task. The LR ladder needs at most
+# MAX_TRIES + 1; anything beyond that is a state machine that is not converging, and
+# each extra launch costs a fresh multi-GB output dir.
+MAX_LOOP_RUNS = 8
+
+
 def main():
     print("---STARTING TEXT TRAINING SCRIPT---", flush=True)
     parser = argparse.ArgumentParser(description="Text Model Training Script")
@@ -809,6 +815,7 @@ def main():
     count = 0
     while True:
         state = get_state()
+        mode_before = state.get("mode")
         train_cmd = original_train_cmd  # will replace based on the state later
         c_train_info = copy.deepcopy(train_info)
         final_output_dir = None
@@ -921,9 +928,40 @@ def main():
             time.sleep(5)
             if not success:
                 print(f"Training failed for task {args.task_id} at count={count}", flush=True)
-                break 
-        
+                break
+
+            # A run that SUCCEEDS without advancing the state is the one exit this
+            # loop never had. The state normally moves initial -> continue -> finish
+            # inside the training subprocess; if a run is cut short before it gets
+            # there — a deadline preempting the probe, or Redis state lost mid-task —
+            # it exits cleanly with mode still "initial" and we relaunch, forever.
+            # Measured before this guard: 244 launches and 700 GB of per-attempt
+            # output dirs for a single task, budget entirely spent on relaunch churn.
+            # The GRPO branch has carried the same guard since 2026-04-30; this is the
+            # non-GRPO half that was missing.
+            #
+            # Only "initial" is checked: the "continue" arm appends to state["runs"]
+            # every iteration and the ladder is capped at next_runs, so it cannot spin.
+            if mode_before == "initial" and get_state().get("mode") == "initial":
+                print(
+                    f"[loop] run {count} finished without advancing the state machine "
+                    f"(still 'initial') — stopping rather than relaunching. The "
+                    f"submission holds whatever this run saved.",
+                    flush=True,
+                )
+                break
+
         count += 1
+        # Backstop for shapes the check above does not name — state reset, an unseen
+        # transition. The ladder legitimately needs at most MAX_TRIES + 1 runs, so a
+        # generous cap cannot truncate a healthy run but still bounds a runaway.
+        if count > MAX_LOOP_RUNS:
+            print(
+                f"[loop] hard cap: {count} training launches for one task, which no "
+                f"legitimate ladder needs — stopping. Investigate the state machine.",
+                flush=True,
+            )
+            break
 
     if not os.path.exists(submission_dir) or len(os.listdir(submission_dir)) < 2:
         print(f"Training failed for task {args.task_id}", flush=True)
