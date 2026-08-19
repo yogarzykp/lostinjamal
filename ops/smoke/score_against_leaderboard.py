@@ -23,8 +23,14 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "scripts"))
 
-# Real leaderboard for task 865ff4ab-78f2-454d-9d0b-8be506ef42f8, from the
+# Real leaderboard for ONE task — 865ff4ab-78f2-454d-9d0b-8be506ef42f8 — from the
 # auditing API. Rank 1 scored 3.0; every other row scored 0.0.
+#
+# It is only meaningful for THAT task, on THAT task's held-out set. Scoring a replay of a
+# different task and printing these ranks compares two unrelated distributions and reads
+# as "we are far behind" when it means nothing at all. So the table is printed only when
+# --task-id says this is the task it belongs to.
+LEADERBOARD_TASK_ID = "865ff4ab-78f2-454d-9d0b-8be506ef42f8"
 LEADERBOARD = [
     (1, 1.3862991333007812),
     (2, 1.4351),
@@ -51,6 +57,9 @@ def main():
     ap.add_argument("--max-length", type=int, default=2048)
     ap.add_argument("--batch-size", type=int, default=8)
     ap.add_argument("--out", default=None, help="write the per-example vector here")
+    ap.add_argument("--task-id", default=None,
+                    help="task this checkpoint was trained for; the leaderboard table is "
+                         "printed only when it matches the task that leaderboard belongs to")
     args = ap.parse_args()
 
     import torch
@@ -106,24 +115,22 @@ def main():
     print(f"OUR TEST LOSS      : {mean_loss:.4f}")
     print()
 
-    placed = False
-    print("  rank   test_loss   ")
-    for rank, loss in LEADERBOARD:
-        if not placed and mean_loss < loss:
-            print(f"  ---->  {mean_loss:.4f}   <== us")
-            placed = True
-        marker = "  <- winner (scored 3.0)" if rank == 1 else ""
-        print(f"  {rank:>4}   {loss:.4f}{marker}")
-    if not placed:
-        print(f"  ---->  {mean_loss:.4f}   <== us (last)")
-
-    print()
-    if mean_loss < LEADERBOARD[0][1]:
-        print("Would have taken rank 1 on this task.")
-    elif mean_loss < LEADERBOARD[1][1]:
-        print("Rank 2 — under winner-take-all that still scores 0.0.")
+    if args.task_id == LEADERBOARD_TASK_ID:
+        print("  rank   test_loss   ")
+        for rank, loss in LEADERBOARD:
+            marker = "  <- winner (scored 3.0)" if rank == 1 else ""
+            print(f"  {rank:>4}   {loss:.4f}{marker}")
+        print()
+        if mean_loss < LEADERBOARD[0][1]:
+            print("Would have taken rank 1 on this task.")
+        elif mean_loss < LEADERBOARD[1][1]:
+            print("Rank 2 — under winner-take-all that still scores 0.0.")
+        else:
+            print("Outside the top 2.")
     else:
-        print("Outside the top 2.")
+        print("(no leaderboard printed: these ranks belong to task "
+              f"{LEADERBOARD_TASK_ID[:8]}; against another task's held-out set they "
+              f"compare unrelated distributions and mean nothing)")
 
     if args.out:
         with open(args.out, "w") as fh:

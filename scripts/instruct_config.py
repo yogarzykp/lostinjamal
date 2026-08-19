@@ -235,6 +235,7 @@ def get_run_cmd(config: dict, gpu_nums: int):
     --lr_scheduler_type cosine_with_min_lr \
     --lr_scheduler_kwargs "{\\"min_lr_rate\\": {min_lr_rate}}" \
     --tf32 True \
+    --seed {seed} \
     --gradient_checkpointing {gradient_checkpointing} \
     --optim {optimizer} \
     --use_liger {use_liger} \
@@ -298,6 +299,10 @@ def get_training_json(train_info: dict) -> dict:
         "gradient_accumulation_steps": 4,
         "warmup_steps": int(os.getenv("INSTRUCT_WARMUP_STEPS", "35")),
         "weight_decay": 0.01,
+        # Substitution is a per-key replace(), not .format(), so a missing key leaves a
+        # literal "{seed}" in the command and argparse dies on it. The adaptive path
+        # sets this too; both must, because they share this template.
+        "seed": int(os.getenv("INSTRUCT_SEED", "42") or 42),
         "label_smoothing": 0.0,
         # NEFTune noise (arxiv 2310.05914, Jain 2023): adds noise to input embeddings
         # during the forward pass. Held at 5.0 pending an A/B (see adaptive_config.py):

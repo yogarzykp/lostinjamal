@@ -16,7 +16,7 @@
 # with all of it switched off and establishes what the code did BEFORE any of
 # this work. Stage B turns it on. Anything that moves between them is ours.
 #
-# Usage:  ./run_instruct_replay.sh <stage>     stage = a | b | kl
+# Usage:  ./run_instruct_replay.sh <stage>     stage = a | a0 | b | kl
 set -euo pipefail
 
 STAGE="${1:-a}"
@@ -56,6 +56,24 @@ case "$STAGE" in
     export REG_RATIO_ARG="--reg-ratio 1.1874"   # the value that was live before 2026-08-05
     unset USE_KL KL_COEF || true
     ;;
+  a0)
+    # Control arm for the A/B: every feature OFF, but reg_ratio left at the neutral
+    # 1.0 that stage b uses. Stage `a` also carries the historical reg_ratio 1.1874,
+    # so an a-vs-b comparison confounds "our features" with a 19% learning-rate
+    # change and cannot answer which one moved the number. This arm isolates the
+    # features; `a` vs `a0` isolates the learning rate.
+    export ADAPTIVE_MODE=1
+    export INSTRUCT_DEDUP=0
+    export BASELINE_USE_COMPLETION_LOSS=0
+    export BASELINE_USE_SEQLEN=0
+    export BASELINE_USE_NEARDUP=0
+    export BASELINE_USE_DPO_GAP=0
+    export TRAINING_WSM_GATE=0
+    export INSTRUCT_SPLIT_POLICY=0
+    export EMIT_PER_EXAMPLE_LOSSES=1
+    export REG_RATIO_ARG=""            # neutral 1.0, same as stage b
+    unset USE_KL KL_COEF || true
+    ;;
   b)
     export ADAPTIVE_MODE=1
     export INSTRUCT_DEDUP=1
@@ -85,7 +103,7 @@ case "$STAGE" in
     export KL_COEF=1.5
     ;;
   *)
-    echo "unknown stage '$STAGE' (want: a | b | kl)" >&2
+    echo "unknown stage '$STAGE' (want: a | a0 | b | kl)" >&2
     exit 2
     ;;
 esac

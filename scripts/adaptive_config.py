@@ -1054,6 +1054,18 @@ def _compute_instruct_adaptive_hp(
 # Main: build run_config dict (matches legacy interface)
 # ---------------------------------------------------------------------------
 
+def _env_int(name: str, default: int) -> int:
+    """int() an env var without letting a typo abort config build."""
+    raw = os.getenv(name, "")
+    if not raw:
+        return default
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        print(f"[adaptive] {name}={raw!r} is not an int; using {default}", flush=True)
+        return default
+
+
 def build_adaptive_run_config(
     task_type: str,
     train_info: dict,
@@ -2116,6 +2128,11 @@ def build_adaptive_run_config(
             instruct_hp["weight_decay"] if instruct_hp
             else (0.01 if task_type_lc == "instruct" else 0.0)
         ),
+        # HF's TrainingArguments default is 42 and that is what every run so far used;
+        # naming it changes nothing but makes it settable. Needed to measure run-to-run
+        # variance: without varying the seed, repeating a run reproduces it, so there is
+        # no way to tell a real effect from training noise.
+        "seed": _env_int("INSTRUCT_SEED", 42),
         "label_smoothing": 0.0,
         "packing": (
             ("True" if instruct_hp["packing"] else "False") if instruct_hp
