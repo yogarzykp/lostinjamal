@@ -80,11 +80,18 @@ def find_lr_lrrt(
         optimizer.step()
 
         loss_val = loss.item()
-        # EMA smoothing
-        if step == 0:
-            avg_loss = loss_val
-        else:
-            avg_loss = (1 - smooth_factor) * avg_loss + smooth_factor * loss_val
+        # EMA smoothing, Adam-style: the accumulator starts at ZERO and the bias
+        # correction below undoes the resulting cold start.
+        #
+        # It used to seed avg_loss with the first loss and then divide by the same
+        # correction anyway, which inflated the opening points by up to 1/smooth_factor
+        # — a factor of 20 here. On a CONSTANT loss of 2.5 the "smoothed" curve fell
+        # 50 -> 25.6 -> 17.5 -> 13.5 over four steps, a huge negative slope produced by
+        # the smoother rather than by learning. Since the sweep starts at lr_min, that
+        # artefact sat exactly where the LR is too small to do anything, and the
+        # steepest-descent search below picked it every time: observed idx=1/100,
+        # suggested_lr=1.12e-07 on a task whose real rate is 8.07e-05.
+        avg_loss = (1 - smooth_factor) * avg_loss + smooth_factor * loss_val
         bias_corrected = avg_loss / (1 - (1 - smooth_factor) ** (step + 1))
 
         lrs.append(cur_lr)
@@ -115,12 +122,19 @@ def find_lr_lrrt(
         else:
             slopes.append(d_loss / d_loglr)
 
-    # Most negative slope (steepest descent)
-    if all(s >= 0 for s in slopes):
+    # Ignore the opening of the sweep when looking for the steepest descent. Even with
+    # the bias correction fixed, the first handful of points carry the smoother's
+    # remaining warm-up and sit at learning rates too small to move the model — any
+    # slope there is noise, and it is noise at the one end of the range that would
+    # produce a catastrophically low suggestion. Standard practice for a range test is
+    # to discard both ends; this discards the one that has actually bitten us.
+    skip = min(max(5, len(slopes) // 10), max(1, len(slopes) - 1))
+    searchable = slopes[skip:]
+    if not searchable or all(s >= 0 for s in searchable):
         # No descent observed → suggest mid-range LR
         idx = len(lrs) // 2
     else:
-        idx = slopes.index(min(slopes)) + 1  # +1 because slopes[i] = lr[i] - lr[i-1]
+        idx = searchable.index(min(searchable)) + skip + 1  # +1: slopes[i] = lr[i]-lr[i-1]
 
     suggested_lr = lrs[idx]
     # Optional: divide by 10 for safety (Smith's original advice — pick LR slightly LEFT of min)
