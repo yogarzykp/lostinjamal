@@ -839,8 +839,37 @@ def main():
                 n_runs = state["next_runs"]
                 if "lrs" not in state: # first time of continue
                     current_lr = float(state["train"]["lr"])
-                    state["lrs"] = lr_utils.extend_learning_rates(current_lr, n_runs, log_range=get_log_scale(args.task_type))
-                    assert len(state["lrs"]) == n_runs, f"Number of learning rates {state['lrs']} should be equal to number of runs {n_runs}"
+                    # Prefer candidates built around a MEASURED learning rate. The probe
+                    # run writes state["lrrt_lr"] from an LR range test over 1e-7..1e-2;
+                    # extend_learning_rates only spans x0.66..x1.51 of the family table,
+                    # so when that table is wrong every candidate inherits the error. The
+                    # recovery gate measured that: prior poisoned 10x high, the ladder
+                    # picked its own floor and still landed 6.6x high.
+                    _lrrt = state.get("lrrt_lr")
+                    _cands = []
+                    if _lrrt:
+                        try:
+                            import lr_search
+                            _cands = lr_search.confirmation_candidates(
+                                float(_lrrt), current_lr, args.task_type)
+                            print(lr_search.describe(float(_lrrt), current_lr, args.task_type), flush=True)
+                        except Exception as _exc:
+                            print(f"[lr-search] candidate build failed ({_exc}); using the ladder", flush=True)
+                            _cands = []
+                    if _cands:
+                        # The probe run already trained at current_lr and recorded its
+                        # held-out score, so the incumbent arm is paid for; these are the
+                        # rates still to be measured against it.
+                        state["lrs"] = [current_lr] + _cands
+                        n_runs = len(state["lrs"])
+                        state["next_runs"] = n_runs
+                        print(f"[lr-search] confirming {n_runs} rates on held-out loss: "
+                              f"{[f'{x:.3e}' for x in state['lrs']]}", flush=True)
+                    else:
+                        # Fail open to the inherited ladder: a missing or unusable
+                        # measurement must never cost the task its LR search entirely.
+                        state["lrs"] = lr_utils.extend_learning_rates(current_lr, n_runs, log_range=get_log_scale(args.task_type))
+                        assert len(state["lrs"]) == n_runs, f"Number of learning rates {state['lrs']} should be equal to number of runs {n_runs}"
                     state["runs"] = []
                 
                 set_state(state)

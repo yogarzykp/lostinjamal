@@ -673,6 +673,65 @@ def main():
         _eval_save_callback.kl_metric_fn = _kl_metric
         log_info(f"[kl] checkpoint selection weighted by kl_coef={_kl_coef}")
 
+    # ── LR range test, probe run only ───────────────────────────────────────
+    # Measure where loss actually falls fastest across five decades, and hand the
+    # answer to text_trainer through the request state so it can build confirmation
+    # candidates from it instead of nudging +/-51% around the family table.
+    #
+    # Why here: the ladder's candidates were generated from the table LR, so a wrong
+    # table meant every candidate was wrong. Measured with a prior poisoned 10x high,
+    # the ladder selected its own lowest candidate and still landed 6.6x high
+    # (ops/smoke/lr_recovery.sh). The sweep below covers 1e-7..1e-2.
+    #
+    # Only in the probe run: the confirmation runs and the final run must train, not
+    # measure. Disable with INSTRUCT_LRRT=0.
+    if (train_request.get("checking_mode") == "first_time"
+            and os.getenv("INSTRUCT_LRRT", "1") == "1"):
+        try:
+            import lr_search
+            from lr_finder import find_lr_lrrt
+            from torch.utils.data import DataLoader
+            from torch.optim import AdamW
+
+            _n_iter = int(os.getenv("INSTRUCT_LRRT_ITERS", "100"))
+            _loader = DataLoader(train_ds, batch_size=max(1, training_args.per_device_train_batch_size),
+                                 shuffle=True, collate_fn=trainer.data_collator)
+            # A throwaway optimizer: the sweep must not leave Adam moments behind, and
+            # the real optimizer is built by Trainer after this.
+            _opt = AdamW(model.parameters(), lr=1e-7)
+            _lrrt_lr, _, _ = find_lr_lrrt(model, _opt, _loader, num_iter=_n_iter,
+                                          device=str(trainer.args.device))
+            del _opt, _loader
+
+            _st = get_state()
+            _st["lrrt_lr"] = float(_lrrt_lr)
+            if is_main_process(LOCAL_RANK):
+                set_state(_st)
+            log_info(lr_search.describe(_lrrt_lr, training_args.learning_rate,
+                                        train_request.get("task_type", "instruct")))
+        except Exception as _lrrt_exc:
+            # Fail open: without lrrt_lr in the state, text_trainer falls back to the
+            # geometric ladder. A failed measurement must never cost the task.
+            log_info(f"[lr-search] LRRT skipped ({type(_lrrt_exc).__name__}: {_lrrt_exc})")
+        finally:
+            # NON-NEGOTIABLE, and the reason this is not left to lr_finder's own
+            # restore: the sweep runs ~100 optimizer steps up to 1e-2, including
+            # divergent ones, so these weights are ruined. find_lr_for_task does keep
+            # an in-VRAM `detach().clone()` of every trainable parameter, which doubles
+            # trainable-weight VRAM for the duration — an OOM landmine on exactly the
+            # large boss-round models. Reloading from disk costs the 7 s measured on
+            # this path and holds no extra memory. Doing it at the CALL SITE makes it a
+            # structural invariant rather than a property of the finder, because the
+            # failure mode is silent: training continues on damaged weights and the run
+            # looks entirely normal.
+            log_info("[lr-search] reloading model to discard the sweep's weights")
+            _fresh = (load_lora_model(training_args, train_request["model_path"], lora_args, len(tokenizer))
+                      if training_args.use_lora
+                      else load_model(training_args, train_request["model_path"], len(tokenizer)))
+            trainer.model = _fresh
+            model = _fresh
+            trainer.create_optimizer_and_scheduler(num_training_steps=trainer.args.max_steps if trainer.args.max_steps > 0 else 1)
+
     # last_checkpoint = get_last_checkpoint(training_args.output_dir)
     # log_info(f"last_checkpoint: {last_checkpoint}")
     trainer.train()
