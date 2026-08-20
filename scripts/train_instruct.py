@@ -691,17 +691,49 @@ def main():
             import lr_search
             from lr_finder import find_lr_lrrt
             from torch.utils.data import DataLoader
-            from torch.optim import AdamW
 
             _n_iter = int(os.getenv("INSTRUCT_LRRT_ITERS", "100"))
-            _loader = DataLoader(train_ds, batch_size=max(1, training_args.per_device_train_batch_size),
+            # Sweep at a SMALL batch, not the training batch. The range test needs a
+            # usable gradient per step, not throughput, and the training batch is sized
+            # to fill the GPU during training — running it again on top of an already
+            # resident model and Trainer allocations does not fit. Measured: at batch 16,
+            # seq 1024, vocab 151936 the logits alone are 4.98 GB in bf16 and about
+            # twice that once the loss upcasts, which is the 9.27 GiB allocation that
+            # OOM'd this path twice.
+            _sweep_bs = max(1, min(int(os.getenv("INSTRUCT_LRRT_BATCH", "4")),
+                                   training_args.per_device_train_batch_size))
+            _loader = DataLoader(train_ds, batch_size=_sweep_bs,
                                  shuffle=True, collate_fn=trainer.data_collator)
-            # A throwaway optimizer: the sweep must not leave Adam moments behind, and
-            # the real optimizer is built by Trainer after this.
-            _opt = AdamW(model.parameters(), lr=1e-7)
-            _lrrt_lr, _, _ = find_lr_lrrt(model, _opt, _loader, num_iter=_n_iter,
-                                          device=str(trainer.args.device))
+            log_info(f"[lr-search] sweeping at batch={_sweep_bs} "
+                     f"(training batch is {training_args.per_device_train_batch_size})")
+            # Sweep with the optimizer production actually trains with, not a plain
+            # AdamW. Two reasons, one measured. A full-precision AdamW allocates two
+            # fp32 moment tensors per trainable parameter — ~13 GB on a 1.5B full
+            # fine-tune — and that is what OOM'd this path on the first real run
+            # ("Tried to allocate 9.27 GiB"), leaving a sweep truncated after a handful
+            # of points whose "steepest descent" was noise at the bottom of the range
+            # (it returned 1.12e-08). The second reason matters even where memory is
+            # free: an LR range test measures how loss responds to a step, and a
+            # different optimizer takes a different step, so sweeping with AdamW to
+            # choose a rate for paged_adamw_8bit measures the wrong thing.
+            try:
+                import bitsandbytes as _bnb
+                _opt = _bnb.optim.PagedAdamW8bit(model.parameters(), lr=1e-7)
+            except Exception:
+                # SGD holds no moments at all. Less faithful, but a sweep that runs
+                # beats a sweep that OOMs, and the confirmation probe judges the answer.
+                _opt = torch.optim.SGD(model.parameters(), lr=1e-7)
+            _lrrt_lr, _swept, _ = find_lr_lrrt(model, _opt, _loader, num_iter=_n_iter,
+                                               device=str(trainer.args.device))
             del _opt, _loader
+
+            # A sweep cut short covers too little of the range for "steepest descent" to
+            # mean anything; the bounds would clamp the answer to a floor that was never
+            # measured. Refuse it rather than dress it up as a measurement.
+            _min_pts = max(20, _n_iter // 4)
+            if len(_swept) < _min_pts:
+                raise RuntimeError(
+                    f"sweep covered only {len(_swept)}/{_n_iter} points; too few to locate a rate")
 
             _st = get_state()
             _st["lrrt_lr"] = float(_lrrt_lr)
