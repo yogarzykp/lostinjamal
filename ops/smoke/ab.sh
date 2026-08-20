@@ -55,6 +55,9 @@ for arm in "${ARMS[@]}"; do
   echo "--- arm $arm (${HOURS}h) ---"
   # Reclaim first: one arm's per-attempt output dirs must not starve the next.
   rm -rf /workspace/scripts/soutputs/* 2>/dev/null
+  # And wait for the GPU to drain: batch size is planned from live free VRAM, so an arm
+  # started too early plans a different batch and is no longer the same experiment.
+  "$SMOKE_DIR/wait_gpu.sh" >&2
   TASK_ID="$TASK_ID" MODEL="$MODEL" HOURS="$HOURS" REPO_NAME="$REPO_NAME" REPO_DIR="$REPO_DIR" \
     "$SMOKE_DIR/run_instruct_replay.sh" "$arm" > "$WORK/logs/ab_${arm}_${SEED_TAG}.out" 2>&1
   SUB="/app/checkpoints/$TASK_ID/$REPO_NAME"

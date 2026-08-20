@@ -49,6 +49,9 @@ run_one() {  # name, override_or_empty
   local log="$WORK/logs/lrrec_${name}.log"
   rm -rf /workspace/scripts/soutputs/* 2>/dev/null
   redis-cli del state >/dev/null 2>&1
+  # Batch size is planned from live free VRAM; starting before the previous run has
+  # released produces a different experiment, not a noisier one.
+  "$SMOKE_DIR/wait_gpu.sh" >&2
   env TASK_ID="$TASK_ID" MODEL="$MODEL" HOURS="$HOURS" REPO_NAME="lrrec-$name" REPO_DIR="$REPO_DIR" \
       ${override:+ADAPTIVE_LR_OVERRIDE="$override"} \
       "$SMOKE_DIR/run_instruct_replay.sh" b > "$WORK/logs/lrrec_${name}.out" 2>&1

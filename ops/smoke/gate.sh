@@ -195,6 +195,8 @@ reclaim() {
   rm -rf "$REPO_DIR/scripts/wandb"/* 2>/dev/null
   local free; free=$(df -BG --output=avail / 2>/dev/null | tail -1 | tr -dc '0-9')
   echo "  (reclaimed; ${free:-?}G free)"
+  # Batch is planned from live free VRAM — let it drain before the next path plans.
+  "$SMOKE_DIR/wait_gpu.sh" >/dev/null 2>&1
 }
 
 # --- driver --------------------------------------------------------------------
