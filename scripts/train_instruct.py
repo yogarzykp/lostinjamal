@@ -595,6 +595,30 @@ def main():
     else:
         log_info("[WSM] TRAINING_WSM_GATE=0 — merge written unverified")
 
+    # Score LR-probe runs on held-out loss, not training loss.
+    #
+    # The LR sweep picks the probe with the lowest score, and `_probe_loss` already
+    # knows how to use a held-out number — but only when probe_eval_fn is wired, and
+    # until now the ONLY wiring site was train_dpo.py. So every instruct and chat task
+    # chose its learning rate by comparing TRAINING losses, which is the one signal
+    # that rewards a learning rate for fitting the training set harder. The validator
+    # ranks us on held-out loss; selecting on anything else optimises a different
+    # objective than the one we are scored on, and does it at the point where a single
+    # decision governs the whole run.
+    #
+    # Same shape as the max_length bug: the mechanism was correct and simply not
+    # connected on this path. Disable with INSTRUCT_PROBE_EVAL=0.
+    if os.getenv("INSTRUCT_PROBE_EVAL", "1") == "1":
+        def _probe_eval():
+            # compute_loss, not a raw eval_loss, so a KL task ranks its probes on the
+            # same weighted metric it ranks its checkpoints and its soup on.
+            return _eval_save_callback.compute_loss(None, trainer.evaluate())
+
+        _eval_save_callback.probe_eval_fn = _probe_eval
+        log_info("[probe] LR probes will be scored on held-out dev loss")
+    else:
+        log_info("[probe] INSTRUCT_PROBE_EVAL=0 — probes scored on training loss")
+
     # Per-example eval losses, recorded to telemetry on every eval.
     # Observational only — see the note in customized_trainer.on_evaluate. The
     # vector is what lets us check, after these runs, whether win-rate selection
