@@ -723,8 +723,25 @@ def main():
                 # SGD holds no moments at all. Less faithful, but a sweep that runs
                 # beats a sweep that OOMs, and the confirmation probe judges the answer.
                 _opt = torch.optim.SGD(model.parameters(), lr=1e-7)
-            _lrrt_lr, _swept, _ = find_lr_lrrt(model, _opt, _loader, num_iter=_n_iter,
-                                               device=str(trainer.args.device))
+            _lrrt_lr, _swept, _sweep_losses = find_lr_lrrt(
+                model, _opt, _loader, num_iter=_n_iter, device=str(trainer.args.device))
+
+            # Keep the curve. It is the only record of WHY a rate was chosen, and
+            # without it the suggestion is a number with no way to audit it — we spent
+            # several GPU runs unable to tell an intrinsically-early heuristic from a
+            # picker choosing among noise, which the slope profile answers directly.
+            # Written beside the telemetry, never into submission_dir.
+            try:
+                _curve_dir = os.path.dirname(os.getenv("TRAINING_TELEMETRY_PATH", "")) or training_args.output_dir
+                os.makedirs(_curve_dir, exist_ok=True)
+                with open(os.path.join(_curve_dir, "lrrt_curve.json"), "w") as _cf:
+                    json.dump({"lrs": [float(x) for x in _swept],
+                               "smoothed_losses": [float(x) for x in _sweep_losses],
+                               "suggested_safe_lr": float(_lrrt_lr),
+                               "incumbent": float(training_args.learning_rate)}, _cf)
+                log_info(f"[lr-search] sweep curve written ({len(_swept)} points)")
+            except Exception as _ce:
+                log_info(f"[lr-search] could not write sweep curve ({_ce})")
             del _opt, _loader
 
             # A sweep cut short covers too little of the range for "steepest descent" to
