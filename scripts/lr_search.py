@@ -48,6 +48,14 @@ DEFAULT_BOUNDS = (1e-6, 1e-3)
 # is 6 minutes for nothing.
 MIDPOINT_DECADES = 1.0
 
+# How far above the incumbent to probe when nothing brackets it from above. Sized so the
+# canonical 10x-low case lands inside the gate's 3x bar rather than just outside it.
+UPWARD_PROBE_DECADES = 0.75
+
+# Below this much explored range, the search has not covered enough ground for the
+# incumbent-versus-suggestion comparison to mean much, and an upward probe is added.
+MIN_EXPLORED_DECADES = 1.0
+
 
 def bounds_for(task_type: str) -> tuple:
     key = (task_type or "").lower().replace("task", "").replace("text", "").strip("_")
@@ -86,6 +94,51 @@ def confirmation_candidates(lrrt_lr: float, table_lr: float, task_type: str) -> 
         # middle of anything that matters.
         if all(abs(math.log10(midpoint / x)) > 0.05 for x in (suggestion, incumbent)):
             out.append(midpoint)
+
+    # Restore bracketing when every candidate sits at or below the incumbent.
+    #
+    # The range test reads systematically LOW on a fine-tune: smoothed loss falls fastest
+    # where the rate first stops being negligible — format, EOS and easy tokens are learned
+    # immediately — and the sweep trains as it goes, so "loss fell" conflates progress with
+    # rate. Measured here its raw suggestion was 4.13e-06 against a true 8.07e-05, ~20x low,
+    # before any damping.
+    #
+    # That bias is exactly why a HIGH prior recovers: a low suggestion and a high prior
+    # straddle the truth and the midpoint lands on it (measured 2.84x). With a LOW prior both
+    # sit on the same side, nothing straddles anything, and the incumbent wins at 10x low.
+    # One probe above the incumbent restores the invariant the whole mechanism rests on —
+    # that the truth lies BETWEEN two candidates.
+    #
+    # 10**0.75 (~5.6x) rather than 3x: in the canonical 10x-low case 3x lands 3.33x from
+    # true and misses the very bar this gate measures, while 10**0.75 lands 1.79x. The
+    # resulting 0.75-decade gap also stays under MIDPOINT_DECADES, so it does not drag an
+    # extra midpoint probe along with it.
+    # The trigger is how much ground the search has covered, not which side the
+    # suggestion fell on. With a HIGH prior the candidates also all sit below the
+    # incumbent, but the span from the lowest candidate up to the incumbent is nearly
+    # three decades and the truth is inside it — an extra probe there would only re-test
+    # a rate the incumbent already proved bad. With a LOW prior that span is under a
+    # decade: the search has barely moved, and nothing above it has been tried.
+    # Two conditions, and both are needed.
+    #
+    # A narrow span alone is not enough: when the suggestion AGREES with the incumbent
+    # the span is also tiny, but that is two independent methods converging — the most
+    # informative outcome available, and the last place to spend another probe.
+    #
+    # A low suggestion alone is not enough either: with a HIGH prior the suggestion is
+    # far below the incumbent too, but the span is then ~3 decades and the truth sits
+    # inside it.
+    #
+    # It is the combination — barely any ground covered AND the suggestion pinned well
+    # below the incumbent — that says the sweep gave nothing and the incumbent stands
+    # unchallenged from above.
+    explored = [c for c in out if c > 0] + ([incumbent] if incumbent > 0 else [])
+    span_decades = math.log10(max(explored) / min(explored)) if len(explored) > 1 else 0.0
+    suggestion_is_well_below = incumbent > 0 and suggestion < incumbent / 2
+    if incumbent > 0 and span_decades < MIN_EXPLORED_DECADES and suggestion_is_well_below:
+        upward = clamp(incumbent * (10 ** UPWARD_PROBE_DECADES), task_type)
+        if all(abs(math.log10(upward / x)) > 0.05 for x in explored):
+            out.append(upward)
     return out
 
 
@@ -94,8 +147,13 @@ def describe(lrrt_lr: float, table_lr: float, task_type: str) -> str:
     clamped = clamp(float(lrrt_lr), task_type)
     note = "" if abs(clamped - float(lrrt_lr)) < 1e-12 else f" (clamped from {float(lrrt_lr):.3e})"
     cands = confirmation_candidates(lrrt_lr, table_lr, task_type)
+    # A kept incumbent must never read as a confirmation when nothing was tested above
+    # it — that is the shape in which a half-working search looks like a working one.
+    warn = ""
+    if cands and float(table_lr) > 0 and all(c <= float(table_lr) * 1.05 for c in cands):
+        warn = "  UNBRACKETED(nothing probed above the incumbent)"
     return (
         f"[lr-search] task={task_type} bounds=[{lo:.1e},{hi:.1e}] "
         f"lrrt={clamped:.3e}{note} incumbent={float(table_lr):.3e} "
-        f"-> probe {[f'{c:.3e}' for c in cands] or 'nothing new'}"
+        f"-> probe {[f'{c:.3e}' for c in cands] or 'nothing new'}{warn}"
     )

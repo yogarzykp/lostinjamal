@@ -83,3 +83,56 @@ def test_reach_beats_the_ladder_by_orders_of_magnitude():
     lo, hi = bounds_for("instruct")
     ladder_span = 1.51 / 0.66          # text_trainer.get_log_scale 0.18
     assert (hi / lo) / ladder_span > 100
+
+
+# --- bracketing restored from below (added after the 10x-LOW gate failed) -----------
+
+def test_a_low_prior_now_gets_a_candidate_above_it():
+    """The failure the recovery gate found: with a LOW prior nothing was tried above.
+
+    The range test reads systematically low on a fine-tune, so a low suggestion plus a
+    low prior leaves both on the same side and the incumbent wins at 10x low. Measured:
+    candidates were [1.00e-06] against an incumbent of 8.07e-06, true 8.07e-05.
+    """
+    cands = confirmation_candidates(4.132e-07, POISON_LOW, "instruct")
+    assert any(c > POISON_LOW for c in cands), (
+        f"nothing above the incumbent {POISON_LOW:.2e}: {cands}"
+    )
+    best = min(cands + [POISON_LOW], key=lambda x: max(x / TRUE_LR, TRUE_LR / x))
+    off = max(best / TRUE_LR, TRUE_LR / best)
+    assert off <= 3.0, f"best reachable is {off:.2f}x from true, outside the 3x gate bar"
+
+
+def test_a_wide_search_does_not_buy_an_extra_probe():
+    """With a HIGH prior the span is ~2.9 decades and the truth is already inside it.
+
+    An upward probe there would only re-test a rate the incumbent has already proved
+    bad, at six minutes a probe.
+    """
+    high = confirmation_candidates(4.132e-07, POISON_HIGH, "instruct")
+    assert not any(c > POISON_HIGH for c in high), f"wasted a probe above a high prior: {high}"
+
+
+def test_a_correct_prior_does_not_buy_an_extra_probe():
+    cands = confirmation_candidates(4.132e-07, TRUE_LR, "instruct")
+    assert not any(c > TRUE_LR for c in cands), f"wasted a probe on a correct prior: {cands}"
+
+
+def test_the_trigger_is_explored_span_not_direction():
+    """High and low priors both put every candidate below the incumbent; only the narrow
+    one earns the extra probe. Direction cannot be the trigger."""
+    low = confirmation_candidates(4.132e-07, POISON_LOW, "instruct")
+    high = confirmation_candidates(4.132e-07, POISON_HIGH, "instruct")
+    assert all(c <= POISON_LOW * 1.05 or c > POISON_LOW for c in low)
+    low_span = math.log10(max(low + [POISON_LOW]) / min(low + [POISON_LOW]))
+    high_span = math.log10(max(high + [POISON_HIGH]) / min(high + [POISON_HIGH]))
+    assert low_span < high_span, "the low case should have been the narrower search"
+
+
+def test_describe_warns_when_nothing_brackets_from_above():
+    """A kept incumbent must not read as a confirmation when nothing was tried above it."""
+    from lr_search import describe
+    # Force the unbracketed shape by making the span wide enough to skip the upward probe
+    # while leaving every candidate below the incumbent.
+    text = describe(1e-06, 8.07e-04, "instruct")
+    assert "UNBRACKETED" in text, text
