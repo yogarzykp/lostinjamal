@@ -761,8 +761,20 @@ def main():
                       if training_args.use_lora
                       else load_model(training_args, train_request["model_path"], len(tokenizer)))
             trainer.model = _fresh
+            trainer.model_wrapped = _fresh
             model = _fresh
-            trainer.create_optimizer_and_scheduler(num_training_steps=trainer.args.max_steps if trainer.args.max_steps > 0 else 1)
+            # Clear, do not rebuild. Trainer.create_optimizer() returns early when
+            # self.optimizer is already set, so calling create_optimizer_and_scheduler
+            # here could leave an optimizer still holding the DESTROYED model's
+            # parameters. And the step count is not known yet: max_steps is -1 on an
+            # epoch-driven run, so the previous `max_steps if > 0 else 1` built a
+            # scheduler for a single step, collapsing the learning rate to its minimum
+            # immediately after step 1.
+            #
+            # trainer.train() builds both, from the fresh model and with the real step
+            # count. Setting these to None is all that is needed to let it.
+            trainer.optimizer = None
+            trainer.lr_scheduler = None
 
     # last_checkpoint = get_last_checkpoint(training_args.output_dir)
     # log_info(f"last_checkpoint: {last_checkpoint}")
