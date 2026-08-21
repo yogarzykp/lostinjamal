@@ -725,11 +725,25 @@ def main():
                 _opt = torch.optim.SGD(model.parameters(), lr=1e-7)
             _lrrt_lr, _swept, _sweep_losses = find_lr_lrrt(
                 model, _opt, _loader, num_iter=_n_iter, device=str(trainer.args.device))
+            del _opt, _loader
 
-            # Keep the curve. It is the only record of WHY a rate was chosen, and
-            # without it the suggestion is a number with no way to audit it — we spent
-            # several GPU runs unable to tell an intrinsically-early heuristic from a
-            # picker choosing among noise, which the slope profile answers directly.
+            # A sweep cut short covers too little of the range for "steepest descent" to
+            # mean anything; the bounds would clamp the answer to a floor that was never
+            # measured. Refuse it rather than dress it up as a measurement. Decided HERE,
+            # before the curve is written, so the curve can say which way it went.
+            _min_pts = max(20, _n_iter // 4)
+            _accepted = len(_swept) >= _min_pts
+
+            # Keep the curve. It is the only record of WHY a rate was chosen, and without
+            # it the suggestion is a number with no way to audit it — we spent several GPU
+            # runs unable to tell an intrinsically-early heuristic from a picker choosing
+            # among noise, which the slope profile answers directly.
+            #
+            # A REJECTED curve is written too, and deliberately: the truncated sweep is the
+            # case most worth looking at, since an OOM after a handful of points is how the
+            # finder came to return 1.12e-08. But it must not masquerade as the rate the run
+            # used, so `accepted` is recorded alongside it — a file whose whole job is
+            # explaining a choice has to say when its suggestion was thrown away.
             # Written beside the telemetry, never into submission_dir.
             try:
                 _curve_dir = os.path.dirname(os.getenv("TRAINING_TELEMETRY_PATH", "")) or training_args.output_dir
@@ -738,17 +752,17 @@ def main():
                     json.dump({"lrs": [float(x) for x in _swept],
                                "smoothed_losses": [float(x) for x in _sweep_losses],
                                "suggested_safe_lr": float(_lrrt_lr),
-                               "incumbent": float(training_args.learning_rate)}, _cf)
-                log_info(f"[lr-search] sweep curve written ({len(_swept)} points)")
+                               "incumbent": float(training_args.learning_rate),
+                               "task_type": train_request.get("task_type", "instruct"),
+                               "accepted": bool(_accepted),
+                               "points": len(_swept),
+                               "min_points_required": int(_min_pts)}, _cf)
+                log_info(f"[lr-search] sweep curve written ({len(_swept)} points, "
+                         f"accepted={_accepted})")
             except Exception as _ce:
                 log_info(f"[lr-search] could not write sweep curve ({_ce})")
-            del _opt, _loader
 
-            # A sweep cut short covers too little of the range for "steepest descent" to
-            # mean anything; the bounds would clamp the answer to a floor that was never
-            # measured. Refuse it rather than dress it up as a measurement.
-            _min_pts = max(20, _n_iter // 4)
-            if len(_swept) < _min_pts:
+            if not _accepted:
                 raise RuntimeError(
                     f"sweep covered only {len(_swept)}/{_n_iter} points; too few to locate a rate")
 

@@ -151,6 +151,33 @@ instruct_gates() {
   fi
 }
 
+# The LR range test is the only gate here that guards a SILENT, DESTRUCTIVE failure.
+# The sweep takes ~100 optimizer steps up to 1e-2, so the weights afterwards are ruined;
+# if the post-sweep reload does not fire, training continues on damaged weights and the
+# run looks entirely normal — right down to a plausible loss.
+#
+# It also sits inside TWO nested fail-open handlers (an inner one around the curve write,
+# an outer one around the whole search), and neither re-raises. That is correct — a failed
+# measurement must never cost a task — but it means a failed import, an OOM mid-sweep, or
+# an unwritable curve path all produce exactly the log of a healthy run. Before these four
+# assertions existed, every one of those passed the gate.
+#
+# Only for paths that go through train_instruct.py: instruct, kl, chat. DPO and GRPO have
+# their own trainers and never emit these lines — measured, both report 0.
+lrrt_gates() {
+  local name="$1" log="$2"
+  grep -aq "\[lr-search\] sweeping at batch=" "$log" \
+    && pass "$name" "LR range test ran" || fail "$name" "LR range test never ran"
+  grep -aq "\[lr-search\] LRRT skipped" "$log" \
+    && fail "$name" "LRRT failed open — fell back to the geometric ladder" \
+    || pass "$name" "LR search did not fail open"
+  grep -aq "\[lr-search\] sweep curve written" "$log" \
+    && pass "$name" "sweep curve persisted" || fail "$name" "sweep curve was not written"
+  grep -aq "\[lr-search\] reloading model to discard the sweep" "$log" \
+    && pass "$name" "post-sweep model reload fired" \
+    || fail "$name" "no post-sweep reload — training may have used sweep-damaged weights"
+}
+
 kl_gates() {
   local name="$1" log="$2"
   # The KL term used to OOM, get caught, and let the run continue on plain CE. The
@@ -211,7 +238,8 @@ for p in "${PATHS[@]}"; do
     instruct) TASK_ID=$INSTRUCT_TASK MODEL=unsloth/Qwen2-1.5B-Instruct HOURS=$HOURS REPO_NAME=gate-instruct REPO_DIR=$REPO_DIR \
                 "$SMOKE_DIR/run_instruct_replay.sh" b >"$LOGS/gate_instruct.out" 2>&1
               common_gates instruct "$LOGS/b.log" "/app/checkpoints/$INSTRUCT_TASK/gate-instruct"
-              instruct_gates instruct "$LOGS/b.log" ;;
+              instruct_gates instruct "$LOGS/b.log"
+              lrrt_gates instruct "$LOGS/b.log" ;;
     # KL's key assertion is that a WEIGHTED checkpoint metric was computed, and that can
     # only happen at an eval. Too short a budget and the deadline preempts the first eval,
     # so the gate reports "the KL path did not run" when the truth is "the run had no time
@@ -220,7 +248,8 @@ for p in "${PATHS[@]}"; do
     kl)       TASK_ID=$INSTRUCT_TASK MODEL=unsloth/Qwen2-1.5B-Instruct HOURS=${KL_HOURS:-0.6} REPO_NAME=gate-kl REPO_DIR=$REPO_DIR \
                 "$SMOKE_DIR/run_instruct_replay.sh" kl >"$LOGS/gate_kl.out" 2>&1
               common_gates kl "$LOGS/kl.log" "/app/checkpoints/$INSTRUCT_TASK/gate-kl"
-              kl_gates kl "$LOGS/kl.log" ;;
+              kl_gates kl "$LOGS/kl.log"
+              lrrt_gates kl "$LOGS/kl.log" ;;
     dpo)      SOURCE_TASK_ID=$INSTRUCT_TASK HOURS=$HOURS REPO_DIR=$REPO_DIR \
                 "$SMOKE_DIR/run_dpo_smoke.sh" >"$LOGS/gate_dpo.out" 2>&1
               common_gates dpo "$LOGS/dpo-a.log" "$(ls -d /app/checkpoints/*/dpo-smoke-a 2>/dev/null | head -1)" ;;
@@ -231,7 +260,8 @@ for p in "${PATHS[@]}"; do
     chat)     SOURCE_TASK_ID=$INSTRUCT_TASK HOURS=$HOURS REPO_DIR=$REPO_DIR \
                 "$SMOKE_DIR/run_chat_smoke.sh" >"$LOGS/gate_chat.out" 2>&1
               common_gates chat "$LOGS/chat.log" "$(ls -d /app/checkpoints/*/chat-smoke 2>/dev/null | head -1)"
-              chat_gates chat "$LOGS/chat.log" ;;
+              chat_gates chat "$LOGS/chat.log"
+              lrrt_gates chat "$LOGS/chat.log" ;;
     *) echo "unknown path '$p' (want: instruct kl dpo grpo chat)" >&2; exit 2 ;;
   esac
   reclaim
