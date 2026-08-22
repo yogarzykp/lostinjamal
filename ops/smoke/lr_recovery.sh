@@ -37,11 +37,55 @@ mkdir -p "$WORK/logs" "$WORK/lr"
 
 # The LR a run actually settled on: the ladder's own selection line if the search ran,
 # otherwise the planned LR (which is what a run without a search trains at).
+# The LR a run actually settled on.
+#
+# One gate run produces ONE log, but that log holds EVERY sub-run of the ladder — the
+# probe, each confirmation, and the final run — because text_trainer streams all of its
+# children into a single stream that run_instruct_replay tees to b.log. So "the peak
+# learning rate in the file" is the highest rate the search ever TRIED, not the one it
+# chose. That distinction is not academic: the probe trains at the poisoned prior itself
+# (the incumbent check below proves it), so a whole-file peak is >= the poison for any
+# upward poison, and the gate would score STUCK at exactly the poison factor no matter
+# how well the selector recovered. Measured on a real log: whole-file peak said
+# 8.069e-04 (STUCK, x10.0) where the final run had actually settled on 2.840e-05
+# (x2.84) — a confident, precisely wrong verdict.
+#
+# So: the peak of the LAST run only. "Training attempt" marks the start of each real
+# training launch (including OOM retries, where the last attempt is still the one that
+# trained), which makes it the right boundary in both cases.
+#
+# The BL; line is the ladder's record of what it SELECTED, kept only as a cross-check.
+# It is not authoritative: text_trainer prints state["lrs"][index] while the run trains
+# at current_lr, which the BO-augment block can override, so BL can name a rate that was
+# never trained. Disagreement is worth a warning, not a silent preference.
+#
+# The earlier fallback here — a bare `lr=` grep — also matched the tail of `safe_lr=` on
+# the range test's own log line, and so reported the sweep's SUGGESTION as the settled
+# rate (4.13e-07 for a run that trained at 8.069e-04).
 extract_lr() {
   local log="$1"
-  local sel; sel=$(grep -ao "BL;[0-9]*;[0-9.e+-]*; *[0-9.e+-]*" "$log" 2>/dev/null | tail -1 | awk -F';' '{print $4}' | tr -d ' ')
-  if [ -n "$sel" ]; then echo "$sel"; return; fi
-  grep -ao "lr=[0-9.e+-]*" "$log" 2>/dev/null | tail -1 | cut -d= -f2
+  local sel peak last
+  sel=$(grep -ao "BL;[0-9]*;[0-9.e+-]*; *[0-9.e+-]*" "$log" 2>/dev/null | tail -1 | awk -F';' '{print $4}' | tr -d ' ')
+
+  last=$(grep -an "Training attempt" "$log" 2>/dev/null | tail -1 | cut -d: -f1)
+  if [ -n "$last" ]; then
+    peak=$(tail -n +"$last" "$log" 2>/dev/null | grep -aoE "'learning_rate': [0-9.e-]+" | awk '{print $2}' | sort -g | tail -1)
+  else
+    peak=$(grep -aoE "'learning_rate': [0-9.e-]+" "$log" 2>/dev/null | awk '{print $2}' | sort -g | tail -1)
+  fi
+
+  if [ -n "$sel" ] && [ -n "$peak" ]; then
+    python3 -c 'import sys
+a, b = float(sys.argv[1]), float(sys.argv[2])
+if a > 0 and b > 0 and max(a/b, b/a) > 1.05:
+    sys.stderr.write("    !! ladder selected %s but the final run trained at %s\n" % (sys.argv[1], sys.argv[2]))' "$sel" "$peak" >&2
+  fi
+
+  if [ -n "$peak" ]; then echo "$peak"; return; fi
+  if [ -n "$sel" ];  then echo "$sel";  return; fi
+  # Nothing usable. Emit nothing: the caller scores an empty result UNKNOWN, which is the
+  # honest outcome. It must never fall through to a pattern that happens to match.
+  return 0
 }
 
 run_one() {  # name, override_or_empty
@@ -62,17 +106,54 @@ run_one() {  # name, override_or_empty
 echo "=== LR recovery gate · $MODEL · ${HOURS}h per run · tolerance x${RECOVERY_TOLERANCE} ==="
 echo
 
-echo "--- baseline (prior untouched) ---"
-BASE_LR="$(run_one baseline "")"
-echo "    settled on LR = ${BASE_LR:-?}"
+# A rerun does not need to re-measure the baseline: it is 1.3h of GPU for a number that
+# does not change while the selector and task are fixed. Pass BASELINE_LR to reuse one.
+if [ -n "${BASELINE_LR:-}" ]; then
+  BASE_LR="$BASELINE_LR"
+  echo "--- baseline (reused, not re-run) ---"
+  echo "    LR = $BASE_LR"
+else
+  echo "--- baseline (prior untouched) ---"
+  BASE_LR="$(run_one baseline "")"
+  echo "    settled on LR = ${BASE_LR:-?}"
+fi
+[ -n "$BASE_LR" ] || { echo "baseline produced no LR — cannot judge recovery" >&2; exit 3; }
 echo
 
 RESULTS=()
 for f in "${FACTORS[@]}"; do
-  POISON=$(python3 -c "print(f'{float('${BASE_LR:-1e-4}') * float('$f'):.6e}')")
+  # Values go in as ARGV, not interpolated into the source. The previous form nested
+  # single quotes inside an f-string, which only became legal in Python 3.12 (PEP 701) —
+  # on this box's 3.10 it is a SyntaxError, so POISON came back EMPTY, the
+  # ${override:+...} expansion vanished, and every "poisoned" run silently trained on the
+  # untouched prior. That reports RECOVERED at ~1.0x for any selector, including one that
+  # cannot recover at all. A gate that cannot fail is worse than no gate.
+  POISON=$(python3 -c 'import sys; print("%.6e" % (float(sys.argv[1]) * float(sys.argv[2])))' \
+           "${BASE_LR:-1e-4}" "$f") || { echo "could not compute poison for factor $f" >&2; exit 3; }
+  [ -n "$POISON" ] || { echo "poison came back empty for factor $f — refusing to run" >&2; exit 3; }
   echo "--- prior poisoned x$f  (forced LR = $POISON) ---"
   GOT="$(run_one "x$f" "$POISON")"
   echo "    settled on LR = ${GOT:-?}"
+
+  # PROVE the prior was actually poisoned, rather than trusting that it was. The override
+  # path in adaptive_config logs nothing, so the evidence is the planned LR that the LR
+  # search reports as its incumbent: with the poison applied that is POISON, not the
+  # family-table value. Checking this is not paranoia — the poison expression silently
+  # produced an empty string on Python 3.10 for the whole life of this gate, and every
+  # "poisoned" run trained on the untouched prior and was scored RECOVERED at ~1.0x.
+  # A recovery gate that cannot distinguish a poisoned run from a clean one is worthless,
+  # so this aborts rather than reporting a verdict it cannot support.
+  SEEN_INC=$(grep -aoE "incumbent=[0-9.e+-]+" "$WORK/logs/lrrec_x${f}.log" 2>/dev/null | tail -1 | cut -d= -f2)
+  if [ -z "$SEEN_INC" ]; then
+    echo "    !! no incumbent= line in the log — cannot confirm the prior was poisoned" >&2
+    exit 4
+  fi
+  python3 -c 'import sys
+want, got = float(sys.argv[1]), float(sys.argv[2])
+if abs(got - want) / want > 0.02:
+    sys.stderr.write("    !! prior was NOT poisoned: planned incumbent=%s, expected %s\n" % (sys.argv[2], sys.argv[1]))
+    sys.exit(4)
+print("    confirmed poisoned: planned incumbent = %s" % sys.argv[2])' "$POISON" "$SEEN_INC" || exit 4
   RESULTS+=("$f|$POISON|${GOT:-nan}")
   echo
 done
