@@ -1,3 +1,29 @@
+# Kept at TWO paths on purpose, byte-for-byte identical.
+#
+# The validator resolves a miner's dockerfile from a tuple and takes the first that
+# exists (G.O.D trainer/constants.py, trainer/runtime.py _resolve_dockerfile_path):
+#
+#     ops/docker/standalone-text-trainer.dockerfile     <- DEFAULT, tried first
+#     dockerfiles/standalone-text-trainer.dockerfile    <- LEGACY, tried second
+#
+# We used to exist only at the legacy path. That resolves today, but the fallback's own
+# name announces the intent to drop it, and when neither path exists the resolver raises
+# FileNotFoundError — the task never starts. Not a slow build: no build. And the branch
+# that selects this tuple is a bare `else`, so it covers every task type that is not an
+# image task, not just text.
+#
+# Shipping BOTH rather than moving: the default path serves validators that already
+# prefer it, the legacy path serves any that have not learned it yet. Deleting the legacy
+# copy would trade one risk for a different one.
+#
+# The build context is the repo ROOT for either location (runtime.py passes
+# context_path=local_repo_path), so `COPY scripts ...` below resolves the same way from
+# both. Verified in G.O.D a2b14db before duplicating.
+#
+# tests/test_dockerfile_paths.py fails if the two copies drift. They must not: the
+# validator would build one while our own tooling reads the other, so a green local dry
+# run would say nothing about what production builds.
+
 FROM runpod/pytorch:2.4.0-py3.11-cuda12.4.1-devel-ubuntu22.04
 
 # System dependencies
