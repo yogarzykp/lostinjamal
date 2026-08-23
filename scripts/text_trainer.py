@@ -108,6 +108,48 @@ def get_model_architecture(model_name: str) -> str:
         return "Unknown"
 
 
+def detect_unloadable_architecture(model_path: str) -> str | None:
+    """Return a reason string when transformers cannot build this model, else None.
+
+    G.O.D's f7caab6 added a pool of 2026+ base models that one R1 task and one boss-round
+    task are drawn from, validated against transformers 5.12.x. We pin 4.51.3, which does
+    not know `qwen3_5`, `gemma4`, `lfm2` or `lfm2_moe` — 9 of the 12 entries. Without this
+    check the task spends its whole budget on MAX_TRIES identical loads that cannot ever
+    succeed, and only then reaches the fallback with the clock nearly gone.
+
+    FAILS OPEN on anything that is not an architecture problem. A network blip, a
+    half-downloaded snapshot or a permissions error must not divert a trainable task into
+    the fallback — that would turn a recoverable hiccup into a guaranteed base-model
+    score. Only the specific "transformers does not know this architecture" shape counts.
+    """
+    try:
+        AutoConfig.from_pretrained(model_path)
+        return None
+    except Exception as exc:
+        msg = str(exc)
+        # ONE marker, deliberately. An earlier version also matched "Unrecognized model"
+        # and "should have a `model_type` key", and those catch a completely different
+        # failure: a directory with no config.json at all, i.e. a download that did not
+        # finish. transformers words both as ValueError, but they mean opposite things —
+        # "this architecture is not in my registry" is permanent and no retry fixes it,
+        # while "there is no config here" is a hiccup that a retry very often does.
+        # Measured on the box: an EMPTY directory raises
+        #   "Unrecognized model in /tmp/xxx. Should have a `model_type` key ..."
+        # and the broad markers diverted it to the fallback — turning a recoverable
+        # download failure into a guaranteed base-model score, which is exactly the
+        # mistake this function is written to avoid.
+        #
+        # The pool models we actually need to catch all DO declare a model_type, so they
+        # raise the specific sentence below:
+        #   "has model type `qwen3_5` but Transformers does not recognize this architecture"
+        if "does not recognize this architecture" in msg:
+            first = msg.strip().splitlines()[0][:220]
+            return f"transformers cannot build this architecture: {first}"
+        print(f"[preflight] config load failed for an unrelated reason, "
+              f"letting training proceed: {type(exc).__name__}: {msg[:160]}", flush=True)
+        return None
+
+
 def is_openai_model(model_name: str) -> bool:
     architecture = get_model_architecture(model_name)
     if architecture.lower() == "gptossforcausallm":
@@ -586,6 +628,17 @@ def main():
         )
         is_openai = True
 
+    # gpt_oss is EXCLUDED deliberately. Its architecture is also unknown to 4.51.3, but the
+    # block above already handles it by pip-installing 4.55.0 — and that upgrade lands in a
+    # subprocess, so the transformers already imported here is still the old one and would
+    # report the model as unloadable. Preflighting it would divert a task that the existing
+    # path recovers perfectly well.
+    load_blocker = None if is_openai else detect_unloadable_architecture(model_path)
+    if load_blocker:
+        print(f"[preflight] {load_blocker}", flush=True)
+        print("[preflight] skipping tokenisation and training: no number of retries can "
+              "load this model. Going straight to the fallback submission.", flush=True)
+
     train_info = {
         "model_name": original_model_name,
         "model_path": model_path,
@@ -798,9 +851,10 @@ def main():
     with open(request_path, "w") as f:
         json.dump(train_info, f, indent=4, ensure_ascii=False)
 
-    run_cmd_with_log(
-        tokenize_cmd, os.path.join(ds_folder, f"tokenize_{args.task_id}.log")
-    )
+    if not load_blocker:
+        run_cmd_with_log(
+            tokenize_cmd, os.path.join(ds_folder, f"tokenize_{args.task_id}.log")
+        )
 
     original_train_cmd = train_cmd
     train_success = False
@@ -814,6 +868,8 @@ def main():
     # TODO Run something magic here
     count = 0
     while True:
+        if load_blocker:
+            break
         state = get_state()
         mode_before = state.get("mode")
         train_cmd = original_train_cmd  # will replace based on the state later
