@@ -149,9 +149,33 @@ def describe(lrrt_lr: float, table_lr: float, task_type: str) -> str:
     cands = confirmation_candidates(lrrt_lr, table_lr, task_type)
     # A kept incumbent must never read as a confirmation when nothing was tested above
     # it — that is the shape in which a half-working search looks like a working one.
+    #
+    # But the bare warning said only THAT it happened, and it happens on nearly every
+    # run, so it read as a standing alarm and stopped being read at all. It is not a
+    # false alarm: the condition is genuinely true. It is an unexplained one, and an
+    # unexplained alarm that never clears is indistinguishable from noise.
+    #
+    # So say WHY. The upward probe exists to prevent exactly this, and it is gated on
+    # `span_decades < MIN_EXPLORED_DECADES and suggestion < incumbent/2`. Those two can
+    # only hold together in a narrow window, because `explored` includes the incumbent —
+    # so a suggestion far BELOW it makes the span automatically WIDE and suppresses the
+    # probe. The range test reads systematically ~20x low on a fine-tune, i.e. 1.3
+    # decades, which is outside the window. Naming the reason turns a permanent alarm
+    # into a diagnosis, and makes the suppression visible instead of implied.
     warn = ""
-    if cands and float(table_lr) > 0 and all(c <= float(table_lr) * 1.05 for c in cands):
-        warn = "  UNBRACKETED(nothing probed above the incumbent)"
+    inc = float(table_lr)
+    if cands and inc > 0 and all(c <= inc * 1.05 for c in cands):
+        explored = [c for c in cands if c > 0] + [inc]
+        span = math.log10(max(explored) / min(explored)) if len(explored) > 1 else 0.0
+        suggestion = clamp(float(lrrt_lr), task_type)
+        if span >= MIN_EXPLORED_DECADES:
+            why = (f"upward probe suppressed: explored span {span:.2f}d >= "
+                   f"{MIN_EXPLORED_DECADES}d")
+        elif not (suggestion < inc / 2):
+            why = "upward probe not applicable: suggestion is not well below the incumbent"
+        else:
+            why = "upward probe produced nothing new"
+        warn = f"  UNBRACKETED(nothing above the incumbent; {why})"
     return (
         f"[lr-search] task={task_type} bounds=[{lo:.1e},{hi:.1e}] "
         f"lrrt={clamped:.3e}{note} incumbent={float(table_lr):.3e} "
