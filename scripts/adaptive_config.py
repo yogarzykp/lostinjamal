@@ -35,6 +35,7 @@ from dynamics_utils import (
     GpuMetrics,
     detect_arch_family,
     arch_supports_fa,
+    cfg_get,
     get_param_count,
     measure_gpu,
     measure_dataset,
@@ -1149,24 +1150,27 @@ def build_adaptive_run_config(
     try:
         from transformers import AutoConfig
         _cfg = AutoConfig.from_pretrained(model_path, local_files_only=True, trust_remote_code=False)
-        model_max_position = getattr(_cfg, "max_position_embeddings", None)
-        num_hidden_layers = getattr(_cfg, "num_hidden_layers", None)
-        num_attention_heads = getattr(_cfg, "num_attention_heads", None)
-        num_key_value_heads = getattr(_cfg, "num_key_value_heads", None)
-        hidden_size = getattr(_cfg, "hidden_size", None)
-        vocab_size = getattr(_cfg, "vocab_size", None)
+        # cfg_get, not getattr: wrapper architectures keep these one level down under
+        # `text_config`, and reading only the top level returns None for ALL of them at
+        # once — which silently plans a 9.65B model as if it were 1B.
+        model_max_position = cfg_get(_cfg, "max_position_embeddings")
+        num_hidden_layers = cfg_get(_cfg, "num_hidden_layers")
+        num_attention_heads = cfg_get(_cfg, "num_attention_heads")
+        num_key_value_heads = cfg_get(_cfg, "num_key_value_heads")
+        hidden_size = cfg_get(_cfg, "hidden_size")
+        vocab_size = cfg_get(_cfg, "vocab_size")
         if model_max_position:
             print(f"[adaptive] model max_position_embeddings={model_max_position}", flush=True)
     except Exception as _e:
         try:
             from transformers import AutoConfig
             _cfg = AutoConfig.from_pretrained(model_path, trust_remote_code=False)
-            model_max_position = getattr(_cfg, "max_position_embeddings", None)
-            num_hidden_layers = getattr(_cfg, "num_hidden_layers", None)
-            num_attention_heads = getattr(_cfg, "num_attention_heads", None)
-            num_key_value_heads = getattr(_cfg, "num_key_value_heads", None)
-            hidden_size = getattr(_cfg, "hidden_size", None)
-            vocab_size = getattr(_cfg, "vocab_size", None)
+            model_max_position = cfg_get(_cfg, "max_position_embeddings")
+            num_hidden_layers = cfg_get(_cfg, "num_hidden_layers")
+            num_attention_heads = cfg_get(_cfg, "num_attention_heads")
+            num_key_value_heads = cfg_get(_cfg, "num_key_value_heads")
+            hidden_size = cfg_get(_cfg, "hidden_size")
+            vocab_size = cfg_get(_cfg, "vocab_size")
         except Exception as _e2:
             print(f"[adaptive] WARN: max_position probe failed ({_e2}), skipping safety cap", flush=True)
 
@@ -1565,7 +1569,7 @@ def build_adaptive_run_config(
         try:
             from transformers import AutoConfig
             _cfg = AutoConfig.from_pretrained(model_path, local_files_only=True, trust_remote_code=False)
-            archs = getattr(_cfg, "architectures", None) or []
+            archs = cfg_get(_cfg, "architectures") or []
             if archs:
                 _arch_str_for_lookup = archs[0]
         except Exception:
@@ -2035,7 +2039,7 @@ def build_adaptive_run_config(
     # Detection: family_resolved=="falcon" OR architecture string OR AutoConfig.alibi=True.
     _alibi_attr = None
     try:
-        _alibi_attr = getattr(_cfg, "alibi", None)
+        _alibi_attr = cfg_get(_cfg, "alibi")
     except NameError:
         pass  # _cfg not defined (both AutoConfig loads failed earlier)
     _is_alibi_model = (
@@ -2218,7 +2222,7 @@ def build_adaptive_run_config(
         # avoids vLLM FA3 crash. Override-able via FORCE_VLLM=1.
         _grpo_alibi = False
         try:
-            _grpo_alibi = bool(getattr(_cfg, "alibi", False))
+            _grpo_alibi = bool(cfg_get(_cfg, "alibi", default=False))
         except NameError:
             pass
         if (_grpo_alibi or (isinstance(arch, str) and "falcon" in arch.lower())) \

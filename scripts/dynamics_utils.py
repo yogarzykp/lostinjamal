@@ -77,6 +77,56 @@ def arch_supports_fa(arch_family: str) -> bool:
     return arch_family in _FA_SUPPORTED_FAMILIES
 
 
+# Wrapper architectures nest the decoder's real dimensions one level down. transformers
+# calls that sub-config `text_config` (the shape every model in G.O.D's 2026+ pool with a
+# multimodal or wrapped decoder uses); a few families use another name.
+#
+# Every sizing sensor in this repo read the TOP level only, so on such a model they all
+# came back None at once: get_param_count returned None and adaptive_config's 1B default
+# fired, the vocab-aware OOM cap could not arm because vocab_size was None, and a 9.65B
+# model was planned as if it were 1B — full fine-tune, batch sized for a model an order of
+# magnitude smaller. This is independent of the transformers version: upgrading so the
+# architecture LOADS does not make the numbers appear at the top level.
+_NESTED_CONFIG_KEYS = ("text_config", "llm_config", "language_config", "decoder")
+
+
+def cfg_get(cfg, *names, default=None):
+    """Read a decoder dimension, preferring a nested text sub-config when one exists.
+
+    The nest wins, and that ordering was corrected after measuring. The obvious rule —
+    top level first, fall back to the nest — is wrong for the exact models this exists
+    for, because transformers does not leave the top level EMPTY on a wrapped config: it
+    builds a config class, and that class supplies defaults for every standard field. A
+    wrapped 9B decoder came back with vocab_size=32000, the LlamaConfig default, while
+    the real 151936 sat in `text_config` unread. A missing value announces itself; a
+    default does not, and it is the shape that silently mis-sizes a run.
+
+    A flat config has no nest at all, so it is untouched — which is the property that
+    makes this safe to drop into the sizing path of every task. The only configs whose
+    reading changes are those that actually declare a sub-config, and for those the
+    sub-config IS the decoder while the top level belongs to the wrapper.
+    """
+    for nest in _NESTED_CONFIG_KEYS:
+        sub = getattr(cfg, nest, None)
+        if sub is None and isinstance(cfg, dict):
+            sub = cfg.get(nest)
+        if sub is None:
+            continue
+        for name in names:
+            value = sub.get(name) if isinstance(sub, dict) else getattr(sub, name, None)
+            if value is not None:
+                return value
+
+    for name in names:
+        value = getattr(cfg, name, None)
+        if value is None and isinstance(cfg, dict):
+            value = cfg.get(name)
+        if value is not None:
+            return value
+
+    return default
+
+
 def get_param_count(model_path: str) -> Optional[int]:
     """Param count from config (without loading weights). Survives anonymization.
 
@@ -90,17 +140,17 @@ def get_param_count(model_path: str) -> Optional[int]:
         cfg = AutoConfig.from_pretrained(model_path, trust_remote_code=False)
     except Exception:
         return None
-    h = getattr(cfg, "hidden_size", None)
-    n = getattr(cfg, "num_hidden_layers", None)
-    v = getattr(cfg, "vocab_size", None)
+    h = cfg_get(cfg, "hidden_size")
+    n = cfg_get(cfg, "num_hidden_layers")
+    v = cfg_get(cfg, "vocab_size")
     # OPT uses ffn_dim, llama/qwen/mistral use intermediate_size
-    inter = getattr(cfg, "intermediate_size", None) or getattr(cfg, "ffn_dim", None)
+    inter = cfg_get(cfg, "intermediate_size", "ffn_dim")
     if not all([h, n, v, inter]):
         return None
     embed = h * v
     attn_per_layer = 4 * h * h  # Q, K, V, O
     # OPT has 2 MLP layers (fc1, fc2); SwiGLU has 3 (gate, up, down).
-    arch_str = (getattr(cfg, "architectures", None) or [""])[0]
+    arch_str = (cfg_get(cfg, "architectures") or [""])[0]
     is_opt = "opt" in (arch_str or "").lower()
     if is_opt:
         mlp_per_layer = 2 * h * inter   # fc1 + fc2
