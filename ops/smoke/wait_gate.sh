@@ -71,7 +71,13 @@ PID=$(tr -d ' \n' < "$PIDFILE")
 [ -n "$PID" ] || { echo "[wait] pidfile is empty" >&2; exit 3; }
 
 XID_START=$(xid_count)
-echo "[wait] watching pid=$PID log=$LOG marker='$MARKER'"
+# The marker is NOT printed. This watcher's own output has landed in the log it was
+# watching before — a driver tee'd both into one file — and it then matched its own
+# startup line and reported "finished cleanly" one second in, on a gate that ran for
+# another hour. Same shape as `pgrep -f` matching its own command line: the observer
+# became part of what it observed. Print its length instead, which is enough to tell two
+# runs apart and cannot be mistaken for the marker itself.
+echo "[wait] watching pid=$PID log=$LOG marker=<${#MARKER} chars>"
 echo "[wait] xid at start: $XID_START"
 
 start=$(date +%s)
@@ -99,7 +105,12 @@ while true; do
     [ "$quiet" -gt "$longest_quiet" ] && longest_quiet=$quiet
   fi
 
-  if [ -f "$LOG" ] && grep -qa -- "$MARKER" "$LOG"; then
+  # Anchored to line start. The writer echoes the marker on a line of its own, so nothing
+  # is lost — but anything that merely MENTIONS it mid-line (a log of the command that
+  # started the run, another tool naming it, this watcher's own output) no longer counts.
+  # Belt and braces with not printing it: either alone would have prevented the incident,
+  # and the log stays poisoned once it happens, so a rerun cannot recover on its own.
+  if [ -f "$LOG" ] && grep -qa -- "^$MARKER" "$LOG"; then
     XID_END=$(xid_count)
     if [ "$XID_START" != "UNKNOWN" ] && [ "$XID_END" != "UNKNOWN" ] \
        && [ "$XID_END" -gt "$XID_START" ]; then

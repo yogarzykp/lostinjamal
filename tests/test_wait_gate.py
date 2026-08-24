@@ -237,3 +237,56 @@ def test_disabling_each_path_makes_a_test_fail(name, env, tmp_path):
         f"the {name} path was disabled and the corresponding check still passed — "
         f"that check is not guarding anything"
     )
+
+
+# ---------------------------------------------------------------------------
+# The bug this file was written to prevent, which it then failed to prevent
+# ---------------------------------------------------------------------------
+
+def test_the_watcher_does_not_match_its_own_output(env):
+    """Caught in production on 2026-08-24, on the first real gate this watcher supervised.
+
+    The driver tee'd its stdout — including the watcher's — into the same log the watcher
+    was reading. The watcher's startup line named the marker, that line landed in the
+    watched log, and it grepped and found its own announcement: "finished cleanly" one
+    second in, on a gate that ran for another hour.
+
+    The same shape as `pgrep -f` matching its own command line, which this script's PID
+    file was introduced to avoid — the observer became part of what it observed. Every
+    test above used a separate file for the watcher's output, which is exactly why none
+    of them saw it.
+    """
+    log = env.log("selfmatch.log")
+    pid = env.spawn(6, marker_into=log)
+    e = dict(os.environ, WAIT_GATE_POLL="1",
+             WAIT_GATE_DMESG_CMD=env.stub("flat.sh", FLAT), COUNTER=env.counter)
+    # The condition that caused it: the watcher's own stdout is appended to the log it
+    # is watching.
+    with open(log, "a") as sink:
+        r = subprocess.run(["bash", SCRIPT, log, "driver end", pid, "20"],
+                           stdout=sink, stderr=subprocess.STDOUT, text=True,
+                           env=e, timeout=120)
+    with open(log) as fh:
+        body = fh.read()
+    assert r.returncode == 0, f"expected a clean finish, got {r.returncode}\n{body}"
+    assert "driver end" in body
+    # The tell: a premature verdict reports a quiet span of 0s because it never looped.
+    m = re.search(r"without log growth: (\d+)s", body)
+    assert m, body
+    assert int(m.group(1)) >= 1, (
+        "the watcher returned before the run finished — it matched its own output in the "
+        "log it was watching"
+    )
+
+
+def test_a_mention_of_the_marker_mid_line_is_not_a_completion(env):
+    """Anchoring, stated directly: the writer echoes the marker on its own line."""
+    log = env.log("mention.log")
+    with open(log, "w") as fh:
+        fh.write("[wait] watching log=x marker='driver end'\nstill working\n")
+    pid = env.spawn(1)   # dies without ever writing a real marker line
+    r = env.run(log, pid, env.stub("flat.sh", FLAT), timeout=8)
+    assert r.returncode == 4, (
+        f"expected 4 (process died, no marker), got {r.returncode} — a mid-line mention "
+        f"of the marker was accepted as completion\n{r.stdout}"
+    )
