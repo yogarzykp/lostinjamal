@@ -1936,6 +1936,12 @@ def build_adaptive_run_config(
         except Exception as _exc:
             print(f"[adaptive] augmentation detection failed (skipped): {_exc}", flush=True)
 
+    # Set by the GAUSSIAN_NOISE branch below when its gate is on. None means
+    # "no augmentation override" and the normal resolution at the bottom of this
+    # function applies. It exists because the override has to reach run_config on
+    # BOTH paths, and instruct_hp is None on one of them.
+    _aug_neftune_override = None
+
     if aug_info.get("detected_type") == "MAGNITUDE_PRUNING":
         # Neutralised 2026-08-09. The reasoning ("pruned weights need a higher LR
         # to recover capacity") is plausible but the 1.15 was never measured, and
@@ -1960,11 +1966,47 @@ def build_adaptive_run_config(
         warmup = max(70, warmup * 2)
         print(f"[adaptive] LAYER_REINIT → warmup_steps={warmup}", flush=True)
     elif aug_info.get("detected_type") == "GAUSSIAN_NOISE":
-        # Already noisy; turn off NEFTune to avoid stacking regularization.
-        # Only meaningful for Instruct (DPO/GRPO don't use NEFTune by default).
-        if instruct_hp is not None:
-            instruct_hp["neftune_alpha"] = 0
-            print(f"[adaptive] GAUSSIAN_NOISE → neftune_alpha=0 (avoid stacking)", flush=True)
+        # The data is already noisy, so stacking NEFTune on top is double
+        # regularisation. Neutralised by default 2026-08-26, following the
+        # MAGNITUDE_PRUNING precedent directly above and declined for the same
+        # reason: the action was never measured.
+        #
+        # What stood here did nothing at all, twice over, and said otherwise.
+        # It wrote instruct_hp["neftune_alpha"] — a key nothing in the
+        # repository reads, since every consumer reads neftune_noise_alpha
+        # (this file's run_config, and instruct_config.py's --neftune_noise_alpha).
+        # And it was guarded by `instruct_hp is not None`, which admits only the
+        # branch where NEFTune is already 0 for all eight family profiles, while
+        # skipping the branch that actually ships 5.0 (an instruct task with
+        # ADAPTIVE_INSTRUCT_FAMILY=0). The gate was inverted relative to the
+        # risk: live where there was nothing to fix, silent where there was.
+        # The print announced the change regardless.
+        #
+        # Why it stays off rather than simply being repaired: the trigger is an
+        # RMS-ratio band of (1.0001, 1.005) in model_detection.py — a 0.01%-0.5%
+        # signal — whose false-positive rate against ordinary precision noise is
+        # not established here. A false fire silently removes a regulariser from
+        # a task that was never augmented, and under winner-take-all that flips
+        # outcomes in both directions. Note also that confidence is a hardcoded
+        # 0.6 for this pattern, so gating on a confidence threshold would
+        # discriminate nothing; the env flag is the honest control.
+        # Turn it on with AUG_GAUSSIAN_NEFTUNE_OFF=1 once an A/B on augmented
+        # tasks supports it.
+        if os.getenv("AUG_GAUSSIAN_NEFTUNE_OFF", "0") == "1":
+            _aug_neftune_override = 0
+            if instruct_hp is not None:
+                instruct_hp["neftune_noise_alpha"] = 0
+            print(
+                "[adaptive] GAUSSIAN_NOISE → neftune_noise_alpha=0 "
+                "(AUG_GAUSSIAN_NEFTUNE_OFF=1)",
+                flush=True,
+            )
+        else:
+            print(
+                "[adaptive] GAUSSIAN_NOISE detected → neftune UNCHANGED "
+                "(unmeasured; set AUG_GAUSSIAN_NEFTUNE_OFF=1 to suppress it)",
+                flush=True,
+            )
     # WEIGHT_SCALING: keep current HP — model is just rescaled, training dynamics
     # still match the base model.
 
@@ -2145,7 +2187,11 @@ def build_adaptive_run_config(
         # NEFTune (lotob-neftune branch added template support).
         # Family-aware: SmolLM small data → 5; large data → 0.
         "neftune_noise_alpha": (
-            instruct_hp["neftune_noise_alpha"] if instruct_hp
+            # An augmentation override, when its gate is on, outranks both
+            # sources below — it has to reach this dict on the instruct_hp-is-None
+            # path too, which is the only path that carries a non-zero value.
+            _aug_neftune_override if _aug_neftune_override is not None
+            else instruct_hp["neftune_noise_alpha"] if instruct_hp
             # PENDING A/B (2026-08-05): held at 5.0 for instruct until the first
             # test train. Two winner-corpus audits found NEFTune absent from all 23
             # audited winning submissions, and mechanically it is a generation-quality
