@@ -39,6 +39,34 @@ LOCAL_RANK = int(os.getenv("LOCAL_RANK", "0"))
 
 print(f"LOCAL_RANK: {LOCAL_RANK} in customized_trainer.py", flush=True)
     
+def min_prior_run_loss(runs) -> float:
+    """Lowest current_loss among prior runs, or +inf when there is no usable history.
+
+    Pulled out of on_step_end so it can be tested at all: the callback needs torch,
+    transformers and a live TrainerState, and the defect here was never in the
+    comparison — it was that the expression could raise inside a hook that runs every
+    step and is not wrapped by transformers, ending the run instead of degrading it.
+
+    Three ways the old `min([run["current_loss"] for run in my_state["runs"]])` raised:
+    KeyError when state_manager.get_state() returned {} (a missing redis key, or JSON
+    that will not parse), KeyError on a run dict written before its loss was known, and
+    ValueError from min() over an empty list.
+
+    +inf for "no history" is not a sentinel bolted on: with nothing to compare against,
+    the current run IS the best so far, which is the same conclusion the loop reaches
+    from a single-entry history.
+    """
+    if not isinstance(runs, (list, tuple)):
+        return float("inf")
+    losses = [
+        r["current_loss"] for r in runs
+        if isinstance(r, dict)
+        and isinstance(r.get("current_loss"), (int, float))
+        and not isinstance(r.get("current_loss"), bool)
+    ]
+    return min(losses) if losses else float("inf")
+
+
 class CustomEvalSaveCallback(TrainerCallback):
     def __init__(
         self,
@@ -403,7 +431,11 @@ class CustomEvalSaveCallback(TrainerCallback):
                 args.save_strategy = "no"
                 # save the score of this probe run to the state; held-out loss when
                 # probe_eval_fn is wired, otherwise the training loss (see _probe_loss)
-                my_state["train"]["current_loss"] = self._probe_loss(state)
+                # Same lost-state exposure as the second_time branch below: a
+                # bare double subscript is a KeyError on the {} get_state()
+                # returns when the redis key is gone, inside a hook that runs
+                # every step.
+                my_state.setdefault("train", {})["current_loss"] = self._probe_loss(state)
                 my_state["mode"] = "continue"
                 if n > MAX_TRIES:
                     n = MAX_TRIES
@@ -422,7 +454,13 @@ class CustomEvalSaveCallback(TrainerCallback):
             log_content = f"Checking the model at step: {state.global_step} where check_mode=second_time"            
             my_state = get_state()
             current_loss = self._probe_loss(state)
-            my_state["train"]["current_loss"] = current_loss
+            # get_state() returns {} when the redis key is gone or its JSON will
+            # not parse, and "state lost mid-task" is a shape this repo has
+            # already had to backstop elsewhere. Subscripting it here raises
+            # KeyError inside on_step_end, which runs every step and is not
+            # wrapped by transformers — so a lost key would end the run rather
+            # than degrade it.
+            my_state.setdefault("train", {})["current_loss"] = current_loss
 
             control.should_training_stop = True
 
@@ -433,9 +471,16 @@ class CustomEvalSaveCallback(TrainerCallback):
             #     control.should_save = False
             # check if this is the last run and the current_loss is the lowest --> keep running the training
             current_is_the_best = False
-            current_min_loss = min([run["current_loss"] for run in my_state["runs"]])
-            if current_loss <= current_min_loss:
-                if len(my_state["runs"]) + 1 == my_state["next_runs"]:
+            # min() over an empty list is a ValueError, and "runs" is absent
+            # entirely on a lost state. Entries are filtered rather than trusted
+            # because a half-written run dict has no current_loss yet. No prior
+            # run means this one is the best so far, which is what an infinite
+            # floor expresses — the same conclusion the loop would reach on a
+            # single-entry history.
+            _runs = my_state.get("runs") or []
+            current_min_loss = min_prior_run_loss(_runs)
+            if current_loss is not None and current_loss <= current_min_loss:
+                if len(_runs) + 1 == my_state.get("next_runs"):
                     print(f"Current loss: {my_state['train']['current_loss']} is greater than: {current_min_loss}", flush=True)
                     current_is_the_best = True
                     
@@ -1334,8 +1379,28 @@ class GRPOCustomEvalSaveCallback(CustomEvalSaveCallback):
     def on_log(self, args, state: TrainerState, control: TrainerControl, logs=None, **kwargs):
         """Track reward + kl, compute plateau proxy, fire when stagnated."""
         # KL governor runs FIRST (preventive) — independent of plateau early-stop.
+        # Guarded because it sits OUTSIDE the try that wraps the rest of this
+        # callback, and transformers does not wrap callback dispatch: anything
+        # raised here propagates through trainer.log() and ends the run. The
+        # governor only watches and throttles — purely observational machinery
+        # must never be the thing that costs a task its checkpoint. Its float
+        # conversions are already guarded internally, but the LR mutation block
+        # (sched.base_lrs, pg["lr"] *= f) is not, and neither is attribute access
+        # on a partially-initialised instance.
         if logs:
-            self._maybe_kl_govern(logs.get("kl"), logs.get("reward"), kwargs)
+            try:
+                self._maybe_kl_govern(logs.get("kl"), logs.get("reward"), kwargs)
+            except Exception as _exc:
+                if getattr(self, "_kl_gov_ceiling", 0) > 0:
+                    print(
+                        f"[KL-governor] error — governor disabled for the rest of "
+                        f"this run, training continues: {_exc}",
+                        flush=True,
+                    )
+                # Setting the ceiling to 0 is the existing disable path
+                # (_maybe_kl_govern returns immediately on it), so one failure
+                # cannot turn into per-step log spam.
+                self._kl_gov_ceiling = 0
         if self._h3_fired or not logs:
             return
         reward = logs.get("reward")
