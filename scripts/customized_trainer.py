@@ -39,6 +39,30 @@ LOCAL_RANK = int(os.getenv("LOCAL_RANK", "0"))
 
 print(f"LOCAL_RANK: {LOCAL_RANK} in customized_trainer.py", flush=True)
     
+STATE_TIME_FORMAT = "%Y-%m-%d %H:%M:%S"
+
+
+def parse_state_timestamp(value):
+    """A datetime from a state timestamp, or None when it is absent or malformed.
+
+    Same reason min_prior_run_loss exists: this is read inside on_step_end, which runs
+    every step and is not wrapped by transformers, so a raise here ends the run rather
+    than degrading it. get_state() returns {} on a missing redis key or JSON that will
+    not parse, which made `my_state["train"]["start_time"]` a KeyError, and a truncated
+    or half-written value made strptime a ValueError.
+
+    None rather than a fabricated default on purpose. These two stamps drive the
+    remaining-time estimate that decides how many more runs fit; inventing one would
+    produce a confident wrong estimate, which is worse than declining to estimate.
+    """
+    if not isinstance(value, str):
+        return None
+    try:
+        return datetime.datetime.strptime(value, STATE_TIME_FORMAT)
+    except (TypeError, ValueError):
+        return None
+
+
 def min_prior_run_loss(runs) -> float:
     """Lowest current_loss among prior runs, or +inf when there is no usable history.
 
@@ -384,8 +408,24 @@ class CustomEvalSaveCallback(TrainerCallback):
             # print(f"Checking the model at step: {state.global_step}", flush=True)
             # check the time so far to estimate the training time in total 
             my_state = get_state()
-            start_time_obj = datetime.datetime.strptime(my_state["train"]["start_time"], "%Y-%m-%d %H:%M:%S")
-            start_train_time_obj = datetime.datetime.strptime(my_state["train"]["start_train_time"], "%Y-%m-%d %H:%M:%S")
+            # The second_time branch below was hardened against a lost state; this
+            # branch carried the identical exposure and was left behind. Both stamps
+            # are read straight out of get_state(), which returns {} when the redis
+            # key is gone or its JSON will not parse.
+            _train_state = my_state.get("train") or {}
+            start_time_obj = parse_state_timestamp(_train_state.get("start_time"))
+            start_train_time_obj = parse_state_timestamp(_train_state.get("start_train_time"))
+            if start_time_obj is None or start_train_time_obj is None:
+                # Without both stamps there is no remaining-time estimate to make, so
+                # skip the probe and let training run to its normal end. That loses the
+                # ladder for this task; raising would have lost the checkpoint entirely.
+                print(
+                    "[on_step_end] training state has no usable start timestamps "
+                    "(state lost or unparseable) — skipping the time estimate, "
+                    "training continues",
+                    flush=True,
+                )
+                return control
             
             log_content = f"Checking the model at step: {state.global_step}"
             now = datetime.datetime.now()

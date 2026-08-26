@@ -239,3 +239,117 @@ def test_min_site_uses_the_guarded_helper(tree):
         assert "current_loss" not in consts, (
             "a raw unguarded min over run losses is present again"
         )
+
+
+# --- the first_time branch, which carried the identical exposure ------------------
+
+
+@pytest.fixture(scope="module")
+def parse_ts():
+    """exec the timestamp parser alone, same reason as min_prior above."""
+    tree = ast.parse(_source())
+    ns = {"datetime": __import__("datetime")}
+    for node in tree.body:
+        if isinstance(node, ast.Assign) and any(
+            isinstance(t, ast.Name) and t.id == "STATE_TIME_FORMAT" for t in node.targets
+        ):
+            exec(compile(ast.Module(body=[node], type_ignores=[]), TRAINER, "exec"), ns)  # noqa: S102
+    for node in tree.body:
+        if isinstance(node, ast.FunctionDef) and node.name == "parse_state_timestamp":
+            exec(compile(ast.Module(body=[node], type_ignores=[]), TRAINER, "exec"), ns)  # noqa: S102
+            return ns["parse_state_timestamp"]
+    raise AssertionError("parse_state_timestamp is not defined at module scope")
+
+
+def test_a_real_timestamp_parses(parse_ts):
+    got = parse_ts("2026-08-27 01:23:45")
+    assert (got.year, got.month, got.day, got.hour) == (2026, 8, 27, 1)
+
+
+@pytest.mark.parametrize(
+    "junk",
+    [None, "", "not a date", "2026-08-27", 1756250000, 3.5, True, [], {}, b"2026-08-27 01:23:45"],
+)
+def test_unusable_stamps_return_none_rather_than_raising(parse_ts, junk):
+    """A lost state yields {}, so .get() hands this None; a truncated write hands junk."""
+    assert parse_ts(junk) is None
+
+
+def test_no_default_is_fabricated(parse_ts):
+    """These stamps drive the remaining-time estimate.
+
+    A made-up value would produce a confident wrong estimate of how many runs still
+    fit, which is worse than declining to estimate at all.
+    """
+    assert parse_ts(None) is None
+    assert parse_ts("garbage") is None
+
+
+def test_first_time_branch_uses_the_parser(tree):
+    """The wire. A correct parser nobody calls leaves the crash where it was."""
+    called = [
+        n for n in ast.walk(tree)
+        if isinstance(n, ast.Call)
+        and isinstance(n.func, ast.Name)
+        and n.func.id == "parse_state_timestamp"
+    ]
+    assert len(called) >= 2, (
+        f"expected both start stamps to go through the parser, found {len(called)} call(s)"
+    )
+
+
+def test_strptime_is_no_longer_called_on_state_directly(tree):
+    """The old shape: datetime.strptime(my_state["train"][...], fmt)."""
+    for node in ast.walk(tree):
+        if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)):
+            continue
+        if node.func.attr != "strptime" or not node.args:
+            continue
+        names = {n.id for n in ast.walk(node.args[0]) if isinstance(n, ast.Name)}
+        assert "my_state" not in names, (
+            "a state value is parsed inline again; route it through parse_state_timestamp"
+        )
+
+
+# --- gap two: the guard that nothing was pinning ---------------------------------
+
+
+def _bare_subscript_reads(tree, name="my_state"):
+    """String keys READ off `name` by subscript — writes create the key, reads raise."""
+    out = set()
+    for n in ast.walk(tree):
+        if (
+            isinstance(n, ast.Subscript)
+            and isinstance(n.value, ast.Name)
+            and n.value.id == name
+            and isinstance(n.ctx, ast.Load)
+            and isinstance(n.slice, ast.Constant)
+            and isinstance(n.slice.value, str)
+        ):
+            out.add(n.slice.value)
+    return out
+
+
+def test_next_runs_is_read_defensively(tree):
+    """Reverting this to my_state["next_runs"] passed every test in this file.
+
+    The committed code was already right; nothing pinned it, so it could be undone
+    silently. A lost state returns {} and the read is a KeyError inside a hook that
+    runs every step.
+    """
+    assert "next_runs" not in _bare_subscript_reads(tree), (
+        'my_state["next_runs"] is read by bare subscript; use .get("next_runs")'
+    )
+
+
+def test_the_bare_read_detector_can_bite():
+    """Control: writes must not register, reads must."""
+    written_only = _bare_subscript_reads(ast.parse('my_state["mode"] = "finish"\n'))
+    assert written_only == set(), f"a write was misread as a read: {written_only}"
+    read = _bare_subscript_reads(ast.parse('x = my_state["next_runs"]\n'))
+    assert read == {"next_runs"}
+
+
+def test_runs_is_also_read_defensively(tree):
+    """Same shape, same fix — pinned here so neither can regress alone."""
+    assert "runs" not in _bare_subscript_reads(tree)
