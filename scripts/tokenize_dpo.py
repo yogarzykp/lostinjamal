@@ -73,14 +73,28 @@ def split_dataset(total_data_path: str, train_data_path: str, dev_data_path: str
     # for DPO than anywhere else: this dev set is what LR selection is scored on,
     # and DPO's degenerate minimiser means a contaminated dev signal actively
     # selects the LR that collapses the policy.
-    try:
-        from data.split_policy import leak_safe_split, DPO_KEYS
-        train_items, dev_items, split_stats = leak_safe_split(data, DPO_KEYS, seed=seed)
-        print(f"[split] {split_stats}", flush=True)
-    except Exception as exc:
-        print(f"[split] policy unavailable ({exc}) — legacy slice", flush=True)
+    #
+    # Gated for the same reason tokenize_instruct.py gates its own split: the split
+    # is a behavioural change like every other, and a baseline is only a baseline if
+    # every new mechanism is off. Without this, a DPO bisect could not attribute a
+    # difference to the split versus anything else changed alongside it — which
+    # ops/smoke/run_dpo_smoke.sh had to record as a limit on what its stages prove.
+    # Deliberately DPO_SPLIT_POLICY and not INSTRUCT_SPLIT_POLICY: nothing on the way
+    # to train_dpo.py reads the instruct switch, and having one variable silently
+    # steer two task types is how a bisect ends up measuring something it did not name.
+    if os.getenv("DPO_SPLIT_POLICY", "1") != "1":
+        print(f"[split] DPO_SPLIT_POLICY=0 — legacy shuffle+slice, dev_size={dev_size}", flush=True)
         dev_items = data[:dev_size]
         train_items = data[dev_size:]
+    else:
+        try:
+            from data.split_policy import leak_safe_split, DPO_KEYS
+            train_items, dev_items, split_stats = leak_safe_split(data, DPO_KEYS, seed=seed)
+            print(f"[split] {split_stats}", flush=True)
+        except Exception as exc:
+            print(f"[split] policy unavailable ({exc}) — legacy slice", flush=True)
+            dev_items = data[:dev_size]
+            train_items = data[dev_size:]
     # Save the train and dev datasets
     with open(train_data_path, 'w') as file:
         json.dump(train_items, file, ensure_ascii=False)

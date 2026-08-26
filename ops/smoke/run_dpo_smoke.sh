@@ -35,11 +35,13 @@
 #        this stage makes it, and the log line it prints is the deliverable. Not
 #        comparable with a or b — it deliberately changes the training plan.
 #
-# Two honest limits on stage a. tokenize_dpo.py has no equivalent of
-# INSTRUCT_SPLIT_POLICY, so the leak-safe split runs in every stage and cannot be
-# switched off from here. And with no BASELINE_STATS_PATH set, the BASELINE_USE_*
+# One honest limit on stage a. With no BASELINE_STATS_PATH set, the BASELINE_USE_*
 # switches in stages a and b are reads that find nothing — which is why the gap stage
 # exists at all.
+#
+# There used to be a second: the leak-safe split ran in every stage and could not be
+# switched off, so stage a was never a clean baseline. tokenize_dpo.py now reads
+# DPO_SPLIT_POLICY, set per stage below.
 #
 # Usage:  ./run_dpo_smoke.sh <stage>     stage = a | b | gap
 set -euo pipefail
@@ -90,6 +92,8 @@ DATASET_TYPE='{"field_prompt":"question","field_chosen":"chosen_response","field
 # BASELINE_USE_COMPLETION_LOSS, BASELINE_USE_NEARDUP, EMIT_PER_EXAMPLE_LOSSES),
 # which nothing on the way to train_dpo.py reads, and TRAINING_BO_AUGMENT, which
 # predates the work under test and is therefore left at its default in every stage.
+# INSTRUCT_SPLIT_POLICY stays out for that reason and not because the split is
+# untested here: the DPO split has its own switch, DPO_SPLIT_POLICY, set per stage.
 # Setting any of them here would only suggest this run had tested them.
 # ---------------------------------------------------------------------------
 STATS_JSON=""
@@ -100,6 +104,9 @@ case "$STAGE" in
     export DPO_PROBE_EVAL=0            # probes scored on training loss, as before
     export BASELINE_USE_SEQLEN=0
     export BASELINE_USE_DPO_GAP=0
+    export DPO_SPLIT_POLICY=0          # legacy shuffle+slice: the split is a new
+                                       # mechanism like the rest, and a baseline is
+                                       # only a baseline if every one of them is off
     # Per-layer LR reads as a default-off feature today, but per_layer_optimizer.py's
     # own docstring dates that default to 2026-08-05 — before then it applied unasked.
     # Stage a therefore has to turn it ON to reproduce what ran last. Its size gate
@@ -114,6 +121,7 @@ case "$STAGE" in
     export DPO_PROBE_EVAL=1
     export BASELINE_USE_SEQLEN=1
     export BASELINE_USE_DPO_GAP=1
+    export DPO_SPLIT_POLICY=1          # current default
     export PER_LAYER_LR_ENABLED=0      # current default
     export REG_RATIO_ARG=""            # defaults to 1.0
     unset BASELINE_STATS_PATH || true
@@ -123,6 +131,7 @@ case "$STAGE" in
     export DPO_PROBE_EVAL=1
     export BASELINE_USE_SEQLEN=1
     export BASELINE_USE_DPO_GAP=1
+    export DPO_SPLIT_POLICY=1
     export PER_LAYER_LR_ENABLED=0
     export REG_RATIO_ARG=""
     # Only implicit_reward_gap, so the epoch guard is the one thing that moves:
