@@ -77,22 +77,47 @@ def run_cmd_with_log(cmd: str, log_file_path: str, env_vars: dict = None):
         log_file.write(f"\nProcess completed with return code: {return_code}\n")
 
 
+def _arg_pattern(arg_name: str) -> str:
+    """Match `--name value`, whether or not anything follows it.
+
+    Two things were wrong with the old inline expression. It required trailing
+    whitespace, so a flag that happened to be the command's LAST token did not match
+    — and dpo_config.py already appends one at the end (`--padding_free True`), so
+    the ordering that makes this bite is a template edit away rather than
+    hypothetical. And it was an f-string, not a raw string, so `\\s` was an invalid
+    escape sequence that Python preserved with a DeprecationWarning.
+    """
+    return rf"(?P<p>--{arg_name}(\s+)(?P<value>[^\s]+))(\s+|$)"
+
+
 def replace_args_in_cmd(cmd: str, arg_name: str, arg_value: str):
-    match = re.search(f"(?P<p>--{arg_name}(\s+)([^\s]+))(\s+)", cmd)
+    match = re.search(_arg_pattern(arg_name), cmd)
     if match:
         left_index = match.start("p")
         right_index = match.end("p")
         return cmd[:left_index] + f" --{arg_name} {arg_value} " + cmd[right_index:]
-    else:
-        return None
+    # Returning None here poisoned the caller. Every call site in this file assigns
+    # the result straight back into train_cmd and none checks it, so a flag that did
+    # not match turned the next launch into None rather than a command — the OOM
+    # ladder's own rungs are three of those call sites, so the failure would land on
+    # a run already in trouble. Hand back the command untouched and say so.
+    print(
+        f"[cmd] --{arg_name} not found; command left unchanged "
+        f"(nothing was substituted)",
+        flush=True,
+    )
+    return cmd
 
 
 def extract_value_from_cmd(cmd: str, arg_name: str):
-    match = re.search(f"(?P<p>--{arg_name}(\s+)(?P<value>[^\s]+))(\s+)", cmd)
+    # Shares _arg_pattern with replace_args_in_cmd so the two cannot drift: a flag
+    # readable by one and invisible to the other is how halve_request_max_length
+    # would silently decline to fire. None on absence is meaningful here and is kept
+    # — callers test for it.
+    match = re.search(_arg_pattern(arg_name), cmd)
     if match:
         return match.group("value")
-    else:
-        return None
+    return None
 
 
 def get_model_architecture(model_name: str) -> str:

@@ -1427,8 +1427,22 @@ def build_adaptive_run_config(
     env_batch = os.getenv("INSTRUCT_BATCH_OVERRIDE")
     if env_batch:
         try:
-            batch = int(env_batch)
-            print(f"[adaptive] batch overridden via env: {batch}", flush=True)
+            _override = int(env_batch)
+            # "0" is truthy, so it reached int() and was adopted. batch=0 then divides:
+            # `64 // total_batch` a few dozen lines down, and
+            # `num_samples * epochs // (batch * gpu_count)` in three places — a
+            # ZeroDivisionError out of config building, before a step has run. The env
+            # var is a bisect knob the validator never sets, so this is a guard on our
+            # own tooling rather than on a tournament path.
+            if _override > 0:
+                batch = _override
+                print(f"[adaptive] batch overridden via env: {batch}", flush=True)
+            else:
+                print(
+                    f"[adaptive] INSTRUCT_BATCH_OVERRIDE={env_batch!r} is not a positive "
+                    f"batch size — ignored, keeping batch={batch}",
+                    flush=True,
+                )
         except ValueError:
             pass
 

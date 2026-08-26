@@ -35,7 +35,15 @@ ERROR_GENERATION_CONFIG_MODELS = [
     "defog/llama-3-sqlcoder-8b"
 ]
 
-LOCAL_RANK = int(os.getenv("LOCAL_RANK", "0"))
+try:
+    # Module scope: a raise here fails the import, so the trainer subprocess dies
+    # before a step runs and the log carries an ImportError rather than a cause.
+    # torchrun normally sets an integer, but a launcher that sets the variable to an
+    # EMPTY string gets "" back from getenv — not the default — and int("") raises.
+    LOCAL_RANK = int(os.getenv("LOCAL_RANK") or 0)
+except (TypeError, ValueError):
+    print(f"[rank] LOCAL_RANK={os.getenv('LOCAL_RANK')!r} is not a rank — using 0", flush=True)
+    LOCAL_RANK = 0
 
 print(f"LOCAL_RANK: {LOCAL_RANK} in customized_trainer.py", flush=True)
     
@@ -1207,6 +1215,18 @@ class CustomEvalSaveCallback(TrainerCallback):
                 print(f"[WSM] restored pre-merge adapter to {dst_path}", flush=True)
         except Exception as exc:
             print(f"[WSM] RESTORE FAILED ({exc}) — submission holds the merged adapter", flush=True)
+            # The backup lives inside submission_dir, so a failed move leaves a stray
+            # .prewsm beside the adapter and the uploader ships it. Two adapters in one
+            # repository is not what a submission should look like, and the one that
+            # gets served is not ours to choose. Removing it does not recover the
+            # restore — the loud line above is still the finding — it only keeps the
+            # failure from travelling.
+            try:
+                if os.path.isfile(backup_path):
+                    os.remove(backup_path)
+                    print(f"[WSM] removed the stray backup at {backup_path}", flush=True)
+            except Exception as _exc:
+                print(f"[WSM] could not remove the stray backup ({_exc})", flush=True)
 
     def on_train_end(self, args, state, control, **kwargs):
         """End of training — trigger WSM merge if eligible."""

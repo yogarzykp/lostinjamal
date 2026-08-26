@@ -25,7 +25,15 @@ console_handler.setLevel(logging.INFO)
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 console_handler.setFormatter(formatter)
 logger.addHandler(console_handler)
-LOCAL_RANK = int(os.getenv("LOCAL_RANK", "0"))
+try:
+    # Module scope: a raise here fails the import, so the trainer subprocess dies
+    # before a step runs and the log carries an ImportError rather than a cause.
+    # torchrun normally sets an integer, but a launcher that sets the variable to an
+    # EMPTY string gets "" back from getenv — not the default — and int("") raises.
+    LOCAL_RANK = int(os.getenv("LOCAL_RANK") or 0)
+except (TypeError, ValueError):
+    print(f"[rank] LOCAL_RANK={os.getenv('LOCAL_RANK')!r} is not a rank — using 0", flush=True)
+    LOCAL_RANK = 0
 
 
 
