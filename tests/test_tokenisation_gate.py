@@ -268,3 +268,86 @@ def test_both_dockerfiles_stay_identical():
     protects whichever the validator happens to pick."""
     a, b = (_source(p) for p in DOCKERFILES)
     assert a == b, "the two trainer dockerfiles have diverged"
+
+
+# --- the packages that pushed the resolver ---------------------------------------
+
+# Never install these in the axolotl venv: both declare an unbounded transformers
+# requirement, so they PUSH the resolver upward rather than merely permitting it.
+# langcheck wants transformers>=4.6, detoxify wants transformers with no bound at all.
+TRANSFORMERS_PULLERS = ("langcheck", "detoxify")
+
+
+def _axo_install_lines(path):
+    """Only the executable install lines of the axolotl venv — never the comments.
+
+    The comment above that block names langcheck and detoxify in order to record why
+    they were removed. A substring check over the whole block matches that prose and
+    fails against the very text that documents the fix.
+    """
+    src = _source(path)
+    start = src.index("Create a virtual environment")
+    block = src[start : src.index("# install the main dependencies", start)]
+    return "\n".join(
+        line for line in block.splitlines() if not line.lstrip().startswith("#")
+    )
+
+
+@pytest.mark.parametrize("path", DOCKERFILES)
+@pytest.mark.parametrize("package", TRANSFORMERS_PULLERS)
+def test_the_axolotl_venv_does_not_install_transformers_pullers(path, package):
+    """The pin alone treats the symptom; this removes the pressure.
+
+    The tokeniser imports none of the eleven packages that used to be installed here —
+    verified across its whole local import tree, not just its own file. The position-1
+    miner of the same tournament installs only axolotl and requests in this venv.
+    """
+    block = _axo_install_lines(path)
+    assert package not in block, (
+        f"{package} is back in the axolotl venv; it declares an unbounded transformers "
+        f"requirement and is how the resolver moved off 4.51.3"
+    )
+
+
+@pytest.mark.parametrize("path", DOCKERFILES)
+def test_the_build_check_covers_the_tokenisers_real_imports(path):
+    """Assert the surface that actually runs, not a token sample of it.
+
+    tokenize_instruct.py is the only thing executed from this venv, and it imports
+    axolotl, transformers, torch, typer, yaml and requests. A check that imports fewer
+    passes while the venv is missing something the tokeniser needs.
+    """
+    src = _source(path)
+    check = src[src.index("from trl.trainer.dpo_trainer") - 300 :][:500]
+    for module in ("axolotl", "transformers", "trl", "torch", "typer", "yaml", "requests"):
+        assert module in check, f"the build-time check does not import {module}"
+
+
+def test_the_tokeniser_still_imports_only_what_the_venv_provides():
+    """Control tying the check above to source rather than to this file's own list."""
+    tree = ast.parse(_source(os.path.join(SCRIPTS, "tokenize_instruct.py")))
+    imported = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            imported |= {a.name.split(".")[0] for a in node.names}
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            imported.add(node.module.split(".")[0])
+    for package in TRANSFORMERS_PULLERS:
+        assert package not in imported, (
+            f"tokenize_instruct now imports {package}; the venv trim is no longer safe"
+        )
+
+
+def test_the_install_line_detector_can_bite():
+    """Control: it must see a package that IS installed, and ignore the comments.
+
+    Without this, a detector that accidentally strips everything would pass both
+    assertions above forever.
+    """
+    for path in DOCKERFILES:
+        lines = _axo_install_lines(path)
+        assert "axolotl==0.9.1" in lines, "the detector dropped the install lines"
+        assert "langcheck" not in lines
+        assert "langcheck" in _source(path), (
+            "the comment recording why langcheck was removed has itself been removed"
+        )

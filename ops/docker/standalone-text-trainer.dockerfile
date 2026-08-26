@@ -54,6 +54,14 @@ RUN chmod +x /workspace/scripts/entrypoint.sh
 
 # Create a virtual environment for data generation
 RUN python -m venv /workspace/axo_py
+# Eleven packages used to be installed here — redis, colorama, loguru, fastapi,
+# pydantic-settings, python-dotenv, toml, textstat, langcheck, detoxify, wandb — and the
+# tokeniser imports NONE of them. Verified across its whole local import tree
+# (tokenize_instruct -> baseline_signals, baseline_stats_reader, data). Two of them are
+# why the resolver moved: langcheck requires transformers>=4.6 and detoxify requires
+# transformers with no bound at all, so our own extra installs PUSHED transformers up
+# rather than merely permitting it. The position-1 miner of the same tournament installs
+# only axolotl and requests here, and did not hit this.
 # transformers and trl are pinned HERE, in the same resolve, not left to axolotl's
 # transitive graph. trl==0.18.0 declares `transformers>=4.50.0` with NO upper bound, so
 # the resolver was free to pick a transformers that had dropped
@@ -67,7 +75,6 @@ RUN bash -c "source /workspace/axo_py/bin/activate && \
     pip install -U packaging==23.2 setuptools==75.8.0 wheel ninja && \
     uv pip install --no-build-isolation axolotl==0.9.1 transformers==4.51.3 trl==0.18.0 && \
     pip install requests==2.32.3 && \
-    pip install redis==7.0.1 colorama loguru fastapi pydantic-settings python-dotenv toml textstat langcheck detoxify wandb && \
     deactivate"
 
 # Prove the tokenisation stack imports, at BUILD time. Without this the pin above is a
@@ -75,7 +82,7 @@ RUN bash -c "source /workspace/axo_py/bin/activate && \
 # healthy and fails only when a tournament task reaches tokenisation. A build that fails
 # here costs minutes; the alternative cost a round.
 RUN bash -c "source /workspace/axo_py/bin/activate && \
-    python -c \"import transformers, trl, axolotl, jinja2; \
+    python -c \"import transformers, trl, axolotl, jinja2, typer, yaml, torch, requests; \
 from trl.trainer.dpo_trainer import DPOTrainer; \
 assert transformers.__version__.startswith('4.51'), 'axo_py transformers=' + transformers.__version__; \
 assert trl.__version__.startswith('0.18'), 'axo_py trl=' + trl.__version__; \
