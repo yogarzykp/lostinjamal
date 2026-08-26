@@ -127,6 +127,71 @@ def cfg_get(cfg, *names, default=None):
     return default
 
 
+MOE_EXPERT_KEYS = ("num_local_experts", "num_experts", "n_routed_experts", "moe_num_experts")
+
+
+def _advise_param_count_from_raw_json(model_path, exc):
+    """Log what config.json says when AutoConfig could not read it. Never returns a value.
+
+    AutoConfig needs the architecture registered in the installed transformers; the four
+    fields the size formula uses do not. model_detection.py already reads this same file
+    with a plain json.load for fingerprinting, so this borrows a technique the codebase
+    already trusts rather than inventing one.
+    """
+    try:
+        path = os.path.join(model_path, "config.json")
+        if not os.path.isfile(path):
+            print(f"[dynamics] param_count: AutoConfig failed ({exc}); no readable "
+                  f"config.json — using the 1B default", flush=True)
+            return
+        with open(path, "r", encoding="utf-8") as fh:
+            raw = json.load(fh)
+        nested = raw.get("text_config") if isinstance(raw.get("text_config"), dict) else {}
+        def _pick(*names):
+            for nm in names:
+                for src in (raw, nested):
+                    if isinstance(src.get(nm), int):
+                        return src[nm]
+            return None
+        h = _pick("hidden_size")
+        n = _pick("num_hidden_layers")
+        v = _pick("vocab_size")
+        inter = _pick("intermediate_size", "ffn_dim")
+        if not all([h, n, v, inter]):
+            print(f"[dynamics] param_count: AutoConfig failed ({exc}); config.json "
+                  f"readable but incomplete — using the 1B default", flush=True)
+            return
+        est = h * v + n * (4 * h * h + 3 * h * inter)
+        print(f"[dynamics] param_count: AutoConfig failed ({exc}); config.json readable, "
+              f"raw estimate={est/1e9:.2f}B (ADVISORY, not applied) — using the 1B default",
+              flush=True)
+    except Exception as _exc:
+        print(f"[dynamics] param_count advisory unavailable ({_exc})", flush=True)
+
+
+def _advise_moe_undercount(model_path, cfg, dense_total, h, inter, n):
+    """Log the expert-corrected size when the config declares experts. Never applied."""
+    try:
+        experts = None
+        for key in MOE_EXPERT_KEYS:
+            value = cfg_get(cfg, key)
+            if isinstance(value, int) and value > 1:
+                experts = value
+                break
+        if experts is None:
+            return
+        corrected = dense_total + n * 3 * h * inter * (experts - 1)
+        print(
+            f"[dynamics] param_count: config declares {experts} experts — dense formula "
+            f"gives {dense_total/1e9:.2f}B, expert-corrected would be "
+            f"{corrected/1e9:.2f}B (ADVISORY, not applied). Every size gate downstream "
+            f"is reading the dense number.",
+            flush=True,
+        )
+    except Exception as _exc:
+        print(f"[dynamics] MoE advisory unavailable ({_exc})", flush=True)
+
+
 def get_param_count(model_path: str) -> Optional[int]:
     """Param count from config (without loading weights). Survives anonymization.
 
@@ -138,7 +203,18 @@ def get_param_count(model_path: str) -> Optional[int]:
     """
     try:
         cfg = AutoConfig.from_pretrained(model_path, trust_remote_code=False)
-    except Exception:
+    except Exception as exc:
+        # Still None — this is diagnostics, not a behaviour change. Callers fall back
+        # to adaptive_config's 1B sentinel, which is the AGGRESSIVE direction: at 1B
+        # the LoRA gates (5e9 instruct, 1.5e9 dpo/grpo) and the DeepSpeed gate (9e9)
+        # all stay shut and the batch bucket is the 0.5-2B row, so an undetected large
+        # model gets the least protective option on every axis at once.
+        #
+        # AutoConfig needs the architecture registered; the four numbers below do not.
+        # Reporting the raw-JSON estimate makes the gap measurable instead of arguable
+        # — the same advisory-only shape adaptive_config already uses for a competing
+        # LR it declines to apply. Applying it is a separate decision and needs a run.
+        _advise_param_count_from_raw_json(model_path, exc)
         return None
     h = cfg_get(cfg, "hidden_size")
     n = cfg_get(cfg, "num_hidden_layers")
@@ -156,7 +232,22 @@ def get_param_count(model_path: str) -> Optional[int]:
         mlp_per_layer = 2 * h * inter   # fc1 + fc2
     else:
         mlp_per_layer = 3 * h * inter   # gate + up + down (SwiGLU)
-    return embed + n * (attn_per_layer + mlp_per_layer)
+    dense_total = embed + n * (attn_per_layer + mlp_per_layer)
+    # A mixture-of-experts model carries one MLP per expert, so the dense formula
+    # above undercounts it by roughly the expert count — Mixtral-8x7B computes to
+    # 7.9B against a real 46.7B. This is the SUCCESS path: no WARN fires, and every
+    # downstream guardrail (LoRA gate, DeepSpeed gate, batch buckets,
+    # estimate_max_batch_size) reads that one number as if it were right.
+    #
+    # Advisory only, deliberately. Correcting the value would flip a 47B model from
+    # full fine-tune + plain DDP + a large batch to LoRA + ZeRO-3 + a small one, and
+    # ZeRO-3 has never executed in this repository's smoke suite. That is a training
+    # plan change on an untested path, which is a decision to take with a measurement
+    # rather than inside an arithmetic fix. The log is what makes the measurement
+    # possible. This repo has seen MoE already: family_lr_table.py carries empirical
+    # mixtral rows, and general_hp_resolver maps phimoeforcausallm.
+    _advise_moe_undercount(model_path, cfg, dense_total, h, inter, n)
+    return dense_total
 
 
 # ---------------------------------------------------------------------------
