@@ -120,6 +120,80 @@ def extract_value_from_cmd(cmd: str, arg_name: str):
     return None
 
 
+TOKENISED_OUTPUTS = {
+    TaskType.INSTRUCTTEXTTASK.value: ("train_tokenized_{t}.json", "dev_tokenized_{t}.json"),
+    TaskType.CHATTASK.value: ("train_tokenized_{t}.json", "dev_tokenized_{t}.json"),
+    TaskType.DPOTASK.value: ("dpo_train_{t}.json", "dpo_dev_{t}.json"),
+    TaskType.GRPOTASK.value: ("grpo_train_{t}.json", "grpo_dev_{t}.json"),
+}
+
+
+def tokenisation_gate(task_id: str, task_type: str, tokenize_log_path: str) -> str | None:
+    """Reason string when tokenisation produced nothing usable, else None.
+
+    Written after tourn_e758aac2d861c378_20260824, where this was the whole story. A
+    transformers/trl version clash inside the axolotl venv made `import trl` raise, so
+    tokenisation never wrote its output. Nothing checked. The trainer then launched
+    anyway and died on FileNotFoundError — five times, ~6 seconds each — and the run
+    fell to the noise fallback and submitted a perturbed base model. All three round-1
+    tasks, same cause, and the scored losses came back at the untrained baseline.
+
+    The value here is not the ~30 seconds of futile retries. It is that the cause gets
+    NAMED once, at the moment it happens, instead of arriving as five identical stack
+    traces under a scoreboard line that says we trained badly. `run_cmd_with_log` does
+    not surface an exit code, so this checks the artefact rather than the status —
+    which is the stronger check anyway: a tokeniser that exits 0 and writes nothing
+    fails this too.
+
+    Zero rows is also a failure, and a quieter one. A split that collapses to [] parses,
+    passes an existence check, and trains to completion on nothing.
+    """
+    names = TOKENISED_OUTPUTS.get(task_type)
+    if not names:
+        return None
+    problems = []
+    for name in names:
+        path = os.path.join("datasets", name.format(t=task_id))
+        if not os.path.exists(path):
+            problems.append(f"{path} was never written")
+            continue
+        if os.path.getsize(path) == 0:
+            problems.append(f"{path} is empty")
+            continue
+        try:
+            with open(path, "r", encoding="utf-8") as fh:
+                rows = json.load(fh)
+        except Exception as exc:
+            problems.append(f"{path} will not parse ({type(exc).__name__})")
+            continue
+        if isinstance(rows, list) and len(rows) == 0:
+            problems.append(f"{path} parsed but holds zero rows")
+    if not problems:
+        return None
+
+    reason = "tokenisation produced no usable dataset: " + "; ".join(problems)
+    print(f"[tokenise-gate] {reason}", flush=True)
+    # The cause is almost always in the tokeniser's own log and almost never in the
+    # trainer's, because the trainer never got far enough to say anything useful.
+    try:
+        with open(tokenize_log_path, "r", encoding="utf-8", errors="replace") as fh:
+            tail = fh.read().splitlines()[-25:]
+        print("[tokenise-gate] last lines of the tokenise log:", flush=True)
+        for line in tail:
+            print(f"[tokenise-gate]   {line[:300]}", flush=True)
+        blob = "\n".join(tail)
+        if "ImportError" in blob or "Failed to import" in blob:
+            print(
+                "[tokenise-gate] this is an IMPORT failure in the tokenisation "
+                "environment, not a data problem — the image is wrong, and no retry "
+                "of this task can fix it",
+                flush=True,
+            )
+    except Exception as exc:
+        print(f"[tokenise-gate] tokenise log unreadable ({exc})", flush=True)
+    return reason
+
+
 def get_model_architecture(model_name: str) -> str:
     try:
         config = AutoConfig.from_pretrained(model_name)
@@ -887,9 +961,15 @@ def main():
         json.dump(train_info, f, indent=4, ensure_ascii=False)
 
     if not load_blocker:
-        run_cmd_with_log(
-            tokenize_cmd, os.path.join(ds_folder, f"tokenize_{args.task_id}.log")
-        )
+        _tokenise_log = os.path.join(ds_folder, f"tokenize_{args.task_id}.log")
+        run_cmd_with_log(tokenize_cmd, _tokenise_log)
+        # Reuses load_blocker rather than adding a second skip path: it already breaks
+        # the retry loop below and leaves the fallback to write the submission, which
+        # is exactly the right ending here. Training on a dataset that was never
+        # written cannot succeed, and five identical attempts prove nothing.
+        _gate_reason = tokenisation_gate(args.task_id, args.task_type, _tokenise_log)
+        if _gate_reason:
+            load_blocker = f"tokenisation gate: {_gate_reason}"
 
     original_train_cmd = train_cmd
     train_success = False
