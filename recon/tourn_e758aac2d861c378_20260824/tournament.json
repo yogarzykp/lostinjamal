@@ -1,0 +1,55 @@
+{
+  "tournament_id": "tourn_e758aac2d861c378_20260824",
+  "provenance": {
+    "endpoint": "https://www.gradients.io/app/research/tournament/tourn_e758aac2d861c378_20260824",
+    "query": {
+      "tourn_id": "tourn_e758aac2d861c378_20260824"
+    },
+    "fetched_at": "2026-08-26T18:18:56Z"
+  },
+  "http_status": 200,
+  "participants": {
+    "hotkeys": [
+      "5C7vE26G77n7CvUkAdgHKjT7scqfiNhWcaCg8WVyB8A57Mt1",
+      "5D2Qee4VNTBc1Y1pr5TvuAq3Spv3m5v7qVgJUAf1KvZrAuUU",
+      "5EFLCMFDMy3id5u4yZSmTPRecuxjEZ1bTM81y5VZwPjwS7AX",
+      "5EeLcV3LFAJo7mbDmK51kv5Ru5F1pNNwwSvUoP18k9xRsa7H",
+      "5FW2Eaaehn1iGThGucki1YTtXRABhsMAHPQv14qqgLFzesGD",
+      "5FpdSckwjnAFrShGtKsPn73HxfyDLBDgnermaqctZtZb6i5g",
+      "5GU4Xkd3dCGTU3s8VLcHGc5wsD5M8XyxDca5yDQhYm1mVXFu",
+      "5GpcTKW7Mjbz82xwzQUWY8ze9UNtdWmZrSWLBrfRwZpDuF7h",
+      "5HWPK9f6vNYmcy6jyWwzDmuNMTZXVk5NdkZLcpFFpeYGZveF"
+    ],
+    "training_repositories": [],
+    "raw": null
+  },
+  "status": "active",
+  "base_winner_hotkey": "5H9AM1bG7m1BFagftX3B4X1SfyeBSsMYodTcWuM9ieQZk2NK",
+  "winner_hotkey": "5GU4Xkd3dCGTU3s8VLcHGc5wsD5M8XyxDca5yDQhYm1mVXFu",
+  "tasks": {
+    "task_ids": [
+      "10b5cdcc-7cb9-4e33-ac17-79876ddd62f3",
+      "28c9f3bb-81f7-47b6-9468-4918b98904ed",
+      "3a6658eb-128a-4d7d-9efc-a3eee139b985",
+      "47cdd231-635c-4a62-85b0-50de543ff7fd",
+      "68be85ad-1a0a-4249-a202-0b70855c3368",
+      "736fa1e0-c796-49d5-9894-a95f49f25583",
+      "7606cad6-a4d0-4f48-b627-ac62a71a4cd7",
+      "9b4b7e1a-6a7c-4ab0-bee7-3744b35bddd8",
+      "c2b6b7d5-8797-4ae8-86cf-6d6ad1d130f8"
+    ],
+    "task_types": [
+      "ChatTask",
+      "DpoTask",
+      "GrpoTask",
+      "InstructTextTask"
+    ],
+    "has_paired_example_wins": true,
+    "has_boss_round_performance": true,
+    "raw": null
+  },
+  "diff_report": {
+    "status": "AVAILABLE",
+    "note": "re-run with --diff-report to fetch the body (the URL is presigned and is deliberately not printed)"
+  }
+}

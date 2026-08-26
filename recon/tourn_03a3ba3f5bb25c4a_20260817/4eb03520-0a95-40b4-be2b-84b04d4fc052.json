@@ -1,0 +1,55 @@
+{
+  "provenance": {
+    "endpoint": "https://api.gradients.io/auditing/tasks/4eb03520-0a95-40b4-be2b-84b04d4fc052",
+    "query": {
+      "task_id": "4eb03520-0a95-40b4-be2b-84b04d4fc052"
+    },
+    "fetched_at": "2026-08-26T18:10:46Z"
+  },
+  "task_id": "4eb03520-0a95-40b4-be2b-84b04d4fc052",
+  "status": "success",
+  "task_type": "ChatTask",
+  "model_id": "gradients-io-tournaments/tournament-tourn_20f928c9169811d7_20260810-91d2a1a9-ccf6-49ce-a95b-c1c16c7b6dd3-5GU4Xkd3",
+  "model_type": {
+    "status": "UNAVAILABLE",
+    "reason": "'model_type' not present in this task's auditing API response"
+  },
+  "ds": "continuous-sft:qwen:continuous-sft-e7b13e9dc7d3",
+  "trigger_word": {
+    "status": "UNAVAILABLE",
+    "reason": "'trigger_word' not present in this task's auditing API response"
+  },
+  "is_organic": false,
+  "trained_model_repository": "gradients-io-tournaments/tournament-tourn_03a3ba3f5bb25c4a_20260817-4eb03520-0a95-40b4-be2b-84b04d4fc052-5HWPK9f6",
+  "hours_to_complete": 4.25,
+  "image_text_pair_count": {
+    "status": "UNAVAILABLE",
+    "reason": "'image_text_pairs' not present in this task's auditing API response"
+  },
+  "dataset_url_expires_at": "2026-08-25T00:13:28Z",
+  "hotkey_details": [
+    {
+      "hotkey": "5HWPK9f6vNYmcy6jyWwzDmuNMTZXVk5NdkZLcpFFpeYGZveF",
+      "submission_id": "9f731fca-d3d4-458f-87da-dddfd39b444b",
+      "quality_score": 3.0,
+      "test_loss": 0.6259856820106506,
+      "synth_loss": 0.6259856820106506,
+      "repo": "gradients-io-tournaments/tournament-tourn_03a3ba3f5bb25c4a_20260817-4eb03520-0a95-40b4-be2b-84b04d4fc052-5HWPK9f6",
+      "rank": 1,
+      "score_reason": "Winner at per-example win rate (Challenger won 81.4% of 2633 decided examples (bound 79.6%) by 0.0167 nats (bound 0.0139))",
+      "offer_response": null
+    },
+    {
+      "hotkey": "5GU4Xkd3dCGTU3s8VLcHGc5wsD5M8XyxDca5yDQhYm1mVXFu",
+      "submission_id": "c886e768-ab17-4eee-8b3a-f21084b02bae",
+      "quality_score": 0.0,
+      "test_loss": 0.6426751017570496,
+      "synth_loss": 0.6426751017570496,
+      "repo": "gradients-io-tournaments/tournament-tourn_03a3ba3f5bb25c4a_20260817-4eb03520-0a95-40b4-be2b-84b04d4fc052-5GU4Xkd3",
+      "rank": 2,
+      "score_reason": "Lost to winner 5HWPK9f6vNYmcy6jyWwzDmuNMTZXVk5NdkZLcpFFpeYGZveF at per-example win rate (Challenger won 81.4% of 2633 decided examples (bound 79.6%) by 0.0167 nats (bound 0.0139))",
+      "offer_response": null
+    }
+  ],
+  "kl_note": "use_kl and kl_coef are always False/None here even for KL tasks — the config is not persisted once a task finishes. See references/kl-and-augmentation.md"
+}

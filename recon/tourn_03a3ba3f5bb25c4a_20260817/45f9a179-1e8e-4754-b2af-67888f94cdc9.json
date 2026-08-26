@@ -1,0 +1,88 @@
+{
+  "provenance": {
+    "endpoint": "https://api.gradients.io/auditing/tasks/45f9a179-1e8e-4754-b2af-67888f94cdc9",
+    "query": {
+      "task_id": "45f9a179-1e8e-4754-b2af-67888f94cdc9"
+    },
+    "fetched_at": "2026-08-26T18:10:46Z"
+  },
+  "task_id": "45f9a179-1e8e-4754-b2af-67888f94cdc9",
+  "status": "success",
+  "task_type": "InstructTextTask",
+  "model_id": "LiquidAI/LFM2.5-2.6B",
+  "model_type": {
+    "status": "UNAVAILABLE",
+    "reason": "'model_type' not present in this task's auditing API response"
+  },
+  "ds": "StellarMilk/newsqa",
+  "trigger_word": {
+    "status": "UNAVAILABLE",
+    "reason": "'trigger_word' not present in this task's auditing API response"
+  },
+  "is_organic": false,
+  "trained_model_repository": "gradients-io-tournaments/tournament-tourn_03a3ba3f5bb25c4a_20260817-45f9a179-1e8e-4754-b2af-67888f94cdc9-5HWPK9f6",
+  "hours_to_complete": 1.0,
+  "image_text_pair_count": {
+    "status": "UNAVAILABLE",
+    "reason": "'image_text_pairs' not present in this task's auditing API response"
+  },
+  "dataset_url_expires_at": "2026-08-24T11:05:19Z",
+  "hotkey_details": [
+    {
+      "hotkey": "5HWPK9f6vNYmcy6jyWwzDmuNMTZXVk5NdkZLcpFFpeYGZveF",
+      "submission_id": "4e380af0-6182-4282-a249-ed9b71f8037f",
+      "quality_score": 3.0,
+      "test_loss": 5.310136795043945,
+      "synth_loss": 5.310136795043945,
+      "repo": "gradients-io-tournaments/tournament-tourn_03a3ba3f5bb25c4a_20260817-45f9a179-1e8e-4754-b2af-67888f94cdc9-5HWPK9f6",
+      "rank": 1,
+      "score_reason": "Ranked 1st by test_loss",
+      "offer_response": null
+    },
+    {
+      "hotkey": "5FpdSckwjnAFrShGtKsPn73HxfyDLBDgnermaqctZtZb6i5g",
+      "submission_id": "538a8e11-5e07-400a-b390-e97a5cfc5fee",
+      "quality_score": 0.0,
+      "test_loss": 5.58963680267334,
+      "synth_loss": 5.58963680267334,
+      "repo": "gradients-io-tournaments/tournament-tourn_03a3ba3f5bb25c4a_20260817-45f9a179-1e8e-4754-b2af-67888f94cdc9-5FpdSckw",
+      "rank": 2,
+      "score_reason": "Ranked below top 1 by test_loss",
+      "offer_response": null
+    },
+    {
+      "hotkey": "5C7vE26G77n7CvUkAdgHKjT7scqfiNhWcaCg8WVyB8A57Mt1",
+      "submission_id": null,
+      "quality_score": 0.0,
+      "test_loss": 0.0,
+      "synth_loss": 0.0,
+      "repo": null,
+      "rank": 3,
+      "score_reason": null,
+      "offer_response": null
+    },
+    {
+      "hotkey": "5EFLCMFDMy3id5u4yZSmTPRecuxjEZ1bTM81y5VZwPjwS7AX",
+      "submission_id": null,
+      "quality_score": 0.0,
+      "test_loss": 0.0,
+      "synth_loss": 0.0,
+      "repo": null,
+      "rank": 3,
+      "score_reason": null,
+      "offer_response": null
+    },
+    {
+      "hotkey": "5GpcTKW7Mjbz82xwzQUWY8ze9UNtdWmZrSWLBrfRwZpDuF7h",
+      "submission_id": null,
+      "quality_score": 0.0,
+      "test_loss": 0.0,
+      "synth_loss": 0.0,
+      "repo": null,
+      "rank": 3,
+      "score_reason": null,
+      "offer_response": null
+    }
+  ],
+  "kl_note": "use_kl and kl_coef are always False/None here even for KL tasks — the config is not persisted once a task finishes. See references/kl-and-augmentation.md"
+}

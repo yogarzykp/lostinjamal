@@ -1,0 +1,55 @@
+{
+  "provenance": {
+    "endpoint": "https://api.gradients.io/auditing/tasks/70d04988-8abc-4bf1-b7e2-b115b5c7e70b",
+    "query": {
+      "task_id": "70d04988-8abc-4bf1-b7e2-b115b5c7e70b"
+    },
+    "fetched_at": "2026-08-26T18:10:47Z"
+  },
+  "task_id": "70d04988-8abc-4bf1-b7e2-b115b5c7e70b",
+  "status": "success",
+  "task_type": "InstructTextTask",
+  "model_id": "Qwen/Qwen3-32B",
+  "model_type": {
+    "status": "UNAVAILABLE",
+    "reason": "'model_type' not present in this task's auditing API response"
+  },
+  "ds": "Jinyan1/GossipCop",
+  "trigger_word": {
+    "status": "UNAVAILABLE",
+    "reason": "'trigger_word' not present in this task's auditing API response"
+  },
+  "is_organic": false,
+  "trained_model_repository": "gradients-io-tournaments/tournament-tourn_03a3ba3f5bb25c4a_20260817-fc90b899-afed-4868-880b-19687935429f-5HWPK9f6",
+  "hours_to_complete": 1.75,
+  "image_text_pair_count": {
+    "status": "UNAVAILABLE",
+    "reason": "'image_text_pairs' not present in this task's auditing API response"
+  },
+  "dataset_url_expires_at": "2026-08-24T18:36:23Z",
+  "hotkey_details": [
+    {
+      "hotkey": "5HWPK9f6vNYmcy6jyWwzDmuNMTZXVk5NdkZLcpFFpeYGZveF",
+      "submission_id": "99b2f601-c0ef-4564-a922-34a7ddd2f7ed",
+      "quality_score": 3.0,
+      "test_loss": 1.2951011657714844,
+      "synth_loss": 1.2951011657714844,
+      "repo": "gradients-io-tournaments/tournament-tourn_03a3ba3f5bb25c4a_20260817-fc90b899-afed-4868-880b-19687935429f-5HWPK9f6",
+      "rank": 1,
+      "score_reason": "Ranked 1st by test_loss",
+      "offer_response": null
+    },
+    {
+      "hotkey": "5FpdSckwjnAFrShGtKsPn73HxfyDLBDgnermaqctZtZb6i5g",
+      "submission_id": null,
+      "quality_score": -1.0,
+      "test_loss": null,
+      "synth_loss": null,
+      "repo": null,
+      "rank": 2,
+      "score_reason": "Evaluation failed: Error(s) in loading state_dict for PeftModelForCausalLM:\n\tsize mismatch for base_model.model.model.layers.0.self_attn.q_proj.lora_A.default.weight: copying a param with shape torch.Size([0]) from checkpoint, the shape in current model is torch.Size([128, 5120]).\n\tsize mismatch for base_model.model.model.layers.0.self_attn.q_proj.lora_B.default.weig",
+      "offer_response": null
+    }
+  ],
+  "kl_note": "use_kl and kl_coef are always False/None here even for KL tasks — the config is not persisted once a task finishes. See references/kl-and-augmentation.md"
+}

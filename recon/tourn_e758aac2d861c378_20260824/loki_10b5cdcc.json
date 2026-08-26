@@ -1,0 +1,1027 @@
+{
+  "pages_fetched": 2,
+  "line_count": 2042,
+  "hit_page_cap": false,
+  "window_days": 14,
+  "lines": [
+    {
+      "container": "downloader-10b5cdcc-7cb9-4e33-ac17-79876ddd62f3-4bd990c4",
+      "ts": 1787624553081378313,
+      "line": "Downloading datasets to: /cache/datasets"
+    },
+    {
+      "container": "downloader-10b5cdcc-7cb9-4e33-ac17-79876ddd62f3-4bd990c4",
+      "ts": 1787624553081430727,
+      "line": "Downloading models to: /cache/models"
+    },
+    {
+      "container": "downloader-10b5cdcc-7cb9-4e33-ac17-79876ddd62f3-4bd990c4",
+      "ts": 1787624553081432882,
+      "line": "Model already cached at /cache/models/d28e6e0f6adc75eb."
+    },
+    {
+      "container": "downloader-10b5cdcc-7cb9-4e33-ac17-79876ddd62f3-4bd990c4",
+      "ts": 1787624553081434015,
+      "line": "Skipping download."
+    },
+    {
+      "container": "downloader-10b5cdcc-7cb9-4e33-ac17-79876ddd62f3-4bd990c4",
+      "ts": 1787624553081435149,
+      "line": "Model path: /cache/models/d28e6e0f6adc75eb"
+    },
+    {
+      "container": "downloader-10b5cdcc-7cb9-4e33-ac17-79876ddd62f3-4bd990c4",
+      "ts": 1787624553081436157,
+      "line": "Dataset path: /cache/datasets"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624552472000000,
+      "line": "Repository cloned successfully"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624552487000000,
+      "line": "Running Cache Download Container"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624552524000000,
+      "line": "Starting downloader container: downloader-10b5cdcc-7cb9-4e33-ac17-79876ddd62f3-4bd990c4"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624553259000000,
+      "line": "Download completed successfully for task 10b5cdcc-7cb9-4e33-ac17-79876ddd62f3"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624553303000000,
+      "line": "Building Docker image 'standalone-text-trainer:2b4cabc7-1c74-432b-92b8-1ea67a777310' (timeout=1800s)..."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624553346000000,
+      "line": "Step 1/13 : FROM runpod/pytorch:2.4.0-py3.11-cuda12.4.1-devel-ubuntu22.04"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624553348000000,
+      "line": "---> ff5fe688608b"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624553349000000,
+      "line": "Step 2/13 : RUN apt-get update && apt-get install -y     vim     zip     tmux     iotop     nvtop     bmon     wget     nano     zsh     htop     redis-server     && rm -rf /var/lib/apt/lists/*"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624553387000000,
+      "line": "---> Running in a4b5bfaa3afe"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624553638000000,
+      "line": "Get:1 https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64  InRelease [1578 B]"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624553787000000,
+      "line": "Get:2 http://archive.ubuntu.com/ubuntu jammy InRelease [270 kB]"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624553788000000,
+      "line": "Get:3 http://security.ubuntu.com/ubuntu jammy-security InRelease [129 kB]"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624553982000000,
+      "line": "Get:4 https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64  Packages [2908 kB]"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624554084000000,
+      "line": "Get:5 https://ppa.launchpadcontent.net/deadsnakes/ppa/ubuntu jammy InRelease [18.1 kB]"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624554364000000,
+      "line": "Get:6 https://ppa.launchpadcontent.net/deadsnakes/ppa/ubuntu jammy/main amd64 Packages [44.3 kB]"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624554396000000,
+      "line": "Get:7 http://archive.ubuntu.com/ubuntu jammy-updates InRelease [128 kB]"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624554408000000,
+      "line": "Get:8 http://security.ubuntu.com/ubuntu jammy-security/restricted amd64 Packages [7658 kB]"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624554543000000,
+      "line": "Get:9 http://archive.ubuntu.com/ubuntu jammy-backports InRelease [127 kB]"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624554690000000,
+      "line": "Get:10 http://archive.ubuntu.com/ubuntu jammy/main amd64 Packages [1792 kB]"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624555027000000,
+      "line": "Get:11 http://archive.ubuntu.com/ubuntu jammy/restricted amd64 Packages [164 kB]"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624555039000000,
+      "line": "Get:12 http://archive.ubuntu.com/ubuntu jammy/multiverse amd64 Packages [266 kB]"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624555057000000,
+      "line": "Get:13 http://archive.ubuntu.com/ubuntu jammy/universe amd64 Packages [17.5 MB]"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624555192000000,
+      "line": "Get:14 http://security.ubuntu.com/ubuntu jammy-security/universe amd64 Packages [1315 kB]"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624555205000000,
+      "line": "Get:15 http://security.ubuntu.com/ubuntu jammy-security/multiverse amd64 Packages [84.1 kB]"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624555206000000,
+      "line": "Get:16 http://security.ubuntu.com/ubuntu jammy-security/main amd64 Packages [4251 kB]"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624555564000000,
+      "line": "Get:17 http://archive.ubuntu.com/ubuntu jammy-updates/multiverse amd64 Packages [92.7 kB]"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624555566000000,
+      "line": "Get:18 http://archive.ubuntu.com/ubuntu jammy-updates/main amd64 Packages [4588 kB]"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624555687000000,
+      "line": "Get:19 http://archive.ubuntu.com/ubuntu jammy-updates/universe amd64 Packages [1619 kB]"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624555735000000,
+      "line": "Get:20 http://archive.ubuntu.com/ubuntu jammy-updates/restricted amd64 Packages [7959 kB]"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624555946000000,
+      "line": "Get:21 http://archive.ubuntu.com/ubuntu jammy-backports/main amd64 Packages [82.8 kB]"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624555948000000,
+      "line": "Get:22 http://archive.ubuntu.com/ubuntu jammy-backports/universe amd64 Packages [35.6 kB]"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624556505000000,
+      "line": "Fetched 51.0 MB in 3s (17.3 MB/s)"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624557394000000,
+      "line": "Reading package lists..."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624558308000000,
+      "line": "Reading package lists..."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624558494000000,
+      "line": "Building dependency tree..."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624558496000000,
+      "line": "Reading state information..."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624558648000000,
+      "line": "The following additional packages will be installed:"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624558650000000,
+      "line": "libconfuse-common libconfuse2 libevent-core-2.1-7 libgpm2 libjemalloc2"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624558651000000,
+      "line": "liblua5.1-0 liblzf1 libnl-3-200 libnl-genl-3-200 libnl-route-3-200"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624558652000000,
+      "line": "libpython3.10 libpython3.10-minimal libpython3.10-stdlib libsodium23"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624558653000000,
+      "line": "libutempter0 lua-bitop lua-cjson python3.10 python3.10-minimal redis-tools"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624558654000000,
+      "line": "unzip vim-common vim-runtime xxd zsh-common"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624558655000000,
+      "line": "Suggested packages:"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624558656000000,
+      "line": "lm-sensors lsof strace gpm hunspell python3.10-venv python3.10-doc"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624558657000000,
+      "line": "binfmt-support ruby-redis ctags vim-doc vim-scripts zsh-doc"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624558778000000,
+      "line": "The following NEW packages will be installed:"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624558780000000,
+      "line": "bmon htop iotop libconfuse-common libconfuse2 libevent-core-2.1-7 libgpm2"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624558781000000,
+      "line": "libjemalloc2 liblua5.1-0 liblzf1 libnl-3-200 libnl-genl-3-200"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624558782000000,
+      "line": "libnl-route-3-200 libpython3.10 libsodium23 libutempter0 lua-bitop lua-cjson"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624558783000000,
+      "line": "nano nvtop redis-server redis-tools tmux unzip vim vim-common vim-runtime"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624558784000000,
+      "line": "xxd zip zsh zsh-common"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624558785000000,
+      "line": "The following packages will be upgraded:"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624558786000000,
+      "line": "libpython3.10-minimal libpython3.10-stdlib python3.10 python3.10-minimal"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624558787000000,
+      "line": "wget"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624558891000000,
+      "line": "5 upgraded, 31 newly installed, 0 to remove and 165 not upgraded."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624558893000000,
+      "line": "Need to get 24.3 MB of archives."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624558894000000,
+      "line": "After this operation, 73.4 MB of additional disk space will be used."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624558895000000,
+      "line": "Get:1 http://archive.ubuntu.com/ubuntu jammy-updates/main amd64 python3.10 amd64 3.10.12-1~22.04.16 [508 kB]"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624559182000000,
+      "line": "Get:2 http://archive.ubuntu.com/ubuntu jammy-updates/main amd64 libpython3.10-stdlib amd64 3.10.12-1~22.04.16 [1850 kB]"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624559288000000,
+      "line": "Get:3 http://archive.ubuntu.com/ubuntu jammy-updates/main amd64 python3.10-minimal amd64 3.10.12-1~22.04.16 [2254 kB]"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624559338000000,
+      "line": "Get:4 http://archive.ubuntu.com/ubuntu jammy-updates/main amd64 libpython3.10-minimal amd64 3.10.12-1~22.04.16 [817 kB]"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624559348000000,
+      "line": "Get:5 http://archive.ubuntu.com/ubuntu jammy/universe amd64 libjemalloc2 amd64 5.2.1-4ubuntu1 [240 kB]"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624559350000000,
+      "line": "Get:6 http://archive.ubuntu.com/ubuntu jammy/universe amd64 liblua5.1-0 amd64 5.1.5-8.1build4 [99.9 kB]"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624559352000000,
+      "line": "Get:7 http://archive.ubuntu.com/ubuntu jammy/universe amd64 liblzf1 amd64 3.6-3 [7444 B]"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624559353000000,
+      "line": "Get:8 http://archive.ubuntu.com/ubuntu jammy/universe amd64 lua-bitop amd64 1.0.2-5 [6680 B]"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624559355000000,
+      "line": "Get:9 http://archive.ubuntu.com/ubuntu jammy/universe amd64 lua-cjson amd64 2.1.0+dfsg-2.1 [17.4 kB]"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624559356000000,
+      "line": "Get:10 http://archive.ubuntu.com/ubuntu jammy-updates/universe amd64 redis-tools amd64 5:6.0.16-1ubuntu1.1 [856 kB]"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624559361000000,
+      "line": "Get:11 http://archive.ubuntu.com/ubuntu jammy-updates/universe amd64 redis-server amd64 5:6.0.16-1ubuntu1.1 [45.9 kB]"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624559363000000,
+      "line": "Get:12 http://archive.ubuntu.com/ubuntu jammy-updates/main amd64 xxd amd64 2:8.2.3995-1ubuntu2.35 [52.0 kB]"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624559382000000,
+      "line": "Get:13 http://archive.ubuntu.com/ubuntu jammy-updates/main amd64 vim-common all 2:8.2.3995-1ubuntu2.35 [81.5 kB]"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624559427000000,
+      "line": "Get:14 http://archive.ubuntu.com/ubuntu jammy-updates/main amd64 nano amd64 6.2-1ubuntu0.2 [280 kB]"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624559429000000,
+      "line": "Get:15 http://archive.ubuntu.com/ubuntu jammy-updates/main amd64 wget amd64 1.21.2-2ubuntu1.5 [339 kB]"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624559430000000,
+      "line": "Get:16 http://archive.ubuntu.com/ubuntu jammy/universe amd64 libconfuse-common all 3.3-2 [6004 B]"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624559431000000,
+      "line": "Get:17 http://archive.ubuntu.com/ubuntu jammy/universe amd64 libconfuse2 amd64 3.3-2 [26.0 kB]"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624559432000000,
+      "line": "Get:18 http://archive.ubuntu.com/ubuntu jammy/main amd64 libnl-3-200 amd64 3.5.0-0.1 [59.1 kB]"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624559433000000,
+      "line": "Get:19 http://archive.ubuntu.com/ubuntu jammy/main amd64 libnl-route-3-200 amd64 3.5.0-0.1 [180 kB]"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624559434000000,
+      "line": "Get:20 http://archive.ubuntu.com/ubuntu jammy/universe amd64 bmon amd64 1:4.0-8 [48.1 kB]"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624559436000000,
+      "line": "Get:21 http://archive.ubuntu.com/ubuntu jammy/main amd64 libnl-genl-3-200 amd64 3.5.0-0.1 [12.4 kB]"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624559437000000,
+      "line": "Get:22 http://archive.ubuntu.com/ubuntu jammy/main amd64 htop amd64 3.0.5-7build2 [128 kB]"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624559472000000,
+      "line": "Get:23 http://archive.ubuntu.com/ubuntu jammy-updates/main amd64 iotop amd64 0.6-24-g733f3f8-1.1ubuntu0.1 [23.1 kB]"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624559516000000,
+      "line": "Get:24 http://archive.ubuntu.com/ubuntu jammy/main amd64 libevent-core-2.1-7 amd64 2.1.12-stable-1build3 [93.9 kB]"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624559518000000,
+      "line": "Get:25 http://archive.ubuntu.com/ubuntu jammy/main amd64 libgpm2 amd64 1.20.7-10build1 [15.3 kB]"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624559519000000,
+      "line": "Get:26 http://archive.ubuntu.com/ubuntu jammy-updates/main amd64 libpython3.10 amd64 3.10.12-1~22.04.16 [1950 kB]"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624559525000000,
+      "line": "Get:27 http://archive.ubuntu.com/ubuntu jammy-updates/main amd64 libsodium23 amd64 1.0.18-1ubuntu0.22.04.1 [164 kB]"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624559526000000,
+      "line": "Get:28 http://archive.ubuntu.com/ubuntu jammy/main amd64 libutempter0 amd64 1.2.1-2build2 [8848 B]"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624559527000000,
+      "line": "Get:29 http://archive.ubuntu.com/ubuntu jammy/multiverse amd64 nvtop amd64 1.2.2-1 [43.9 kB]"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624559528000000,
+      "line": "Get:30 http://archive.ubuntu.com/ubuntu jammy-updates/main amd64 tmux amd64 3.2a-4ubuntu0.2 [428 kB]"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624559529000000,
+      "line": "Get:31 http://archive.ubuntu.com/ubuntu jammy-updates/main amd64 unzip amd64 6.0-26ubuntu3.2 [175 kB]"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624559530000000,
+      "line": "Get:32 http://archive.ubuntu.com/ubuntu jammy-updates/main amd64 vim-runtime all 2:8.2.3995-1ubuntu2.35 [6824 kB]"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624559612000000,
+      "line": "Get:33 http://archive.ubuntu.com/ubuntu jammy-updates/main amd64 vim amd64 2:8.2.3995-1ubuntu2.35 [1733 kB]"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624559620000000,
+      "line": "Get:34 http://archive.ubuntu.com/ubuntu jammy/main amd64 zip amd64 3.0-12build2 [176 kB]"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624559621000000,
+      "line": "Get:35 http://archive.ubuntu.com/ubuntu jammy/main amd64 zsh-common all 5.8.1-1 [3985 kB]"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624559666000000,
+      "line": "Get:36 http://archive.ubuntu.com/ubuntu jammy/main amd64 zsh amd64 5.8.1-1 [809 kB]"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624559812000000,
+      "line": "\u001b[91mdebconf: delaying package configuration, since apt-utils is not installed"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624559841000000,
+      "line": "\u001b[0mFetched 24.3 MB in 1s (26.8 MB/s)"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624559873000000,
+      "line": "(Reading database ... \r(Reading database ... 5%\r(Reading database ... 10%\r(Reading database ... 15%\r(Reading database ... 20%\r(Reading database ... 25%\r(Reading database ... 30%\r(Reading database ... 35%\r(Reading database ... 40%\r(Reading database ... 45%\r(Reading database ... 50%\r(Reading database ... 55%\r(Reading database ... 60%\r(Reading database ... 65%\r(Reading database ... 70%\r(Reading database ... 75%\r(Reading database ... 80%\r(Reading database ... 85%\r(Reading database ... 90%\r(Reading database ... 95%\r(Reading database ... 100%\r(Reading database ... 24135 files and directories currently installed.)"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624559875000000,
+      "line": "Preparing to unpack .../00-python3.10_3.10.12-1~22.04.16_amd64.deb ..."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624559968000000,
+      "line": "Unpacking python3.10 (3.10.12-1~22.04.16) over (3.10.12-1~22.04.6) ..."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624560014000000,
+      "line": "Preparing to unpack .../01-libpython3.10-stdlib_3.10.12-1~22.04.16_amd64.deb ..."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624560046000000,
+      "line": "Unpacking libpython3.10-stdlib:amd64 (3.10.12-1~22.04.16) over (3.10.12-1~22.04.6) ..."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624560504000000,
+      "line": "Preparing to unpack .../02-python3.10-minimal_3.10.12-1~22.04.16_amd64.deb ..."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624560512000000,
+      "line": "Unpacking python3.10-minimal (3.10.12-1~22.04.16) over (3.10.12-1~22.04.6) ..."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624560581000000,
+      "line": "Preparing to unpack .../03-libpython3.10-minimal_3.10.12-1~22.04.16_amd64.deb ..."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624560639000000,
+      "line": "Unpacking libpython3.10-minimal:amd64 (3.10.12-1~22.04.16) over (3.10.12-1~22.04.6) ..."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561014000000,
+      "line": "Selecting previously unselected package libjemalloc2:amd64."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561016000000,
+      "line": "Preparing to unpack .../04-libjemalloc2_5.2.1-4ubuntu1_amd64.deb ..."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561020000000,
+      "line": "Unpacking libjemalloc2:amd64 (5.2.1-4ubuntu1) ..."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561044000000,
+      "line": "Selecting previously unselected package liblua5.1-0:amd64."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561045000000,
+      "line": "Preparing to unpack .../05-liblua5.1-0_5.1.5-8.1build4_amd64.deb ..."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561047000000,
+      "line": "Unpacking liblua5.1-0:amd64 (5.1.5-8.1build4) ..."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561076000000,
+      "line": "Selecting previously unselected package liblzf1:amd64."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561077000000,
+      "line": "Preparing to unpack .../06-liblzf1_3.6-3_amd64.deb ..."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561079000000,
+      "line": "Unpacking liblzf1:amd64 (3.6-3) ..."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561100000000,
+      "line": "Selecting previously unselected package lua-bitop:amd64."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561101000000,
+      "line": "Preparing to unpack .../07-lua-bitop_1.0.2-5_amd64.deb ..."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561103000000,
+      "line": "Unpacking lua-bitop:amd64 (1.0.2-5) ..."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561125000000,
+      "line": "Selecting previously unselected package lua-cjson:amd64."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561126000000,
+      "line": "Preparing to unpack .../08-lua-cjson_2.1.0+dfsg-2.1_amd64.deb ..."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561127000000,
+      "line": "Unpacking lua-cjson:amd64 (2.1.0+dfsg-2.1) ..."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561152000000,
+      "line": "Selecting previously unselected package redis-tools."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561153000000,
+      "line": "Preparing to unpack .../09-redis-tools_5%3a6.0.16-1ubuntu1.1_amd64.deb ..."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561155000000,
+      "line": "Unpacking redis-tools (5:6.0.16-1ubuntu1.1) ..."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561195000000,
+      "line": "Selecting previously unselected package redis-server."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561197000000,
+      "line": "Preparing to unpack .../10-redis-server_5%3a6.0.16-1ubuntu1.1_amd64.deb ..."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561213000000,
+      "line": "Unpacking redis-server (5:6.0.16-1ubuntu1.1) ..."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561240000000,
+      "line": "Selecting previously unselected package xxd."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561243000000,
+      "line": "Preparing to unpack .../11-xxd_2%3a8.2.3995-1ubuntu2.35_amd64.deb ..."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561245000000,
+      "line": "Unpacking xxd (2:8.2.3995-1ubuntu2.35) ..."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561270000000,
+      "line": "Selecting previously unselected package vim-common."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561272000000,
+      "line": "Preparing to unpack .../12-vim-common_2%3a8.2.3995-1ubuntu2.35_all.deb ..."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561279000000,
+      "line": "Unpacking vim-common (2:8.2.3995-1ubuntu2.35) ..."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561308000000,
+      "line": "Selecting previously unselected package nano."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561310000000,
+      "line": "Preparing to unpack .../13-nano_6.2-1ubuntu0.2_amd64.deb ..."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561312000000,
+      "line": "Unpacking nano (6.2-1ubuntu0.2) ..."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561343000000,
+      "line": "Preparing to unpack .../14-wget_1.21.2-2ubuntu1.5_amd64.deb ..."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561349000000,
+      "line": "Unpacking wget (1.21.2-2ubuntu1.5) over (1.21.2-2ubuntu1.1) ..."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561380000000,
+      "line": "Selecting previously unselected package libconfuse-common."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561382000000,
+      "line": "Preparing to unpack .../15-libconfuse-common_3.3-2_all.deb ..."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561384000000,
+      "line": "Unpacking libconfuse-common (3.3-2) ..."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561406000000,
+      "line": "Selecting previously unselected package libconfuse2:amd64."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561408000000,
+      "line": "Preparing to unpack .../16-libconfuse2_3.3-2_amd64.deb ..."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561411000000,
+      "line": "Unpacking libconfuse2:amd64 (3.3-2) ..."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561437000000,
+      "line": "Selecting previously unselected package libnl-3-200:amd64."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561439000000,
+      "line": "Preparing to unpack .../17-libnl-3-200_3.5.0-0.1_amd64.deb ..."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561440000000,
+      "line": "Unpacking libnl-3-200:amd64 (3.5.0-0.1) ..."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561465000000,
+      "line": "Selecting previously unselected package libnl-route-3-200:amd64."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561466000000,
+      "line": "Preparing to unpack .../18-libnl-route-3-200_3.5.0-0.1_amd64.deb ..."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561468000000,
+      "line": "Unpacking libnl-route-3-200:amd64 (3.5.0-0.1) ..."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561491000000,
+      "line": "Selecting previously unselected package bmon."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561493000000,
+      "line": "Preparing to unpack .../19-bmon_1%3a4.0-8_amd64.deb ..."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561495000000,
+      "line": "Unpacking bmon (1:4.0-8) ..."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561520000000,
+      "line": "Selecting previously unselected package libnl-genl-3-200:amd64."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561522000000,
+      "line": "Preparing to unpack .../20-libnl-genl-3-200_3.5.0-0.1_amd64.deb ..."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561524000000,
+      "line": "Unpacking libnl-genl-3-200:amd64 (3.5.0-0.1) ..."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561544000000,
+      "line": "Selecting previously unselected package htop."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561546000000,
+      "line": "Preparing to unpack .../21-htop_3.0.5-7build2_amd64.deb ..."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561548000000,
+      "line": "Unpacking htop (3.0.5-7build2) ..."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561572000000,
+      "line": "Selecting previously unselected package iotop."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561573000000,
+      "line": "Preparing to unpack .../22-iotop_0.6-24-g733f3f8-1.1ubuntu0.1_amd64.deb ..."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561576000000,
+      "line": "Unpacking iotop (0.6-24-g733f3f8-1.1ubuntu0.1) ..."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561602000000,
+      "line": "Selecting previously unselected package libevent-core-2.1-7:amd64."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561604000000,
+      "line": "Preparing to unpack .../23-libevent-core-2.1-7_2.1.12-stable-1build3_amd64.deb ..."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561606000000,
+      "line": "Unpacking libevent-core-2.1-7:amd64 (2.1.12-stable-1build3) ..."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561631000000,
+      "line": "Selecting previously unselected package libgpm2:amd64."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561634000000,
+      "line": "Preparing to unpack .../24-libgpm2_1.20.7-10build1_amd64.deb ..."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561635000000,
+      "line": "Unpacking libgpm2:amd64 (1.20.7-10build1) ..."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561658000000,
+      "line": "Selecting previously unselected package libpython3.10:amd64."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561660000000,
+      "line": "Preparing to unpack .../25-libpython3.10_3.10.12-1~22.04.16_amd64.deb ..."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561661000000,
+      "line": "Unpacking libpython3.10:amd64 (3.10.12-1~22.04.16) ..."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561703000000,
+      "line": "Selecting previously unselected package libsodium23:amd64."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561705000000,
+      "line": "Preparing to unpack .../26-libsodium23_1.0.18-1ubuntu0.22.04.1_amd64.deb ..."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561706000000,
+      "line": "Unpacking libsodium23:amd64 (1.0.18-1ubuntu0.22.04.1) ..."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561730000000,
+      "line": "Selecting previously unselected package libutempter0:amd64."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561731000000,
+      "line": "Preparing to unpack .../27-libutempter0_1.2.1-2build2_amd64.deb ..."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561732000000,
+      "line": "Unpacking libutempter0:amd64 (1.2.1-2build2) ..."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561751000000,
+      "line": "Selecting previously unselected package nvtop."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561753000000,
+      "line": "Preparing to unpack .../28-nvtop_1.2.2-1_amd64.deb ..."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561755000000,
+      "line": "Unpacking nvtop (1.2.2-1) ..."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561777000000,
+      "line": "Selecting previously unselected package tmux."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561779000000,
+      "line": "Preparing to unpack .../29-tmux_3.2a-4ubuntu0.2_amd64.deb ..."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561781000000,
+      "line": "Unpacking tmux (3.2a-4ubuntu0.2) ..."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561807000000,
+      "line": "Selecting previously unselected package unzip."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561808000000,
+      "line": "Preparing to unpack .../30-unzip_6.0-26ubuntu3.2_amd64.deb ..."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561810000000,
+      "line": "Unpacking unzip (6.0-26ubuntu3.2) ..."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561835000000,
+      "line": "Selecting previously unselected package vim-runtime."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561836000000,
+      "line": "Preparing to unpack .../31-vim-runtime_2%3a8.2.3995-1ubuntu2.35_all.deb ..."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561844000000,
+      "line": "Adding 'diversion of /usr/share/vim/vim82/doc/help.txt to /usr/share/vim/vim82/doc/help.txt.vim-tiny by vim-runtime'"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561851000000,
+      "line": "Adding 'diversion of /usr/share/vim/vim82/doc/tags to /usr/share/vim/vim82/doc/tags.vim-tiny by vim-runtime'"
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624561853000000,
+      "line": "Unpacking vim-runtime (2:8.2.3995-1ubuntu2.35) ..."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624562074000000,
+      "line": "Selecting previously unselected package vim."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624562076000000,
+      "line": "Preparing to unpack .../32-vim_2%3a8.2.3995-1ubuntu2.35_amd64.deb ..."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624562082000000,
+      "line": "Unpacking vim (2:8.2.3995-1ubuntu2.35) ..."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624562117000000,
+      "line": "Selecting previously unselected package zip."
+    },
+    {
+      "container": "fastapi",
+      "ts": 1787624562118000000,
+      "line": "Preparing to unpack .../33-zip_3.0-12build2_amd64.deb ..."
+    }
+  ],
+  "provenance": {
+    "endpoint": "http://185.141.218.122:3001/api/datasources/proxy/uid/PABAB4B93E00F8D83/loki/api/v1/query_range",
+    "query": {
+      "task_id": "10b5cdcc-7cb9-4e33-ac17-79876ddd62f3",
+      "hotkey": "5D2Qee4VNTBc1Y1pr5TvuAq3Spv3m5v7qVgJUAf1KvZrAuUU"
+    },
+    "fetched_at": "2026-08-26T18:22:17Z"
+  },
+  "containers": [
+    "downloader-10b5cdcc-7cb9-4e33-ac17-79876ddd62f3-4bd990c4",
+    "fastapi",
+    "hf-upload-101b5feee9ef44db89ecf418b9ce3a78",
+    "text-trainer-0e25f293a02e42ca80883e0a2f678378"
+  ],
+  "wandb_run_names": {
+    "status": "UNAVAILABLE",
+    "reason": "no 'Synced W&B Run' line — this miner ran WANDB_MODE=offline. For a task after 2026-08-11 that is the norm and `wandb-find` will find nothing either: the public project stopped receiving syncs that day. Before it, try `wandb-find` anyway."
+  },
+  "lines_truncated_for_display": true
+}
