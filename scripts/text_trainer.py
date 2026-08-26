@@ -212,6 +212,16 @@ def halve_request_max_length(train_cmd: str) -> int | None:
         if new_len >= current:
             return None
         train_request["max_length"] = new_len
+        # Also record the rung under a key that means only "an OOM forced this
+        # cap". train_dpo.py derives its own max_length from the model config to
+        # match the validator's DPO evaluator, which reads
+        # max_position_embeddings with no halving
+        # (G.O.D/validator/evaluation/eval_dpo.py:155) — so it must not simply
+        # take max_length, whose healthy-path value comes from the axolotl-style
+        # halving rule in _select_max_length and would silently shorten every DPO
+        # run. A separate key lets a trainer honour the degradation without
+        # inheriting the planner's intent.
+        train_request["oom_max_length"] = new_len
         with open(request_path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=4, ensure_ascii=False)
         return new_len

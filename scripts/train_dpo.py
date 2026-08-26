@@ -109,6 +109,41 @@ def print_trainable_parameters(model):
     )
 
 
+def resolve_dpo_max_length(model_max_length: int, train_request: dict) -> int:
+    """Apply the OOM ladder's sequence-length rung to DPO's own max_length.
+
+    `model_max_length` is what DPO would train at on a healthy run: derived from
+    the model config to match the validator's DPO evaluator, which reads
+    max_position_embeddings with no halving
+    (G.O.D/validator/evaluation/eval_dpo.py:155).
+
+    The OOM ladder's final rung fires only after batch size is already 1 and
+    writes `oom_max_length` into the request JSON
+    (text_trainer.halve_request_max_length). Nothing here read it, so that rung
+    was inert for DPO: the ladder ended at batch=1, every remaining retry re-ran
+    an identical command, and retries ran out with no checkpoint written at all —
+    a scored zero rather than a worse number.
+
+    Only `oom_max_length` is consulted, and only downwards. Plain `max_length`
+    carries the planner's value from `_select_max_length`, which mirrors the
+    *axolotl* evaluator's halving rule and is routinely lower than what DPO's own
+    evaluator uses; honouring that key here would silently shorten every healthy
+    DPO run.
+
+    One rung can drop further than strictly needed, because the ladder halves the
+    planner's number rather than this one. That is the intended trade: a shorter
+    run that finishes beats an identical retry that OOMs again and submits
+    nothing.
+    """
+    cap = train_request.get("oom_max_length") if isinstance(train_request, dict) else None
+    if isinstance(cap, bool) or not isinstance(cap, int):
+        return model_max_length
+    if cap <= 0 or cap >= model_max_length:
+        return model_max_length
+    log_info(f"DPO max_length capped {model_max_length} -> {cap} by the OOM ladder")
+    return cap
+
+
 def get_max_length_config():
     config_path = "test_axolotl.yml"
     with open(config_path, "r") as file:
@@ -165,7 +200,7 @@ def main():
     except Exception as _e:
         log_info(f"Could not read model config for max_length: {_e}")
         _max_pos = 4096
-    _dpo_max_length = min(int(_max_pos), 4096)
+    _dpo_max_length = resolve_dpo_max_length(min(int(_max_pos), 4096), train_request)
     training_args.max_length = _dpo_max_length
     training_args.max_prompt_length = _dpo_max_length // 2
     log_info(f"DPO max_length={training_args.max_length}, max_prompt_length={training_args.max_prompt_length}")
