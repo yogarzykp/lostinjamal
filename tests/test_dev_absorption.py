@@ -396,3 +396,77 @@ def test_the_cache_is_released_afterwards(absorb, tmp_path, submission, stack):
     """This runs while the next task may already be waiting for the GPU."""
     _call(absorb, submission, _dev(tmp_path, 16))
     assert stack.emptied
+
+
+# --- the guard that came out of the measurement ------------------------------------
+#
+# Measured on 28c9f3bb: prior dev loss 1.7893; the rates that improved the held-out score
+# ran at 1.7694 and 1.7739, the rates that hurt it at 1.8664 and 2.6956. The pass's own
+# loss separates them without consulting anything held out, so it is the guard.
+
+
+def _with_prior(submission, value, as_state=False):
+    if as_state:
+        if os.path.isfile(os.path.join(submission, "loss.txt")):
+            os.remove(os.path.join(submission, "loss.txt"))
+        with open(os.path.join(submission, "trainer_state.json"), "w") as fh:
+            json.dump({"log_history": [{"eval_loss": 9.9}, {"eval_loss": value}]}, fh)
+    else:
+        with open(os.path.join(submission, "loss.txt"), "w") as fh:
+            fh.write(f"346,{value}")
+    return submission
+
+
+@pytest.fixture
+def scored(submission):
+    return _with_prior(submission, 1.7893)
+
+
+def test_a_pass_hotter_than_the_checkpoint_is_refused(absorb, tmp_path, scored, stack):
+    """min_lr_rate 0.2 measured 1.8664 against a prior of 1.7893 and lost 0.072."""
+    stack.model = _FakeModel(loss=1.8664)
+    before = _fingerprint(scored)
+    got, log = _call(absorb, scored, _dev(tmp_path, 16))
+    assert got is None and "too hot" in log, log
+    assert _fingerprint(scored) == before
+
+
+def test_a_catastrophic_pass_is_refused(absorb, tmp_path, scored, stack):
+    """min_lr_rate 0.5 measured 2.6956 and cost nearly a full nat."""
+    stack.model = _FakeModel(loss=2.6956)
+    got, log = _call(absorb, scored, _dev(tmp_path, 16))
+    assert got is None and "too hot" in log
+
+
+@pytest.mark.parametrize("passloss", [1.7694, 1.7739])
+def test_the_rates_that_actually_helped_are_accepted(absorb, tmp_path, scored, stack, passloss):
+    """A guard that also rejected the good arms would be worse than no guard."""
+    stack.model = _FakeModel(loss=passloss)
+    got, log = _call(absorb, scored, _dev(tmp_path, 16))
+    assert got is not None, log
+    assert got["prior_dev_loss"] == pytest.approx(1.7893)
+
+
+def test_the_guard_reads_the_file_selection_reads(absorb, tmp_path, submission, stack):
+    """loss.txt is what chose this checkpoint; comparing to anything else compares
+    against a number that had no say in the submission."""
+    ns_source = _source(MODULE)
+    assert "loss.txt" in ns_source
+    stack.model = _FakeModel(loss=5.0)
+    got, log = _call(absorb, _with_prior(submission, 1.0), _dev(tmp_path, 16))
+    assert got is None and "too hot" in log
+
+
+def test_trainer_state_is_the_fallback_when_loss_txt_is_absent(absorb, tmp_path,
+                                                               submission, stack):
+    stack.model = _FakeModel(loss=5.0)
+    got, log = _call(absorb, _with_prior(submission, 1.0, as_state=True),
+                     _dev(tmp_path, 16))
+    assert got is None and "too hot" in log, log
+
+
+def test_an_unrecorded_prior_does_not_block_absorption(absorb, tmp_path, submission, stack):
+    """No loss.txt and no trainer_state means no basis to refuse — not a refusal."""
+    got, log = _call(absorb, submission, _dev(tmp_path, 16))
+    assert got is not None, log
+    assert got["prior_dev_loss"] is None

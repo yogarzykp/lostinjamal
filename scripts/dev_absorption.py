@@ -44,6 +44,28 @@ def _weights_only(name: str) -> bool:
     return name.endswith(".safetensors") or name.endswith(".bin")
 
 
+def _prior_dev_loss(submission_dir: str):
+    """The dev loss already measured for THIS checkpoint, or None if unrecorded.
+
+    `loss.txt` is the file checkpoint selection itself reads, so a guard built on it
+    compares the absorption pass against exactly the number that chose this submission
+    — no second evaluation, and nothing the validator has ever shown us.
+    """
+    try:
+        with open(os.path.join(submission_dir, "loss.txt"), "r", encoding="utf-8") as fh:
+            return float(fh.read().strip().split(",")[-1])
+    except Exception:
+        pass
+    try:
+        with open(os.path.join(submission_dir, "trainer_state.json"), "r",
+                  encoding="utf-8") as fh:
+            history = json.load(fh).get("log_history", [])
+        evals = [h["eval_loss"] for h in history if "eval_loss" in h]
+        return float(evals[-1]) if evals else None
+    except Exception:
+        return None
+
+
 def absorb_dev_split(
     submission_dir: str,
     dev_tokenized_path: str,
@@ -130,6 +152,19 @@ def absorb_dev_split(
                 f"submission left untouched")
             return None
 
+        # Refuse a pass that ran hotter than the checkpoint's own dev loss. Measured on
+        # 28c9f3bb this separates cleanly: prior dev loss 1.7893, the two rates that
+        # improved the held-out score averaged 1.7694 and 1.7739, and the two that made
+        # it worse averaged 1.8664 and 2.6956. The cliff is real — at min_lr_rate 0.2 the
+        # absorption LR reaches the run's own final scheduled LR and stops being the
+        # gentle final pass this is meant to be. The guard costs nothing, reads a number
+        # the trainer already wrote, and needs no held-out data to work.
+        prior = _prior_dev_loss(submission_dir)
+        if prior is not None and mean_loss > prior:
+            log(f"[dev-absorb] pass loss {mean_loss:.4f} exceeds the checkpoint's own dev "
+                f"loss {prior:.4f} — too hot, submission left untouched")
+            return None
+
         # Stage, then swap. A failure anywhere above or below leaves the original in
         # place; the submission is the only artefact that matters and it is never
         # edited where it stands.
@@ -155,7 +190,8 @@ def absorb_dev_split(
 
         log(f"[dev-absorb] absorbed {seen} steps, mean dev loss {mean_loss:.4f} — "
             f"submission updated")
-        return {"steps": seen, "mean_loss": mean_loss, "lr": lr, "rows": len(rows)}
+        return {"steps": seen, "mean_loss": mean_loss, "lr": lr,
+                "rows": len(rows), "prior_dev_loss": prior}
 
     except Exception as exc:
         log(f"[dev-absorb] failed ({type(exc).__name__}: {str(exc)[:200]}) — "
