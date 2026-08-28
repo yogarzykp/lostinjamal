@@ -235,16 +235,27 @@ def test_the_gate_result_stops_the_training_loop():
 
 @pytest.mark.parametrize("path", DOCKERFILES)
 def test_the_axolotl_venv_pins_its_own_stack(path):
-    """trl==0.18.0 declares transformers>=4.50.0 with no upper bound.
+    """transformers must be pinned; trl must NOT be.
 
-    Left to the transitive graph the resolver was free to install a transformers that
-    had dropped MODEL_FOR_VISION_2_SEQ_MAPPING_NAMES, which trl's lazy loader imports.
+    axolotl==0.9.1 depends on trl==0.17.0 as an EXACT pin, so naming any other trl makes
+    the resolve unsatisfiable — the first version of this fix pinned trl==0.18.0 to match
+    the main stack and the image refused to build. trl==0.17.0 in turn declares
+    transformers>=4.46.0 with no upper bound, which is the hole transformers falls through.
+    The two venvs legitimately differ on trl and must agree on transformers.
     """
-    src = _source(path)
-    i = src.index("axolotl==0.9.1")
-    line = src[i : src.index("\n", i)]
+    # The INSTALL line, not the first mention: the comment above it names
+    # axolotl==0.9.1 and trl==0.17.0 in order to explain the constraint, and an index()
+    # on the bare version string lands there instead. Fifth time tonight a check matched
+    # the prose written to document it.
+    line = next(
+        l for l in _source(path).splitlines()
+        if "uv pip install" in l and "axolotl==0.9.1" in l
+    )
     assert "transformers==4.51.3" in line, "transformers is not pinned in the axolotl resolve"
-    assert "trl==0.18.0" in line, "trl is not pinned in the axolotl resolve"
+    assert "trl==" not in line, (
+        "trl is pinned in the axolotl resolve; axolotl pins it to 0.17.0 itself and any "
+        "other value makes the resolve unsatisfiable"
+    )
 
 
 @pytest.mark.parametrize("path", DOCKERFILES)

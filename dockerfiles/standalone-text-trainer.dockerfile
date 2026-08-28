@@ -62,10 +62,15 @@ RUN python -m venv /workspace/axo_py
 # transformers with no bound at all, so our own extra installs PUSHED transformers up
 # rather than merely permitting it. The position-1 miner of the same tournament installs
 # only axolotl and requests here, and did not hit this.
-# transformers and trl are pinned HERE, in the same resolve, not left to axolotl's
-# transitive graph. trl==0.18.0 declares `transformers>=4.50.0` with NO upper bound, so
-# the resolver was free to pick a transformers that had dropped
-# MODEL_FOR_VISION_2_SEQ_MAPPING_NAMES — which trl 0.18's lazy loader still imports.
+# transformers is pinned HERE, in the same resolve, not left to axolotl's transitive
+# graph. trl is NOT pinned here and must not be: axolotl==0.9.1 depends on trl==0.17.0
+# as an EXACT pin, so naming any other version makes the resolve unsatisfiable — the
+# first attempt at this fix pinned trl==0.18.0 to match the main stack and the image
+# refused to build, which is the build check earning its keep before a tournament did.
+# trl==0.17.0 in turn declares `transformers>=4.46.0` with NO upper bound, so the
+# resolver was free to pick one that had dropped MODEL_FOR_VISION_2_SEQ_MAPPING_NAMES —
+# which trl's lazy loader still imports. The two venvs legitimately differ on trl
+# (main stack 0.18.0, axolotl venv 0.17.0); they must agree on transformers.
 # That produced a clean image that could not tokenise, and it cost three round-1 tasks
 # in tourn_e758aac2d861c378_20260824: every run crashed in ~6s, five times, and shipped
 # a noise-perturbed base model. Same versions as the main stack, which is the pairing
@@ -73,7 +78,7 @@ RUN python -m venv /workspace/axo_py
 RUN bash -c "source /workspace/axo_py/bin/activate && \
     pip install uv && \
     pip install -U packaging==23.2 setuptools==75.8.0 wheel ninja && \
-    uv pip install --no-build-isolation axolotl==0.9.1 transformers==4.51.3 trl==0.18.0 && \
+    uv pip install --no-build-isolation axolotl==0.9.1 transformers==4.51.3 && \
     pip install requests==2.32.3 && \
     deactivate"
 
@@ -85,7 +90,7 @@ RUN bash -c "source /workspace/axo_py/bin/activate && \
     python -c \"import transformers, trl, axolotl, jinja2, typer, yaml, torch, requests; \
 from trl.trainer.dpo_trainer import DPOTrainer; \
 assert transformers.__version__.startswith('4.51'), 'axo_py transformers=' + transformers.__version__; \
-assert trl.__version__.startswith('0.18'), 'axo_py trl=' + trl.__version__; \
+assert trl.__version__.startswith('0.17'), 'axo_py trl=' + trl.__version__; \
 print('axo_py stack OK: transformers', transformers.__version__, 'trl', trl.__version__)\" && \
     deactivate"
 
