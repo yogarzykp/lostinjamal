@@ -1181,6 +1181,37 @@ def main():
         except Exception as e:
             print(f"Could not clean submission_dir before fallback: {e}", flush=True)
 
+    # Reclaim the dev split. It is our own carve-out of the training rows, not the
+    # validator's test set — measured on 28c9f3bb, the two share zero examples — and once
+    # the checkpoint is chosen it has no job left. Runs here rather than inside the
+    # trainer because by this point the training subprocess has exited and the winning
+    # run is already selected, so it is single-process against a directory: no wrapped
+    # model, no DDP lockstep to preserve.
+    #
+    # Default OFF. The position-1 miner of tourn_e758aac2d861c378_20260824 publishes this
+    # mechanism and its own telemetry claims absorb=+0.0183, and our measured gap to that
+    # model on identical rows was 0.0225 — but +0.0183 is THEIR number on THEIR stack. It
+    # stays gated until an A/B on our own harness produces ours, per the same rule that
+    # governs every other unmeasured action in this repo.
+    if train_success and os.getenv("DEV_ABSORPTION", "0") == "1":
+        try:
+            from dev_absorption import absorb_dev_split
+            _dev_path = os.path.join("datasets", f"dev_tokenized_{args.task_id}.json")
+            _base_lr = extract_value_from_cmd(train_cmd or "", "learning_rate")
+            _min_rate = train_info.get("train_request", {}).get("min_lr_rate")
+            absorb_dev_split(
+                submission_dir=submission_dir,
+                dev_tokenized_path=_dev_path,
+                base_lr=float(_base_lr) if _base_lr else 0.0,
+                min_lr_rate=float(_min_rate) if _min_rate else 0.1,
+            )
+        except Exception as _exc:
+            # Never let this cost a submission that already exists.
+            print(f"[dev-absorb] skipped ({type(_exc).__name__}: {_exc}) — "
+                  f"submission untouched", flush=True)
+    elif train_success:
+        print("[dev-absorb] off (set DEV_ABSORPTION=1 to enable)", flush=True)
+
     if not train_success:
         print(f"Training failed for task {args.task_id}", flush=True)
         # add noise to the model
