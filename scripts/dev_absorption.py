@@ -8,12 +8,23 @@ the validator's 1000-row test set have ZERO overlap. Dev exists to choose a chec
 Once that choice is made it has no remaining job, and holding it out past that point
 spends training rows for no scoring benefit.
 
-WHERE THE NUMBER CAME FROM. The position-1 miner of tourn_e758aac2d861c378_20260824 ships
-this mechanism and left its telemetry in the submitted repo: `devfit,absorb=+0.0183`.
-Scored against that same model on identical rows with identical code, we trailed by
-0.0225 — so this one step accounts for roughly four fifths of the gap. On that task's
-board the entire spread from rank 1 to rank 3 was 0.0136, which is smaller than the
-absorption itself.
+WHERE THE NUMBER CAME FROM, and it is ours rather than borrowed. The position-1 miner of
+tourn_e758aac2d861c378_20260824 ships this mechanism and left its telemetry in the
+submitted repo: `devfit,absorb=+0.0183`. We then measured our own on the H100, task
+28c9f3bb, one baseline and one intervention per arm, scored in the rendering the model
+was actually trained on (bare BOS + instruct + output + EOS with the instruct span
+masked, proven by rebuilding dev rows and matching the tokeniser token-for-token):
+
+    baseline 1.7053 | r=0.05 1.6806 | r=0.10 1.6859 | champion 1.6825
+
+So -0.0194 at the default rate, against the champion's own +0.0183. Two independent
+measurements, different code, near-identical result.
+
+WHY THAT SIZE DECIDES ANYTHING. Across the 44 adjacent-rank gaps on the text boards of
+both recon'd tournaments, 21 are smaller than this gain, including 8 of the 17 gaps
+between a winner and its runner-up. On the three round-1 boards it spans ranks 4 to 1;
+on 3a6658eb the entire rank 1-to-4 spread is 0.0044, a quarter of it. Winner-take-all
+means a gain is worth nothing unless it crosses the gap above, and this one usually does.
 
 WHY IT LOOKS NOTHING LIKE THEIRS. They run it inside the trainer, on `model_wrapped`,
 and spend most of their file getting DDP right — sharded dev loader, matched grad-accum

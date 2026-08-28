@@ -253,6 +253,10 @@ def split_dataset(
     print(
         f"split {total_data_path} ({len(data)} items) into {train_data_path} ({len(train_items)} items) and {dev_data_path} ({len(dev_items)} items)"
     )
+    # Returned so the tokeniser can say how many of these rows survived it. Counting
+    # them again from disk would mean re-parsing a quarter-gigabyte of JSON for a
+    # diagnostic; the numbers are already here.
+    return len(train_items), len(dev_items)
 
 
 def data_stat(items: list):
@@ -268,6 +272,7 @@ def tokenize_dataset(
     config_path: str,
     output_path: str,
     max_length: int = -1,
+    input_rows: int = -1,
 ):
     evaluation_config = load_and_update_evaluation_config(
         data_path, dataset_type, "json", None, config_path, max_length
@@ -295,6 +300,30 @@ def tokenize_dataset(
     # trading a tournament submission for. Compares against the max_length the
     # plan chose, so it also reveals a cap set below the data it has to hold.
     try:
+        # Rows that never reach `result` are the ones this check most needs to see.
+        # Axolotl DROPS a sequence longer than max_length instead of truncating it, so
+        # an under-sized cap does not show up as a long tail here — it shows up as an
+        # absence, and every measurement below is taken over the survivors. On task
+        # 3a6658eb this block reported "1.0% reach the cap" while 98.2% of the dataset
+        # had already been discarded upstream: an instrument that surveys who is left
+        # and concludes nobody was hurt.
+        if input_rows > 0:
+            dropped = input_rows - len(result)
+            pct = dropped / input_rows * 100
+            print(
+                f"[len-check] tokenised {len(result)}/{input_rows} rows "
+                f"({dropped} dropped, {pct:.1f}%) at max_length={max_length}",
+                flush=True,
+            )
+            if pct >= 25.0:
+                print(
+                    f"[len-check] WARNING: max_length={max_length} discarded {pct:.1f}% "
+                    f"of this split. Axolotl drops over-long rows rather than truncating "
+                    f"them, so this is training data thrown away, not shortened — check "
+                    f"the sequence-length measurement that sized the cap",
+                    flush=True,
+                )
+
         realized = sorted(len(dp.get("input_ids", [])) for dp in result)
         if realized:
             r_p95 = realized[min(len(realized) - 1, int(0.95 * len(realized)))]
@@ -335,7 +364,7 @@ def main(training_request_path: str):
             f"Max data size is {max_data_size}, so we will only extract {max_data_size} samples randomly"
         )
 
-    split_dataset(
+    _n_train, _n_dev = split_dataset(
         total_path,
         train_path,
         dev_path,
@@ -362,6 +391,7 @@ def main(training_request_path: str):
         config_path,
         f"datasets/train_tokenized_{task_id}.json",
         max_length=max_length,
+        input_rows=_n_train,
     )
     
     tokenize_dataset(
@@ -371,6 +401,7 @@ def main(training_request_path: str):
         config_path,
         f"datasets/dev_tokenized_{task_id}.json",
         max_length=max_length,
+        input_rows=_n_dev,
     )
 
     t2 = datetime.now()

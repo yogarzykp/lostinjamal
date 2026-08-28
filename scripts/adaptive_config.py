@@ -1731,7 +1731,18 @@ def build_adaptive_run_config(
             arch_family=arch,
             param_count=param_count,
             data_size=ds_metrics.num_samples,
-            seq_p95=ds_metrics.seq_len_p95,
+            # The field-mapped measurement, not the legacy chain — the SAME expression
+            # the main planner uses at `_len_p95`. This profile recomputes max_length
+            # from whatever it is handed and its value is the one the run gets, so
+            # feeding it the uncorrected p95 quietly undoes the correction above.
+            #
+            # Measured cost of getting this wrong, task 3a6658eb (clinical notes):
+            # legacy p95=1235 -> max_length 1536, against a field-mapped p95 of 2400.
+            # Axolotl DROPS over-long rows rather than truncating them, so the run
+            # trained on 490 of 27992 rows and evaluated on 17 of 1000 — 98% of the
+            # task discarded before the first step, with nothing in the log that reads
+            # as an error.
+            seq_p95=ds_metrics.full_seq_p95 or ds_metrics.seq_len_p95,
             model_name=train_info.get("model_name") or train_info.get("model"),
             detected_base_model=detected_base_model,  # fingerprint-recovered for anon-resilient family resolution
         )
