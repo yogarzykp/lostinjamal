@@ -197,3 +197,54 @@ def test_a_large_drop_is_a_warning_not_a_statistic():
         "the drop warning only fires above %s%% — a run that lost half its data would "
         "still read as healthy" % max(thresholds)
     )
+
+
+# --- the third consumer of the same figure -----------------------------------------
+
+
+def test_the_token_estimate_counts_the_whole_training_sequence():
+    """hp_override estimates training tokens as n_train * seq_p95.
+
+    A training sequence is the whole rendered row, prompt included, so the
+    completion-only chain halves the estimate on any prompt-heavy task: 3a6658eb
+    reported est_tokens=35.8M against a real 69.6M. The only gate reading it is d2z at
+    TPP > 1.0 and our tasks sit two orders below that either way, so this corrects a
+    number rather than a behaviour — but a wrong number that happens to be harmless
+    today is still the thing that stops being harmless quietly.
+    """
+    src = _source(ADAPTIVE)
+    tree = ast.parse(src)
+    for n in ast.walk(tree):
+        if (isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+                and n.func.id == "_hp_apply"):
+            kw = {k.arg: ast.unparse(k.value) for k in n.keywords}
+            assert "full_seq_p95" in kw.get("seq_p95", ""), (
+                "hp_override still receives the completion-only p95 (%s)" % kw.get("seq_p95")
+            )
+            return
+    raise AssertionError("_hp_apply is never called — this test needs rewiring")
+
+
+def test_every_length_consumer_that_sizes_training_uses_the_field_map():
+    """One file, three consumers, and the correction reached two of them for months.
+
+    GRPO's max_completion_length is deliberately excluded: it bounds the COMPLETION,
+    which is exactly what the legacy chain measures, so it is right as it stands.
+    """
+    src = _source(ADAPTIVE)
+    tree = ast.parse(src)
+    bad = []
+    for n in ast.walk(tree):
+        if not (isinstance(n, ast.Call) and n.keywords):
+            continue
+        name = getattr(n.func, "id", None) or getattr(n.func, "attr", None)
+        # DatasetMetrics is where the field is populated, not read; excluding the
+        # producer is not the same as excusing a consumer.
+        if name in ("_select_grpo_max_completion", "DatasetMetrics"):
+            continue
+        for k in n.keywords:
+            if k.arg in ("seq_p95", "seq_len_p95"):
+                expr = ast.unparse(k.value)
+                if "full_seq_p95" not in expr:
+                    bad.append("%s(%s=%s)" % (name, k.arg, expr))
+    assert not bad, "length consumers still on the legacy chain: %s" % bad

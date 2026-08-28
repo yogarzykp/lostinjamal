@@ -2495,7 +2495,17 @@ def build_adaptive_run_config(
             train_info,
             n_train=ds_metrics.num_samples,
             param_count=param_count,
-            seq_p95=ds_metrics.seq_len_p95,
+            # Third consumer of the same figure, and the same correction. This one
+            # estimates total TRAINING tokens as n_train * seq_p95, and a training
+            # sequence is the whole rendered row — prompt included — so the
+            # completion-only chain halves it on any prompt-heavy task. Measured on
+            # 3a6658eb: est_tokens 35.8M reported against a real 69.6M.
+            #
+            # It changes no decision at the sizes we actually see. The only gate that
+            # reads it is d2z at TPP > 1.0, and our tasks sit at 0.02-0.04 either way,
+            # two orders below it. Corrected because the number is wrong, not because
+            # anything downstream is currently waiting on it.
+            seq_p95=ds_metrics.full_seq_p95 or ds_metrics.seq_len_p95,
         )
     except Exception as _exc:
         print(f"[hp-override] apply_all failed (skipped, fail-soft): {_exc}", flush=True)
