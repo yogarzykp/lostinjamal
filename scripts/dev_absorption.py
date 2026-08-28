@@ -56,25 +56,45 @@ def _weights_only(name: str) -> bool:
 
 
 def _prior_dev_loss(submission_dir: str):
-    """The dev loss already measured for THIS checkpoint, or None if unrecorded.
+    """The dev loss already measured for THIS checkpoint, as (value, note).
 
     `loss.txt` is the file checkpoint selection itself reads, so a guard built on it
     compares the absorption pass against exactly the number that chose this submission
     — no second evaluation, and nothing the validator has ever shown us.
+
+    It has two formats. customized_trainer's best-checkpoint path writes
+    `<step>,<eval_loss>`, which is what the guard wants. Its save_only path writes
+    `<step>,proxy=<train_loss>` or `<step>,proxy=no_eval`, which is a TRAIN-loss proxy
+    and not comparable to a pass over dev. Reading the second as a number would arm the
+    guard against the wrong quantity; reading it as absent would leave the guard silently
+    unarmed on the exact runs that took the unusual path. So it returns a note instead,
+    and the caller says so out loud.
     """
+    raw = None
     try:
         with open(os.path.join(submission_dir, "loss.txt"), "r", encoding="utf-8") as fh:
-            return float(fh.read().strip().split(",")[-1])
+            raw = fh.read().strip()
     except Exception:
         pass
+    if raw:
+        tail = raw.split(",")[-1]
+        if tail.startswith("proxy="):
+            return None, (f"loss.txt holds a train-loss proxy ({raw!r}), which is not "
+                          f"comparable to a dev pass")
+        try:
+            return float(tail), None
+        except ValueError:
+            return None, f"loss.txt is unparseable ({raw!r})"
     try:
         with open(os.path.join(submission_dir, "trainer_state.json"), "r",
                   encoding="utf-8") as fh:
             history = json.load(fh).get("log_history", [])
         evals = [h["eval_loss"] for h in history if "eval_loss" in h]
-        return float(evals[-1]) if evals else None
+        if evals:
+            return float(evals[-1]), None
+        return None, "trainer_state.json records no eval_loss"
     except Exception:
-        return None
+        return None, "no loss.txt and no readable trainer_state.json"
 
 
 def absorb_dev_split(
@@ -170,7 +190,11 @@ def absorb_dev_split(
         # absorption LR reaches the run's own final scheduled LR and stops being the
         # gentle final pass this is meant to be. The guard costs nothing, reads a number
         # the trainer already wrote, and needs no held-out data to work.
-        prior = _prior_dev_loss(submission_dir)
+        prior, prior_note = _prior_dev_loss(submission_dir)
+        if prior_note:
+            # An unarmed guard is a decision, so it goes in the log next to the result
+            # rather than being inferred later from its absence.
+            log(f"[dev-absorb] guard unarmed — {prior_note}")
         if prior is not None and mean_loss > prior:
             log(f"[dev-absorb] pass loss {mean_loss:.4f} exceeds the checkpoint's own dev "
                 f"loss {prior:.4f} — too hot, submission left untouched")

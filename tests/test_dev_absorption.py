@@ -470,3 +470,53 @@ def test_an_unrecorded_prior_does_not_block_absorption(absorb, tmp_path, submiss
     got, log = _call(absorb, submission, _dev(tmp_path, 16))
     assert got is not None, log
     assert got["prior_dev_loss"] is None
+
+
+# --- the two formats of loss.txt ---------------------------------------------------
+#
+# customized_trainer writes `<step>,<eval_loss>` from its best-checkpoint path and
+# `<step>,proxy=<train_loss>` from its save_only path. The first is what the guard wants.
+# The second is a train-loss proxy: reading it as a number would arm the guard against
+# the wrong quantity, and reading it as absent would leave the guard silently unarmed on
+# exactly the runs that took the unusual path.
+
+
+def test_a_proxy_prior_does_not_arm_the_guard(absorb, tmp_path, submission, stack):
+    """A train-loss proxy is not comparable to a pass over dev."""
+    with open(os.path.join(submission, "loss.txt"), "w") as fh:
+        fh.write("21,proxy=0.4000")
+    stack.model = _FakeModel(loss=5.0)  # would be refused against any real dev loss
+    got, log = _call(absorb, submission, _dev(tmp_path, 16))
+    assert got is not None, log
+    assert got["prior_dev_loss"] is None
+    assert "train-loss proxy" in log, (
+        "a proxy must be named as one; falling through to the unparseable branch reaches "
+        "the same verdict by treating a known format as a broken file")
+
+
+def test_an_unarmed_guard_says_so(absorb, tmp_path, submission, stack):
+    """Silence would leave 'guard passed' and 'guard never ran' looking identical."""
+    with open(os.path.join(submission, "loss.txt"), "w") as fh:
+        fh.write("21,proxy=no_eval")
+    got, log = _call(absorb, submission, _dev(tmp_path, 16))
+    # Not `"proxy" in log`: the unparseable branch echoes the raw file, which contains
+    # the word, so that assertion passes whether or not the proxy branch exists.
+    assert "guard unarmed" in log and "train-loss proxy" in log, log
+    assert "unparseable" not in log, log
+
+
+def test_an_unparseable_prior_is_reported_not_swallowed(absorb, tmp_path, submission, stack):
+    with open(os.path.join(submission, "loss.txt"), "w") as fh:
+        fh.write("this is not a loss")
+    got, log = _call(absorb, submission, _dev(tmp_path, 16))
+    assert "guard unarmed" in log and "unparseable" in log, log
+
+
+def test_a_real_prior_still_arms_it(absorb, tmp_path, submission, stack):
+    """The common path must not have been broken by handling the uncommon one."""
+    with open(os.path.join(submission, "loss.txt"), "w") as fh:
+        fh.write("346,1.7893")
+    stack.model = _FakeModel(loss=2.5)
+    got, log = _call(absorb, submission, _dev(tmp_path, 16))
+    assert got is None and "too hot" in log
+    assert "guard unarmed" not in log
