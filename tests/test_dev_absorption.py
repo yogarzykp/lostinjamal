@@ -520,3 +520,55 @@ def test_a_real_prior_still_arms_it(absorb, tmp_path, submission, stack):
     got, log = _call(absorb, submission, _dev(tmp_path, 16))
     assert got is None and "too hot" in log
     assert "guard unarmed" not in log
+
+
+# --- the rate the wiring actually passes -------------------------------------------
+#
+# The first real DEV_ABSORPTION=1 run printed `min_lr_rate 0.1` on a task whose schedule
+# floor was 0.25. The wiring had been reading train_request["min_lr_rate"], a key that is
+# absent from every training request we have ever written — the value lives in the train
+# command's --lr_scheduler_kwargs. So the lookup could never succeed and always fell
+# through to the default. Nothing in 542 tests noticed, because a lookup that always
+# misses still produces a valid call.
+
+
+def test_the_wiring_does_not_read_a_key_that_does_not_exist():
+    """train_request has no min_lr_rate. Reading it looks like inheritance and is not."""
+    tree = ast.parse(_source(TRAINER))
+    for n in ast.walk(tree):
+        if (isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+                and n.func.attr == "get" and n.args
+                and isinstance(n.args[0], ast.Constant)
+                and n.args[0].value == "min_lr_rate"):
+            raise AssertionError(
+                "the trainer reads min_lr_rate from a mapping again; it is not in "
+                "train_request, so this can only ever return the fallback"
+            )
+
+
+def test_the_absorption_rate_comes_from_the_module_default():
+    """The default is a measured choice, so it belongs in one place, not two.
+
+    Inheriting the run's min_lr_rate would put absorption at the schedule's floor —
+    exactly where 28c9f3bb measured a 0.071 loss and where 3a6658eb put r=0.25 behind
+    r=0.10.
+    """
+    tree = ast.parse(_source(TRAINER))
+    call = next(n for n in ast.walk(tree)
+                if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+                and n.func.id == "absorb_dev_split")
+    kw = {k.arg: ast.unparse(k.value) for k in call.keywords}
+    assert "DEFAULT_MIN_LR_RATE" in kw.get("min_lr_rate", ""), (
+        "min_lr_rate is %s — it should fall back to the module's measured default rather "
+        "than a literal repeated here" % kw.get("min_lr_rate")
+    )
+
+
+def test_the_rate_is_overridable_without_editing_code():
+    """A measured default still needs a way to run the next A/B against it."""
+    tree = ast.parse(_source(TRAINER))
+    envs = {n.args[0].value for n in ast.walk(tree)
+            if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+            and n.func.attr == "getenv" and n.args
+            and isinstance(n.args[0], ast.Constant)}
+    assert "DEV_ABSORPTION_RATE" in envs

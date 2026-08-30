@@ -1195,15 +1195,31 @@ def main():
     # governs every other unmeasured action in this repo.
     if train_success and os.getenv("DEV_ABSORPTION", "0") == "1":
         try:
-            from dev_absorption import absorb_dev_split
+            from dev_absorption import DEFAULT_MIN_LR_RATE, absorb_dev_split
             _dev_path = os.path.join("datasets", f"dev_tokenized_{args.task_id}.json")
             _base_lr = extract_value_from_cmd(train_cmd or "", "learning_rate")
-            _min_rate = train_info.get("train_request", {}).get("min_lr_rate")
+            # The rate is DEV_ABSORPTION_RATE or the module default, deliberately not the
+            # run's own min_lr_rate.
+            #
+            # This used to read train_info["train_request"]["min_lr_rate"], which does not
+            # exist and never has — the value lives in the train command's
+            # --lr_scheduler_kwargs, so the lookup always returned None and always fell
+            # through to 0.1. The smoke run that first exercised this branch printed
+            # `min_lr_rate 0.1` on a task whose schedule floor was 0.25, which is how the
+            # dead lookup surfaced.
+            #
+            # It is removed rather than repaired because the measurements say we do not
+            # want the run's value. min_lr_rate is the floor of the LR schedule, so
+            # inheriting it puts absorption exactly where training ended: on 28c9f3bb that
+            # region cost 0.071, and on 3a6658eb r=0.25 came second to r=0.10 by 0.0008
+            # against a 0.0003 noise floor. Absorption has to be gentler than the
+            # schedule's end, not level with it.
+            _rate = os.getenv("DEV_ABSORPTION_RATE")
             absorb_dev_split(
                 submission_dir=submission_dir,
                 dev_tokenized_path=_dev_path,
                 base_lr=float(_base_lr) if _base_lr else 0.0,
-                min_lr_rate=float(_min_rate) if _min_rate else 0.1,
+                min_lr_rate=float(_rate) if _rate else DEFAULT_MIN_LR_RATE,
             )
         except Exception as _exc:
             # Never let this cost a submission that already exists.
