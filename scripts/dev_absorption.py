@@ -43,12 +43,36 @@ SAFETY IS STRUCTURAL, since there is no eval left to catch a regression:
   * every failure path returns without touching the submission.
 """
 
+import datetime
 import json
 import os
 import shutil
+import time
 
 MIN_ROWS = 8
 DEFAULT_MIN_LR_RATE = 0.1
+
+# Seconds held back for what runs AFTER this: the NaN/Inf scan of the final checkpoint
+# and restore_submission_architectures. The second of those is what keeps the validator's
+# is_finetune check from rejecting the submission outright, so being killed before it does
+# not cost a few ranks, it costs the whole entry. Absorption is worth 0.005-0.019; that
+# trade is never worth taking.
+RESERVE_SECONDS = 90
+
+
+def _seconds_remaining(end_time: str):
+    """Seconds until the validator's deadline, or None if it cannot be read.
+
+    Format matches customized_trainer.check_remaining_time_less_than_minutes, which is the
+    only other reader of this field — a second, subtly different parser here would be a
+    way for the two to disagree about when the run ends.
+    """
+    try:
+        end = datetime.datetime.strptime(end_time, "%Y-%m-%d %H:%M:%S")
+        end = end.replace(tzinfo=datetime.timezone.utc)
+        return (end - datetime.datetime.now(datetime.timezone.utc)).total_seconds()
+    except Exception:
+        return None
 
 
 def _weights_only(name: str) -> bool:
@@ -103,6 +127,7 @@ def absorb_dev_split(
     base_lr: float,
     min_lr_rate: float = DEFAULT_MIN_LR_RATE,
     batch_size: int = 1,
+    end_time: str = None,
     log=print,
 ):
     """One low-LR epoch over the dev split, applied to the selected submission.
@@ -167,8 +192,29 @@ def absorb_dev_split(
         loader = DataLoader(rows, batch_size=batch_size, shuffle=True, collate_fn=collate)
         opt = torch.optim.AdamW(model.parameters(), lr=lr)
 
-        seen, total = 0, 0.0
+        # The clock this has to live inside. Training already stops 3 minutes before the
+        # validator's end_time (save_before_remaining_time), and that window has to hold
+        # the final eval, the checkpoint copy, the NaN scan and the architecture restore.
+        # A full pass over a long-sequence dev split took 185s on 3a6658eb, which is more
+        # than the whole window — so this stops on the clock rather than on the epoch, and
+        # a partial pass is fine: the rows are shuffled, so what it saw is a random subset.
+        budget_left = _seconds_remaining(end_time) if end_time else None
+        if budget_left is not None:
+            usable = budget_left - RESERVE_SECONDS
+            if usable <= 0:
+                log(f"[dev-absorb] only {budget_left:.0f}s left before end_time and "
+                    f"{RESERVE_SECONDS}s of that is reserved for the post-training "
+                    f"checks — skipped, submission untouched")
+                return None
+            log(f"[dev-absorb] {usable:.0f}s usable before end_time "
+                f"({RESERVE_SECONDS}s reserved for the post-training checks)")
+        started = time.monotonic()
+
+        seen, total, stopped_early = 0, 0.0, False
         for input_ids, labels, attention_mask in loader:
+            if budget_left is not None and time.monotonic() - started > budget_left - RESERVE_SECONDS:
+                stopped_early = True
+                break
             out = model(input_ids=input_ids, labels=labels, attention_mask=attention_mask)
             out.loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
@@ -176,6 +222,14 @@ def absorb_dev_split(
             opt.zero_grad(set_to_none=True)
             total += float(out.loss)
             seen += 1
+
+        if stopped_early:
+            log(f"[dev-absorb] stopped on the clock at {seen}/{len(rows)} rows "
+                f"({time.monotonic() - started:.0f}s)")
+        if seen < MIN_ROWS:
+            log(f"[dev-absorb] only {seen} rows absorbed before the clock ran out, under "
+                f"the {MIN_ROWS} floor — submission left untouched")
+            return None
 
         mean_loss = total / max(1, seen)
         if seen == 0 or mean_loss != mean_loss:  # NaN check

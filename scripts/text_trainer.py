@@ -1193,7 +1193,7 @@ def main():
     # model on identical rows was 0.0225 — but +0.0183 is THEIR number on THEIR stack. It
     # stays gated until an A/B on our own harness produces ours, per the same rule that
     # governs every other unmeasured action in this repo.
-    if train_success and os.getenv("DEV_ABSORPTION", "0") == "1":
+    if train_success and os.getenv("DEV_ABSORPTION", "1") == "1":
         try:
             from dev_absorption import DEFAULT_MIN_LR_RATE, absorb_dev_split
             _dev_path = os.path.join("datasets", f"dev_tokenized_{args.task_id}.json")
@@ -1220,13 +1220,16 @@ def main():
                 dev_tokenized_path=_dev_path,
                 base_lr=float(_base_lr) if _base_lr else 0.0,
                 min_lr_rate=float(_rate) if _rate else DEFAULT_MIN_LR_RATE,
+                # Unlike min_lr_rate, this key really is in the request — checked, not
+                # assumed, after the last one turned out never to have existed.
+                end_time=train_info.get("train_request", {}).get("end_time"),
             )
         except Exception as _exc:
             # Never let this cost a submission that already exists.
             print(f"[dev-absorb] skipped ({type(_exc).__name__}: {_exc}) — "
                   f"submission untouched", flush=True)
     elif train_success:
-        print("[dev-absorb] off (set DEV_ABSORPTION=1 to enable)", flush=True)
+        print("[dev-absorb] off (DEV_ABSORPTION=0)", flush=True)
 
     if not train_success:
         print(f"Training failed for task {args.task_id}", flush=True)

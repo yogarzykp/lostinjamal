@@ -36,12 +36,20 @@ def _source(path):
 
 @pytest.fixture
 def absorb():
-    """exec the function alone — the module reaches for torch only inside the try."""
-    ns = {"os": os, "json": json, "shutil": __import__("shutil")}
+    """exec the module's top level — the heavy imports live inside the try, not here.
+
+    The namespace is built from the module's OWN import statements rather than a list
+    kept here. A hand-written list has to be updated every time the module imports
+    something new, and when it is not, the failure arrives as `NameError: name 'time' is
+    not defined` inside the except arm — which the function reports as a decline. So the
+    tests would go green-ish and every behavioural assertion would pass for the wrong
+    reason. Adding `time` to a literal dict would have fixed today and not next time.
+    """
+    ns = {}
     flag = annotations.compiler_flag
     tree = ast.parse(_source(MODULE))
     for node in tree.body:
-        if isinstance(node, (ast.FunctionDef, ast.Assign)):
+        if isinstance(node, (ast.Import, ast.ImportFrom, ast.FunctionDef, ast.Assign)):
             exec(compile(ast.Module(body=[node], type_ignores=[]), MODULE, "exec", flags=flag), ns)  # noqa: S102
     assert "absorb_dev_split" in ns, "absorb_dev_split is not defined at module scope"
     return ns["absorb_dev_split"]
@@ -204,11 +212,17 @@ def test_the_trainer_calls_it():
     assert called, "absorb_dev_split is never called from text_trainer"
 
 
-def test_it_is_gated_and_defaults_off():
-    """+0.0183 is the champion's number on the champion's stack, not ours.
+def test_it_is_gated_and_defaults_on():
+    """It shipped off, and it is on now because two tasks measured it, not one.
 
-    It stays off until an A/B on our own harness produces our figure — the same rule
-    that governs AUG_PRUNING_LR_FACTOR and the GAUSSIAN_NOISE branch.
+        28c9f3bb   -0.0194 at r=0.10
+        3a6658eb   -0.0052 at r=0.10, the a-priori default winning outright
+
+    Both above the 0.0003 noise floor taken from two identically-configured arms, with a
+    seen-rows control separating in each. The ON branch has also been run end to end
+    through the real trainer, not just the module: dev split found, base_lr read from the
+    train command, guard armed and passed, submission swapped, model reloaded with zero
+    non-finite tensors. The gate stays so a run can still be bisected against it.
     """
     tree = ast.parse(_source(TRAINER))
     envs = {
@@ -219,7 +233,10 @@ def test_it_is_gated_and_defaults_off():
     }
     found = [d for name, d in envs if name == "DEV_ABSORPTION"]
     assert found, "DEV_ABSORPTION gate is absent"
-    assert found[0] == "0", f"the gate defaults to {found[0]!r}; an unmeasured action must default off"
+    assert found[0] == "1", (
+        f"the gate defaults to {found[0]!r}; it is measured on two tasks now, and a "
+        f"default of 0 means no run ever gets the gain"
+    )
 
 
 def test_it_runs_only_after_a_successful_train():
@@ -253,8 +270,8 @@ class _Loss:
 
 
 class _FakeModel:
-    def __init__(self, loss=2.0, on_save=None):
-        self.loss, self.on_save = loss, on_save
+    def __init__(self, loss=2.0, on_save=None, delay=0.0):
+        self.loss, self.on_save, self.delay = loss, on_save, delay
         self.config = self
         self.pad_token_id, self.eos_token_id = 0, 0
         self.saved = []
@@ -272,6 +289,9 @@ class _FakeModel:
         return []
 
     def __call__(self, **kw):
+        if self.delay:
+            import time as _t
+            _t.sleep(self.delay)  # lets a test drive the clock guard
         return type("Out", (), {"loss": _Loss(self.loss)})()
 
     def save_pretrained(self, d, safe_serialization=None, **kw):
@@ -572,3 +592,105 @@ def test_the_rate_is_overridable_without_editing_code():
             and n.func.attr == "getenv" and n.args
             and isinstance(n.args[0], ast.Constant)}
     assert "DEV_ABSORPTION_RATE" in envs
+
+
+# --- the clock ---------------------------------------------------------------------
+#
+# Turning this on by default put it inside a budget it did not know about. Training stops
+# 3 minutes before the validator's end_time (save_before_remaining_time=3), and that
+# window has to hold the final eval, the checkpoint copy, the NaN scan and
+# restore_submission_architectures. A full pass took 185s on 3a6658eb — more than the
+# whole window. Being killed before the architecture restore does not cost ranks, it costs
+# the submission, so absorption yields the clock rather than competing for it.
+
+
+def _end_time_in(seconds):
+    """The wire format is whole seconds, so a budget cannot be asked for in fractions.
+
+    The first version of these tests asked for RESERVE_SECONDS + 0.4 and got
+    RESERVE_SECONDS exactly, which reads as "no time at all" and made the clock tests
+    fail against correct code. Budgets here are therefore whole seconds, and the step
+    delay is what sets how many iterations fit inside one.
+    """
+    import datetime
+    t = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=seconds)
+    return t.strftime("%Y-%m-%d %H:%M:%S")
+
+
+def test_no_usable_time_means_no_absorption(absorb, tmp_path, submission, stack):
+    before = _fingerprint(submission)
+    got, log = _call(absorb, submission, _dev(tmp_path, 64), end_time=_end_time_in(20))
+    # Not the phrase "reserved for the post-training checks": the informational line
+    # printed on the SUCCESS path carries those words too, so asserting on them passed
+    # against a mutation that deleted this guard outright. This wording belongs to the
+    # refusal alone.
+    assert got is None and "s left before end_time and" in log, log
+    assert _fingerprint(submission) == before
+
+
+def test_a_deadline_already_passed_means_no_absorption(absorb, tmp_path, submission, stack):
+    before = _fingerprint(submission)
+    got, log = _call(absorb, submission, _dev(tmp_path, 64), end_time=_end_time_in(-300))
+    assert got is None, log
+    assert _fingerprint(submission) == before
+
+
+def test_ample_time_absorbs_normally(absorb, tmp_path, submission, stack):
+    got, log = _call(absorb, submission, _dev(tmp_path, 16), end_time=_end_time_in(3600))
+    assert got is not None, log
+    assert got["steps"] == 16
+
+
+def test_an_unreadable_end_time_does_not_block(absorb, tmp_path, submission, stack):
+    """A malformed clock is not a reason to skip; it is a reason to ignore the clock."""
+    got, log = _call(absorb, submission, _dev(tmp_path, 16), end_time="not a timestamp")
+    assert got is not None, log
+
+
+def test_no_end_time_behaves_as_before(absorb, tmp_path, submission, stack):
+    got, log = _call(absorb, submission, _dev(tmp_path, 16))
+    assert got is not None and got["steps"] == 16, log
+
+
+def test_the_pass_stops_on_the_clock_rather_than_overrunning(absorb, tmp_path, submission, stack):
+    """A partial pass is fine — the rows are shuffled, so it saw a random subset."""
+    stack.model = _FakeModel(delay=0.01)   # ~100-200 steps fit in the 1-2s budget
+    got, log = _call(absorb, submission, _dev(tmp_path, 400),
+                     end_time=_end_time_in(92))
+    assert got is not None, log
+    assert got["steps"] < 400, "it ran the whole epoch despite the budget"
+    assert "stopped on the clock" in log, log
+
+
+def test_a_pass_cut_too_short_is_discarded(absorb, tmp_path, submission, stack):
+    """Two or three rows of adaptation is not worth rewriting a submission for."""
+    stack.model = _FakeModel(delay=0.5)    # at most 2 steps fit, well under MIN_ROWS
+    before = _fingerprint(submission)
+    got, log = _call(absorb, submission, _dev(tmp_path, 400),
+                     end_time=_end_time_in(91))
+    assert got is None and "under the" in log, log
+    assert _fingerprint(submission) == before
+
+
+def test_the_reserve_is_named_and_large_enough_to_matter():
+    tree = ast.parse(_source(MODULE))
+    vals = {t.id: n.value.value
+            for n in tree.body if isinstance(n, ast.Assign)
+            for t in n.targets
+            if isinstance(t, ast.Name) and isinstance(n.value, ast.Constant)}
+    assert "RESERVE_SECONDS" in vals, "the reserve is inlined rather than named"
+    assert vals["RESERVE_SECONDS"] >= 60, (
+        "a reserve of %ss leaves too little for the NaN scan and the architecture "
+        "restore, and the restore is what keeps the submission valid" % vals["RESERVE_SECONDS"]
+    )
+
+
+def test_the_trainer_hands_over_the_deadline():
+    """The module cannot yield a clock it was never shown."""
+    tree = ast.parse(_source(TRAINER))
+    call = next(n for n in ast.walk(tree)
+                if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+                and n.func.id == "absorb_dev_split")
+    kw = {k.arg: ast.unparse(k.value) for k in call.keywords}
+    assert "end_time" in kw, "absorb_dev_split is called without end_time"
+    assert "end_time" in kw["end_time"], kw["end_time"]
