@@ -60,12 +60,13 @@ DEFAULT_MIN_LR_RATE = 0.1
 RESERVE_SECONDS = 90
 
 
-def _seconds_remaining(end_time: str):
+def seconds_until_deadline(end_time: str):
     """Seconds until the validator's deadline, or None if it cannot be read.
 
     Format matches customized_trainer.check_remaining_time_less_than_minutes, which is the
     only other reader of this field — a second, subtly different parser here would be a
-    way for the two to disagree about when the run ends.
+    way for the two to disagree about when the run ends. Public because text_trainer's
+    stage clock reads it too, and a third parser would be a third way to disagree.
     """
     try:
         end = datetime.datetime.strptime(end_time, "%Y-%m-%d %H:%M:%S")
@@ -198,7 +199,7 @@ def absorb_dev_split(
         # A full pass over a long-sequence dev split took 185s on 3a6658eb, which is more
         # than the whole window — so this stops on the clock rather than on the epoch, and
         # a partial pass is fine: the rows are shuffled, so what it saw is a random subset.
-        budget_left = _seconds_remaining(end_time) if end_time else None
+        budget_left = seconds_until_deadline(end_time) if end_time else None
         if budget_left is not None:
             usable = budget_left - RESERVE_SECONDS
             if usable <= 0:

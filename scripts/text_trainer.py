@@ -77,6 +77,52 @@ def run_cmd_with_log(cmd: str, log_file_path: str, env_vars: dict = None):
         log_file.write(f"\nProcess completed with return code: {return_code}\n")
 
 
+class StageClock:
+    """Name every stage between the training deadline and the finished submission.
+
+    Written because a run measured 29 seconds PAST its own end_time on our cheapest
+    task — 1B model, short rows — and nothing in the codebase could say where the time
+    went. The whole window carried one timestamped log line. The only reason the overrun
+    surfaced at all is that dev absorption started reading the clock and printed a
+    negative budget; everything before that was invisible.
+
+    The remaining-budget column matters as much as the durations. Knowing a stage took
+    40s does not say whether it was affordable; knowing the run entered it with 12s left
+    does. `save_before_remaining_time` buys safety with training time, so sizing it needs
+    to know which stage dominates rather than which one is easiest to blame.
+
+    Diagnostic only. It never raises and never alters control flow — a timer is not worth
+    a submission.
+    """
+
+    def __init__(self, end_time=None, log=print):
+        self.end_time = end_time
+        self.log = log
+        self.start = time.monotonic()
+        self.last = self.start
+
+    def _remaining(self):
+        if not self.end_time:
+            return None
+        try:
+            from dev_absorption import seconds_until_deadline
+            return seconds_until_deadline(self.end_time)
+        except Exception:
+            return None
+
+    def mark(self, stage: str):
+        try:
+            now = time.monotonic()
+            took, since_start = now - self.last, now - self.start
+            self.last = now
+            rem = self._remaining()
+            budget = f"{rem:+.0f}s to end_time" if rem is not None else "end_time unknown"
+            self.log(f"[stage] {stage}: {took:.1f}s (cumulative {since_start:.1f}s, {budget})",
+                     flush=True)
+        except Exception:
+            pass
+
+
 def _arg_pattern(arg_name: str) -> str:
     """Match `--name value`, whether or not anything follows it.
 
@@ -973,6 +1019,9 @@ def main():
 
     original_train_cmd = train_cmd
     train_success = False
+    # One clock for the whole tail of the run, created before the first launch so every
+    # stage is measured against the same deadline the trainer itself uses.
+    _clock = StageClock(train_info.get("train_request", {}).get("end_time"))
     state = get_state()
     state = {}
     set_state(state) # reset first
@@ -1125,7 +1174,11 @@ def main():
                 args.task_type,
                 args.expected_repo_name,
             )
+            _clock.mark(f"run_training #{count}")
             time.sleep(5)
+            # A flat 5s per launch. Named because on a ladder that relaunches it is not
+            # 5 seconds, and it is spent after the deadline has already passed.
+            _clock.mark("post-run settle (sleep 5)")
             if not success:
                 print(f"Training failed for task {args.task_id} at count={count}", flush=True)
                 break
@@ -1172,7 +1225,9 @@ def main():
     # NaN/Inf guard: validator scores NaN test_loss as 0. If the final checkpoint
     # contains non-finite weights, treat as failure and fall through to the
     # add_random_noise fallback so we still ship a finetune-shaped submission.
-    if train_success and checkpoint_has_nan_or_inf(submission_dir):
+    _nan_hit = train_success and checkpoint_has_nan_or_inf(submission_dir)
+    _clock.mark("NaN/Inf scan of the submission")
+    if _nan_hit:
         print(f"NaN/Inf in submission checkpoint for task {args.task_id}; falling back to noise", flush=True)
         train_success = False
         try:
@@ -1230,6 +1285,7 @@ def main():
                   f"submission untouched", flush=True)
     elif train_success:
         print("[dev-absorb] off (DEV_ABSORPTION=0)", flush=True)
+    _clock.mark("dev absorption")
 
     if not train_success:
         print(f"Training failed for task {args.task_id}", flush=True)
@@ -1238,11 +1294,17 @@ def main():
         run_cmd_with_log(
             add_noise_cmd, os.path.join(ds_folder, f"add_noise_{args.task_id}.log")
         )
+        _clock.mark("noise fallback")
 
     # Last net before upload: the validator rejects a submission whose config
     # architectures no longer match the base model. Runs on both the trained and
     # the fallback path, since add_random_noise also writes a fresh config.
     restore_submission_architectures(submission_dir, model_path)
+    # The last thing that has to survive. Our own note above says the validator rejects a
+    # submission whose architectures no longer match, so a run killed before this line
+    # does not lose ranks, it loses the entry — which is why the budget position here is
+    # the number that matters most in the whole table.
+    _clock.mark("restore_submission_architectures")
 
     patch_wandb_symlinks(train_cst.WANDB_LOGS_DIR)
 
