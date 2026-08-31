@@ -710,6 +710,29 @@ def main():
             # OOM'd this path twice.
             _sweep_bs = max(1, min(int(os.getenv("INSTRUCT_LRRT_BATCH", "4")),
                                    training_args.per_device_train_batch_size))
+            def _reload_sweep_model():
+                """Fresh weights from disk. Same mechanism the finally block uses.
+
+                A retry cannot reuse the model the failed attempt was stepping: the
+                sweep takes optimizer steps at rising LR, so an OOM partway through
+                leaves weights that have already been walked toward divergence.
+                Sweeping those again would measure the damage, not the model.
+                """
+                _f = (load_lora_model(training_args, train_request["model_path"],
+                                      lora_args, len(tokenizer))
+                      if training_args.use_lora
+                      else load_model(training_args, train_request["model_path"],
+                                      len(tokenizer)))
+                trainer.model = _f
+                trainer.model_wrapped = _f
+                trainer.optimizer = None
+                trainer.lr_scheduler = None
+                return _f
+
+            def _is_oom(exc):
+                return isinstance(exc, getattr(torch.cuda, "OutOfMemoryError", ())) or (
+                    isinstance(exc, RuntimeError) and "out of memory" in str(exc).lower())
+
             _loader = DataLoader(train_ds, batch_size=_sweep_bs,
                                  shuffle=True, collate_fn=trainer.data_collator)
             log_info(f"[lr-search] sweeping at batch={_sweep_bs} "
@@ -724,16 +747,52 @@ def main():
             # free: an LR range test measures how loss responds to a step, and a
             # different optimizer takes a different step, so sweeping with AdamW to
             # choose a rate for paged_adamw_8bit measures the wrong thing.
-            try:
-                import bitsandbytes as _bnb
-                _opt = _bnb.optim.PagedAdamW8bit(model.parameters(), lr=1e-7)
-            except Exception:
-                # SGD holds no moments at all. Less faithful, but a sweep that runs
-                # beats a sweep that OOMs, and the confirmation probe judges the answer.
-                _opt = torch.optim.SGD(model.parameters(), lr=1e-7)
-            _lrrt_lr, _swept, _sweep_losses = find_lr_lrrt(
-                model, _opt, _loader, num_iter=_n_iter, device=str(trainer.args.device))
-            del _opt, _loader
+            # Halve the sweep batch and retry rather than skipping on OOM.
+            #
+            # The batch was already chosen small, and the two OOMs the comment above
+            # records were both fixed by choosing a smaller fixed number. That is the
+            # wrong shape of fix: the amount that fits is not a constant, it depends on
+            # the sequence length the planner picked for THIS task. Measured on the KL
+            # path of 3a6658eb at max_length=2675 and batch 4, the logits alone are
+            # 4*2675*151936*2 = 3.25 GB in bf16 and about twice that once the loss
+            # upcasts — which is exactly the 6.06 GiB allocation that failed.
+            #
+            # Skipping is not a neutral fallback here. Without lrrt_lr in the state the
+            # run falls back to the geometric ladder, and our own 4-curve grid measured
+            # that picker 777x off where the loss-minimum picker was 1.9x. So a skipped
+            # sweep costs the LR choice, which is among the most expensive things to get
+            # wrong. Trying batch 2 and then 1 costs seconds.
+            _attempt_bs = _sweep_bs
+            while True:
+                try:
+                    import bitsandbytes as _bnb
+                    _opt = _bnb.optim.PagedAdamW8bit(model.parameters(), lr=1e-7)
+                except Exception:
+                    # SGD holds no moments at all. Less faithful, but a sweep that runs
+                    # beats a sweep that OOMs, and the confirmation probe judges the answer.
+                    _opt = torch.optim.SGD(model.parameters(), lr=1e-7)
+                try:
+                    _lrrt_lr, _swept, _sweep_losses = find_lr_lrrt(
+                        model, _opt, _loader, num_iter=_n_iter,
+                        device=str(trainer.args.device))
+                    del _opt, _loader
+                    break
+                except Exception as _sweep_exc:
+                    if not _is_oom(_sweep_exc) or _attempt_bs <= 1:
+                        raise
+                    _next_bs = max(1, _attempt_bs // 2)
+                    log_info(f"[lr-search] sweep OOM'd at batch={_attempt_bs} "
+                             f"({str(_sweep_exc)[:80]}); retrying at batch={_next_bs}")
+                    try:
+                        del _opt, _loader
+                    except Exception:
+                        pass
+                    torch.cuda.empty_cache()
+                    # Fresh weights, because the failed attempt already stepped these.
+                    model = _reload_sweep_model()
+                    _attempt_bs = _next_bs
+                    _loader = DataLoader(train_ds, batch_size=_attempt_bs,
+                                         shuffle=True, collate_fn=trainer.data_collator)
 
             # A sweep cut short covers too little of the range for "steepest descent" to
             # mean anything; the bounds would clamp the answer to a floor that was never
