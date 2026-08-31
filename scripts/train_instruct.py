@@ -723,6 +723,19 @@ def main():
                       if training_args.use_lora
                       else load_model(training_args, train_request["model_path"],
                                       len(tokenizer)))
+                # Onto the training device, explicitly. load_model returns a model on
+                # CPU — trainer.train() is what normally moves it, which is why the
+                # finally block below can reload without this and still be correct. The
+                # sweep runs BEFORE train(), so a retry on the reloaded model met CUDA
+                # batches with CPU weights: "Expected all tensors to be on the same
+                # device, but found at least two devices, cpu and cuda:0". That surfaced
+                # only under real memory pressure, on the first run where the retry
+                # actually fired.
+                try:
+                    _f = _f.to(trainer.args.device)
+                except Exception as _mv:
+                    log_info(f"[lr-search] could not move the reloaded model to "
+                             f"{trainer.args.device} ({_mv})")
                 trainer.model = _f
                 trainer.model_wrapped = _f
                 trainer.optimizer = None

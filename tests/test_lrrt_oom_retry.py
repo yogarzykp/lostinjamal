@@ -138,3 +138,23 @@ def test_the_cache_is_released_before_retrying(sweep_region):
 def test_the_retry_is_visible_in_the_log(sweep_region):
     """A silent shrink would leave the curve unexplainable after the fact."""
     assert "sweep OOM" in sweep_region and "retrying at batch=" in sweep_region
+
+
+def test_the_reloaded_model_is_moved_to_the_training_device():
+    """load_model returns a CPU model; trainer.train() is what normally moves it.
+
+    The sweep runs BEFORE train(), so a retry on a freshly reloaded model met CUDA
+    batches with CPU weights and died with "Expected all tensors to be on the same
+    device". The finally block does the same reload and never had this problem, because
+    train() runs after it — which is exactly why reading the two side by side does not
+    reveal it. Only the first run where the retry actually fired did.
+    """
+    src = _source()
+    fn = src[src.index("def _reload_sweep_model"):src.index("def _is_oom")]
+    assert ".to(" in fn and "trainer.args.device" in fn, (
+        "the reloaded model is never moved to the training device, so the retry sweeps "
+        "CPU weights against CUDA batches"
+    )
+    moved = fn.index(".to(")
+    bound = fn.index("trainer.model = ")
+    assert moved < bound, "the model is bound into the trainer before it is moved"
