@@ -582,6 +582,99 @@ def checkpoint_has_nan_or_inf(checkpoint_dir: str) -> bool:
         return False
 
 
+def count_zero_weight_matrices(tensors):
+    """(2D float tensors seen, how many are entirely zero).
+
+    Module level, and taking an iterable rather than a directory, so the decision this
+    guard makes is testable without torch or safetensors — the file reading is the only
+    part that needs either. Kept separate after the first version buried it inside the
+    reader: every behavioural test then required a GPU box, and on a laptop the whole file
+    skipped and reported as a pass.
+    """
+    seen = zeros = 0
+    for t in tensors:
+        try:
+            if getattr(t, "ndim", 0) != 2:
+                continue
+            if not getattr(t, "is_floating_point", lambda: False)():
+                continue
+            seen += 1
+            if bool((t == 0).all()):
+                zeros += 1
+        except Exception:
+            continue
+    return seen, zeros
+
+
+def checkpoint_weights_are_degenerate(checkpoint_dir: str) -> bool:
+    """True when every sampled weight matrix in the checkpoint is entirely zero.
+
+    NOT a port. The official diff report for tourn_add1dc83b8fd58b0_20260831 recommends
+    taking `submission_validity.py` from the challenger's repo for "zero-tensor detection
+    for DeepSpeed", but that repo now 404s while the boss repo still resolves, so there is
+    nothing to copy. This is the property, written in the shape of the NaN guard above.
+
+    The failure it catches: a ZeRO-3 save whose parameter gather fails writes shards of
+    zeros. That checkpoint has no NaN and no Inf, loads cleanly, passes the architecture
+    check, and scores at chance — a total loss of the task with nothing in the log that
+    reads as an error. The NaN guard cannot see it because zero is a perfectly good float.
+
+    WHY "EVERY sampled matrix" AND NOT "ANY". A single all-zero tensor is ordinary: biases
+    initialise to zero, and some models ship zeroed gates. Flagging on any one of those
+    would send a healthy submission to the noise fallback, which is a far more likely
+    event than the bug being guarded against. Requiring every sampled 2D weight to be zero
+    makes a false positive essentially impossible while still catching a zeroed shard.
+
+    Only 2D float tensors are considered, because those are the ones that carry the
+    learned signal; 1D norms and biases are exactly the tensors that are legitimately zero.
+
+    Fail-open on every error path, like the NaN guard: a diagnostic must never be the
+    reason a real submission is thrown away.
+    """
+    import glob
+    try:
+        import torch as _torch
+    except Exception:
+        return False
+
+    try:
+        total_seen = total_zero = 0
+        shards = sorted(glob.glob(os.path.join(checkpoint_dir, "*.safetensors")))
+        if shards:
+            try:
+                from safetensors import safe_open as _safe_open
+            except Exception:
+                return False
+            for shard in shards[:3]:
+                try:
+                    with _safe_open(shard, framework="pt") as f:
+                        seen, zeros = count_zero_weight_matrices(f.get_tensor(k) for k in list(f.keys())[:50])
+                except Exception as e:
+                    print(f"zero-weight check skipped for {shard}: {e}", flush=True)
+                    continue
+                total_seen += seen
+                total_zero += zeros
+        else:
+            for shard in sorted(glob.glob(os.path.join(checkpoint_dir, "*.bin")))[:3]:
+                try:
+                    state = _torch.load(shard, map_location="cpu")
+                    seen, zeros = count_zero_weight_matrices(v for _, v in list(state.items())[:50])
+                except Exception as e:
+                    print(f"zero-weight check skipped for {shard}: {e}", flush=True)
+                    continue
+                total_seen += seen
+                total_zero += zeros
+
+        if total_seen and total_zero == total_seen:
+            print(f"all {total_seen} sampled weight matrices in {checkpoint_dir} are "
+                  f"entirely zero — treating the checkpoint as degenerate", flush=True)
+            return True
+        return False
+    except Exception as e:
+        print(f"zero-weight check failed entirely: {e}", flush=True)
+        return False
+
+
 # Keys the validator's finetune check compares between the base config and ours.
 # Source: gradients-ai/G.O.D validator/evaluation/model_checks.py::model_is_a_finetune
 # — for each key present and non-None on the base config, a missing or differing
@@ -1226,8 +1319,15 @@ def main():
     # contains non-finite weights, treat as failure and fall through to the
     # add_random_noise fallback so we still ship a finetune-shaped submission.
     _nan_hit = train_success and checkpoint_has_nan_or_inf(submission_dir)
-    _clock.mark("NaN/Inf scan of the submission")
-    if _nan_hit:
+    # Same fallback, second failure mode. A zeroed ZeRO-3 save has no NaN and no Inf, so
+    # the scan above passes it; only checking the values themselves catches it.
+    _zero_hit = (train_success and not _nan_hit
+                 and checkpoint_weights_are_degenerate(submission_dir))
+    _clock.mark("NaN/Inf + zero-weight scan of the submission")
+    if _zero_hit:
+        print(f"Degenerate (all-zero) weights in submission for task {args.task_id}; "
+              f"falling back to noise", flush=True)
+    if _nan_hit or _zero_hit:
         print(f"NaN/Inf in submission checkpoint for task {args.task_id}; falling back to noise", flush=True)
         train_success = False
         try:

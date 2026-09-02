@@ -129,7 +129,7 @@ def test_the_timer_is_wrapped_so_it_cannot_propagate():
 @pytest.mark.parametrize("stage", [
     "run_training",                       # where the 3m26s actually went
     "post-run settle",                    # the flat 5s per launch, spent past the deadline
-    "NaN/Inf scan",                       # runs on the submission
+    "NaN/Inf + zero-weight scan",         # both submission guards, one stage
     "dev absorption",                     # now on by default
     "restore_submission_architectures",   # the one whose loss costs the entry
 ])

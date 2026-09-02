@@ -74,15 +74,12 @@ class TrainingArguments(DPOConfig):
 
 
 def find_all_linear_names(model):
-    lora_module_names = set()
-    for name, module in model.named_modules():
-        if isinstance(module, bnb.nn.Linear4bit) or isinstance(module, torch.nn.Linear):
-            names = name.split(".")
-            lora_module_names.add(names[0] if len(names) == 1 else names[-1])
-
-    if "lm_head" in lora_module_names:  # needed for 16-bit
-        lora_module_names.remove("lm_head")
-    return list(lora_module_names)
+    # One definition, in lora_targets.py. This was three byte-identical copies, and a
+    # Linear inside an nn.Sequential contributed the bare target "0", which PEFT
+    # suffix-matches against model.layers.0 — a whole decoder layer — killing
+    # get_peft_model. Fixing one copy would have left the crash in the other two.
+    from lora_targets import find_all_linear_names as _impl
+    return _impl(model, (bnb.nn.Linear4bit, torch.nn.Linear))
 
 
 def print_trainable_parameters(model):
