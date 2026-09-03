@@ -1,0 +1,55 @@
+{
+  "provenance": {
+    "endpoint": "https://api.gradients.io/auditing/tasks/d1b97eaf-ff85-4435-ad29-cc709c04356b",
+    "query": {
+      "task_id": "d1b97eaf-ff85-4435-ad29-cc709c04356b"
+    },
+    "fetched_at": "2026-09-02T01:31:55Z"
+  },
+  "task_id": "d1b97eaf-ff85-4435-ad29-cc709c04356b",
+  "status": "success",
+  "task_type": "InstructTextTask",
+  "model_id": "Qwen/Qwen3-1.7B-Base",
+  "model_type": {
+    "status": "UNAVAILABLE",
+    "reason": "'model_type' not present in this task's auditing API response"
+  },
+  "ds": "Lettria/financial-articles",
+  "trigger_word": {
+    "status": "UNAVAILABLE",
+    "reason": "'trigger_word' not present in this task's auditing API response"
+  },
+  "is_organic": false,
+  "trained_model_repository": "gradients-io-tournaments/tournament-tourn_add1dc83b8fd58b0_20260831-d1b97eaf-ff85-4435-ad29-cc709c04356b-5GU4Xkd3",
+  "hours_to_complete": 1.25,
+  "image_text_pair_count": {
+    "status": "UNAVAILABLE",
+    "reason": "'image_text_pairs' not present in this task's auditing API response"
+  },
+  "dataset_url_expires_at": "2026-09-08T01:57:03Z",
+  "hotkey_details": [
+    {
+      "hotkey": "5GU4Xkd3dCGTU3s8VLcHGc5wsD5M8XyxDca5yDQhYm1mVXFu",
+      "submission_id": "05b2a28e-ceaa-4108-8f10-afd2452997b8",
+      "quality_score": 3.0,
+      "test_loss": 1.0575344562530518,
+      "synth_loss": 1.0575344562530518,
+      "repo": "gradients-io-tournaments/tournament-tourn_add1dc83b8fd58b0_20260831-d1b97eaf-ff85-4435-ad29-cc709c04356b-5GU4Xkd3",
+      "rank": 1,
+      "score_reason": "Winner at per-example win rate (Challenger win rate 38.3% (bound 34.5%) below required 55.0% of 832 decided examples)",
+      "offer_response": null
+    },
+    {
+      "hotkey": "5FpdSckwjnAFrShGtKsPn73HxfyDLBDgnermaqctZtZb6i5g",
+      "submission_id": "8d3bdfaa-efab-4a16-9e18-c334b966c8ab",
+      "quality_score": 0.0,
+      "test_loss": 1.097812533378601,
+      "synth_loss": 1.097812533378601,
+      "repo": "gradients-io-tournaments/tournament-tourn_add1dc83b8fd58b0_20260831-d1b97eaf-ff85-4435-ad29-cc709c04356b-5FpdSckw",
+      "rank": 2,
+      "score_reason": "Lost to winner 5GU4Xkd3dCGTU3s8VLcHGc5wsD5M8XyxDca5yDQhYm1mVXFu at per-example win rate (Challenger win rate 38.3% (bound 34.5%) below required 55.0% of 832 decided examples)",
+      "offer_response": null
+    }
+  ],
+  "kl_note": "use_kl and kl_coef are always False/None here even for KL tasks \u2014 the config is not persisted once a task finishes. See references/kl-and-augmentation.md"
+}

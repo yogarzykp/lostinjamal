@@ -1,0 +1,55 @@
+{
+  "provenance": {
+    "endpoint": "https://api.gradients.io/auditing/tasks/735f12f4-7e32-422f-99bc-bfbbd0a9e72e",
+    "query": {
+      "task_id": "735f12f4-7e32-422f-99bc-bfbbd0a9e72e"
+    },
+    "fetched_at": "2026-09-02T01:31:49Z"
+  },
+  "task_id": "735f12f4-7e32-422f-99bc-bfbbd0a9e72e",
+  "status": "success",
+  "task_type": "GrpoTask",
+  "model_id": "NousResearch/Hermes-3-Llama-3.1-8B",
+  "model_type": {
+    "status": "UNAVAILABLE",
+    "reason": "'model_type' not present in this task's auditing API response"
+  },
+  "ds": "kikikara/ko_QA_dataset",
+  "trigger_word": {
+    "status": "UNAVAILABLE",
+    "reason": "'trigger_word' not present in this task's auditing API response"
+  },
+  "is_organic": false,
+  "trained_model_repository": "gradients-io-tournaments/tournament-tourn_add1dc83b8fd58b0_20260831-735f12f4-7e32-422f-99bc-bfbbd0a9e72e-5GU4Xkd3",
+  "hours_to_complete": 2.5,
+  "image_text_pair_count": {
+    "status": "UNAVAILABLE",
+    "reason": "'image_text_pairs' not present in this task's auditing API response"
+  },
+  "dataset_url_expires_at": "2026-09-08T01:57:54Z",
+  "hotkey_details": [
+    {
+      "hotkey": "5GU4Xkd3dCGTU3s8VLcHGc5wsD5M8XyxDca5yDQhYm1mVXFu",
+      "submission_id": "ea419520-d986-4087-88c6-1ee36fe17aa5",
+      "quality_score": 3.0,
+      "test_loss": -1.656594810875843,
+      "synth_loss": -1.656594810875843,
+      "repo": "gradients-io-tournaments/tournament-tourn_add1dc83b8fd58b0_20260831-735f12f4-7e32-422f-99bc-bfbbd0a9e72e-5GU4Xkd3",
+      "rank": 1,
+      "score_reason": "Winner at 1.0% boss-round win margin",
+      "offer_response": null
+    },
+    {
+      "hotkey": "5FpdSckwjnAFrShGtKsPn73HxfyDLBDgnermaqctZtZb6i5g",
+      "submission_id": "eaab321e-3170-4c78-b9ed-1c9c61989c2f",
+      "quality_score": 0.0,
+      "test_loss": -1.7016940385826957,
+      "synth_loss": -1.7016940385826957,
+      "repo": "gradients-io-tournaments/tournament-tourn_add1dc83b8fd58b0_20260831-735f12f4-7e32-422f-99bc-bfbbd0a9e72e-5FpdSckw",
+      "rank": 2,
+      "score_reason": "Lost to winner 5GU4Xkd3dCGTU3s8VLcHGc5wsD5M8XyxDca5yDQhYm1mVXFu at 1.0% boss-round win margin",
+      "offer_response": null
+    }
+  ],
+  "kl_note": "use_kl and kl_coef are always False/None here even for KL tasks \u2014 the config is not persisted once a task finishes. See references/kl-and-augmentation.md"
+}

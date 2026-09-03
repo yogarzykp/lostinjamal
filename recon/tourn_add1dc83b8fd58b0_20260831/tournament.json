@@ -1,0 +1,58 @@
+{
+  "tournament_id": "tourn_add1dc83b8fd58b0_20260831",
+  "provenance": {
+    "endpoint": "https://www.gradients.io/app/research/tournament/tourn_add1dc83b8fd58b0_20260831",
+    "query": {
+      "tourn_id": "tourn_add1dc83b8fd58b0_20260831"
+    },
+    "fetched_at": "2026-09-02T01:31:45Z"
+  },
+  "http_status": 200,
+  "participants": {
+    "hotkeys": [
+      "5C7vE26G77n7CvUkAdgHKjT7scqfiNhWcaCg8WVyB8A57Mt1",
+      "5Ca32LwMizgx7VGESpkuRCYTsHZoVc9JX7gUML2enXSqpk3R",
+      "5D2Qee4VNTBc1Y1pr5TvuAq3Spv3m5v7qVgJUAf1KvZrAuUU",
+      "5DfdHDKNjwCxFJq67Gt5CARcpK3YPkEFStPWvbxVWQCRDXwW",
+      "5EFLCMFDMy3id5u4yZSmTPRecuxjEZ1bTM81y5VZwPjwS7AX",
+      "5EeLcV3LFAJo7mbDmK51kv5Ru5F1pNNwwSvUoP18k9xRsa7H",
+      "5FW2Eaaehn1iGThGucki1YTtXRABhsMAHPQv14qqgLFzesGD",
+      "5FpdSckwjnAFrShGtKsPn73HxfyDLBDgnermaqctZtZb6i5g",
+      "5GU4Xkd3dCGTU3s8VLcHGc5wsD5M8XyxDca5yDQhYm1mVXFu",
+      "5GpcTKW7Mjbz82xwzQUWY8ze9UNtdWmZrSWLBrfRwZpDuF7h",
+      "5HLA2QWYy3GpNwCiBCwMMhGw5hpPosSeZ41my8B3nuFDQHNF",
+      "5HWPK9f6vNYmcy6jyWwzDmuNMTZXVk5NdkZLcpFFpeYGZveF"
+    ],
+    "training_repositories": [],
+    "raw": null
+  },
+  "status": "active",
+  "base_winner_hotkey": "5H9AM1bG7m1BFagftX3B4X1SfyeBSsMYodTcWuM9ieQZk2NK",
+  "winner_hotkey": "5GU4Xkd3dCGTU3s8VLcHGc5wsD5M8XyxDca5yDQhYm1mVXFu",
+  "tasks": {
+    "task_ids": [
+      "2a95af7b-4dba-4d9b-9499-2f995c251851",
+      "597dc05e-2593-4056-bcbd-16839cca5af1",
+      "6c9e7cca-a65a-4bea-97ca-a906309bc5be",
+      "735f12f4-7e32-422f-99bc-bfbbd0a9e72e",
+      "b3f5cea7-2ae3-4d11-a255-951e34dfb005",
+      "bc347f11-7fce-456b-9e68-8dfaab05cd59",
+      "c673dbe2-656f-484a-a984-65dd83274447",
+      "d1b97eaf-ff85-4435-ad29-cc709c04356b",
+      "d99ce208-2ff2-47ec-8899-650972d0ae33"
+    ],
+    "task_types": [
+      "ChatTask",
+      "DpoTask",
+      "GrpoTask",
+      "InstructTextTask"
+    ],
+    "has_paired_example_wins": true,
+    "has_boss_round_performance": true,
+    "raw": null
+  },
+  "diff_report": {
+    "status": "AVAILABLE",
+    "note": "re-run with --diff-report to fetch the body (the URL is presigned and is deliberately not printed)"
+  }
+}

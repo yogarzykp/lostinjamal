@@ -1,0 +1,157 @@
+{
+  "provenance": {
+    "endpoint": "https://api.gradients.io/auditing/tasks/67d7ea5b-61d6-4e14-b197-f2913160c8c4",
+    "query": {
+      "task_id": "67d7ea5b-61d6-4e14-b197-f2913160c8c4"
+    },
+    "fetched_at": "2026-08-31T14:51:43Z"
+  },
+  "task_id": "67d7ea5b-61d6-4e14-b197-f2913160c8c4",
+  "status": "awaiting_model_prep",
+  "task_type": "InstructTextTask",
+  "model_id": "unsloth/SmolLM-360M",
+  "model_type": {
+    "status": "UNAVAILABLE",
+    "reason": "'model_type' not present in this task's auditing API response"
+  },
+  "ds": "Hidden",
+  "trigger_word": {
+    "status": "UNAVAILABLE",
+    "reason": "'trigger_word' not present in this task's auditing API response"
+  },
+  "is_organic": false,
+  "trained_model_repository": null,
+  "hours_to_complete": 1.0,
+  "image_text_pair_count": {
+    "status": "UNAVAILABLE",
+    "reason": "'image_text_pairs' not present in this task's auditing API response"
+  },
+  "dataset_url_expires_at": {
+    "status": "UNAVAILABLE",
+    "reason": "no presigned link to read an expiry from"
+  },
+  "hotkey_details": [
+    {
+      "hotkey": "5C7vE26G77n7CvUkAdgHKjT7scqfiNhWcaCg8WVyB8A57Mt1",
+      "submission_id": null,
+      "quality_score": 0.0,
+      "test_loss": 0.0,
+      "synth_loss": 0.0,
+      "repo": null,
+      "rank": 1,
+      "score_reason": null,
+      "offer_response": null
+    },
+    {
+      "hotkey": "5Ca32LwMizgx7VGESpkuRCYTsHZoVc9JX7gUML2enXSqpk3R",
+      "submission_id": null,
+      "quality_score": 0.0,
+      "test_loss": 0.0,
+      "synth_loss": 0.0,
+      "repo": null,
+      "rank": 1,
+      "score_reason": null,
+      "offer_response": null
+    },
+    {
+      "hotkey": "5D2Qee4VNTBc1Y1pr5TvuAq3Spv3m5v7qVgJUAf1KvZrAuUU",
+      "submission_id": null,
+      "quality_score": 0.0,
+      "test_loss": 0.0,
+      "synth_loss": 0.0,
+      "repo": null,
+      "rank": 1,
+      "score_reason": null,
+      "offer_response": null
+    },
+    {
+      "hotkey": "5DfdHDKNjwCxFJq67Gt5CARcpK3YPkEFStPWvbxVWQCRDXwW",
+      "submission_id": null,
+      "quality_score": 0.0,
+      "test_loss": 0.0,
+      "synth_loss": 0.0,
+      "repo": null,
+      "rank": 1,
+      "score_reason": null,
+      "offer_response": null
+    },
+    {
+      "hotkey": "5EeLcV3LFAJo7mbDmK51kv5Ru5F1pNNwwSvUoP18k9xRsa7H",
+      "submission_id": null,
+      "quality_score": 0.0,
+      "test_loss": 0.0,
+      "synth_loss": 0.0,
+      "repo": null,
+      "rank": 1,
+      "score_reason": null,
+      "offer_response": null
+    },
+    {
+      "hotkey": "5EFLCMFDMy3id5u4yZSmTPRecuxjEZ1bTM81y5VZwPjwS7AX",
+      "submission_id": null,
+      "quality_score": 0.0,
+      "test_loss": 0.0,
+      "synth_loss": 0.0,
+      "repo": null,
+      "rank": 1,
+      "score_reason": null,
+      "offer_response": null
+    },
+    {
+      "hotkey": "5FpdSckwjnAFrShGtKsPn73HxfyDLBDgnermaqctZtZb6i5g",
+      "submission_id": null,
+      "quality_score": 0.0,
+      "test_loss": 0.0,
+      "synth_loss": 0.0,
+      "repo": null,
+      "rank": 1,
+      "score_reason": null,
+      "offer_response": null
+    },
+    {
+      "hotkey": "5FW2Eaaehn1iGThGucki1YTtXRABhsMAHPQv14qqgLFzesGD",
+      "submission_id": null,
+      "quality_score": 0.0,
+      "test_loss": 0.0,
+      "synth_loss": 0.0,
+      "repo": null,
+      "rank": 1,
+      "score_reason": null,
+      "offer_response": null
+    },
+    {
+      "hotkey": "5GpcTKW7Mjbz82xwzQUWY8ze9UNtdWmZrSWLBrfRwZpDuF7h",
+      "submission_id": null,
+      "quality_score": 0.0,
+      "test_loss": 0.0,
+      "synth_loss": 0.0,
+      "repo": null,
+      "rank": 1,
+      "score_reason": null,
+      "offer_response": null
+    },
+    {
+      "hotkey": "5HLA2QWYy3GpNwCiBCwMMhGw5hpPosSeZ41my8B3nuFDQHNF",
+      "submission_id": null,
+      "quality_score": 0.0,
+      "test_loss": 0.0,
+      "synth_loss": 0.0,
+      "repo": null,
+      "rank": 1,
+      "score_reason": null,
+      "offer_response": null
+    },
+    {
+      "hotkey": "5HWPK9f6vNYmcy6jyWwzDmuNMTZXVk5NdkZLcpFFpeYGZveF",
+      "submission_id": null,
+      "quality_score": 0.0,
+      "test_loss": 0.0,
+      "synth_loss": 0.0,
+      "repo": null,
+      "rank": 1,
+      "score_reason": null,
+      "offer_response": null
+    }
+  ],
+  "kl_note": "use_kl and kl_coef are always False/None here even for KL tasks \u2014 the config is not persisted once a task finishes. See references/kl-and-augmentation.md"
+}
