@@ -31,13 +31,23 @@ def _source():
 
 @pytest.fixture
 def guard():
-    """The function alone — text_trainer as a whole needs transformers."""
+    """The guard AND the predicate it calls — text_trainer as a whole needs transformers.
+
+    Both, because the first version exec'd only `checkpoint_weights_are_degenerate` and
+    the predicate it delegates to was therefore undefined. The guard caught the NameError
+    on its own fail-open path and returned False — so eight of the nine tests here passed,
+    since eight of them expect False. Only the one case expecting True exposed it.
+
+    A fixture that under-populates its namespace fails exactly like the code being wrong,
+    and mostly in the direction that looks like a pass.
+    """
     ns = {"os": os}
     tree = ast.parse(_source())
-    node = next(n for n in tree.body
-                if isinstance(n, ast.FunctionDef)
-                and n.name == "checkpoint_weights_are_degenerate")
-    exec(compile(ast.Module(body=[node], type_ignores=[]), TRAINER, "exec"), ns)  # noqa: S102
+    wanted = ("count_zero_weight_matrices", "checkpoint_weights_are_degenerate")
+    for name in wanted:
+        node = next(n for n in tree.body
+                    if isinstance(n, ast.FunctionDef) and n.name == name)
+        exec(compile(ast.Module(body=[node], type_ignores=[]), TRAINER, "exec"), ns)  # noqa: S102
     return ns["checkpoint_weights_are_degenerate"]
 
 
@@ -260,3 +270,66 @@ def test_the_threshold_is_every_matrix_not_any_of_them():
         "no `total_zero == total_seen` test — the verdict is not 'every sampled matrix', "
         "so a single legitimately-zero layer can send a healthy submission to the fallback"
     )
+
+
+# --- the two paths a mutation walked straight through --------------------------------
+
+
+@needs_torch
+def test_a_pytorch_bin_checkpoint_is_read_too(guard, tmp_path):
+    """Every other test writes safetensors, so deleting the .bin branch changed nothing.
+
+    Checkpoints in the older format are exactly as capable of being zeroed, and a guard
+    that silently only covers one serialisation is a guard with a hole in it.
+    """
+    torch.save({"a.weight": torch.zeros(8, 8), "b.weight": torch.zeros(4, 4)},
+               str(tmp_path / "pytorch_model.bin"))
+    assert guard(str(tmp_path)) is True
+
+
+@needs_torch
+def test_a_healthy_bin_checkpoint_is_not_flagged(guard, tmp_path):
+    torch.save({"a.weight": torch.randn(8, 8), "b.weight": torch.randn(4, 4)},
+               str(tmp_path / "pytorch_model.bin"))
+    assert guard(str(tmp_path)) is False
+
+
+@needs_torch
+def test_safetensors_wins_when_both_formats_are_present(guard, tmp_path):
+    """The reader prefers safetensors; a stale zeroed .bin beside it must not decide."""
+    _write(tmp_path, {"a.weight": torch.randn(8, 8)})
+    torch.save({"a.weight": torch.zeros(8, 8)}, str(tmp_path / "pytorch_model.bin"))
+    assert guard(str(tmp_path)) is False
+
+
+def test_an_unexpected_failure_fails_open(guard):
+    """The single most damaging change this file can suffer.
+
+    Flipping the outer handler from `return False` to `return True` sent every healthy
+    submission to the noise fallback on any unexpected error, and passed the whole suite:
+    the corrupt-shard test only reaches the per-shard handler inside the loop. Passing
+    something that breaks os.path.join is the shortest route to the outer one.
+    """
+    assert guard(None) is False
+
+
+def test_the_scan_stays_bounded():
+    """Sampling caps, pinned because no behavioural test can reach them.
+
+    Removing `[:3]` on shards or `[:50]` on tensors leaves the guard correct and slower,
+    so both mutations survive a suite whose checkpoints are 8x8. They matter anyway: this
+    runs inside the post-training window that already overran its budget by 29 seconds on
+    our cheapest task, and an unbounded scan of a 70-shard checkpoint is the kind of cost
+    that turns a guard into the thing that loses the submission.
+    """
+    src = _source()
+    body = src[src.index("def checkpoint_weights_are_degenerate"):]
+    body = body[:body.index("\n# Keys the validator")]
+    # Per branch, not a bare "[:50]" search: the two readers each carry their own cap,
+    # so a single substring assertion is satisfied by whichever one the mutation left
+    # alone. That is how the safetensors cap survived being deleted.
+    assert "shards[:3]" in body, "the safetensors shard scan is unbounded"
+    assert 'glob.glob(os.path.join(checkpoint_dir, "*.bin")))[:3]' in body, \
+        "the .bin shard scan is unbounded"
+    assert "list(f.keys())[:50]" in body, "the safetensors tensor scan is unbounded"
+    assert "list(state.items())[:50]" in body, "the .bin tensor scan is unbounded"
