@@ -145,3 +145,86 @@ def test_the_shared_module_is_importable_without_torch():
     names = [a.name for n in top if isinstance(n, ast.Import) for a in n.names]
     names += [n.module for n in top if isinstance(n, ast.ImportFrom)]
     assert "torch" not in names, names
+
+
+# --- against real nn.Modules, not stand-ins ------------------------------------------
+#
+# Everything above uses fake objects, and the gate never reaches the branch this file
+# exists for: it only fires on a model whose Linears sit inside an nn.Sequential, and no
+# model the gate runs has one. So the fixed branch had never met a real PyTorch module.
+
+try:
+    import torch
+    import torch.nn as nn
+    HAVE_TORCH = True
+except Exception:  # pragma: no cover - depends on the machine
+    HAVE_TORCH = False
+
+needs_torch = pytest.mark.skipif(not HAVE_TORCH, reason="builds real nn.Modules")
+
+
+@needs_torch
+def test_a_real_sequential_gate_never_yields_a_bare_digit(mod):
+    """The quasar GLA shape the challenger's comment describes, built for real.
+
+    A Linear inside nn.Sequential is named `...gk_proj.0`. Taking the leaf gives "0",
+    which PEFT suffix-matches against `model.layers.0` — a whole decoder layer — and
+    get_peft_model dies on it.
+    """
+    class Attn(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.q_proj = nn.Linear(8, 8)
+            self.gk_proj = nn.Sequential(nn.Linear(8, 4), nn.Linear(4, 8))
+
+    class Model(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.layers = nn.ModuleList([Attn() for _ in range(3)])
+            self.lm_head = nn.Linear(8, 32)
+
+    got = mod["find_all_linear_names"](Model(), (nn.Linear,))
+    assert "0" not in got and "1" not in got, got
+    assert set(got) == {"q_proj", "gk_proj.0", "gk_proj.1"}, got
+
+
+@needs_torch
+def test_an_ordinary_model_is_unaffected(mod):
+    """The case every real run takes: plain Linears, plain leaf names."""
+    class Block(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.q_proj, self.k_proj = nn.Linear(8, 8), nn.Linear(8, 8)
+
+    class Model(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.layers = nn.ModuleList([Block() for _ in range(4)])
+            self.lm_head = nn.Linear(8, 32)
+
+    got = mod["find_all_linear_names"](Model(), (nn.Linear,))
+    assert set(got) == {"q_proj", "k_proj"}, got
+
+
+@needs_torch
+def test_every_returned_name_matches_a_module_that_exists(mod):
+    """The property PEFT actually needs: each target is a suffix of a real module path,
+    and of a module that is a Linear rather than a container."""
+    class Attn(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.o_proj = nn.Linear(8, 8)
+            self.gate = nn.Sequential(nn.Linear(8, 8))
+
+    class Model(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.layers = nn.ModuleList([Attn() for _ in range(2)])
+
+    m = Model()
+    names = {n: type(x) for n, x in m.named_modules()}
+    for target in mod["find_all_linear_names"](m, (nn.Linear,)):
+        hits = [n for n in names if n.endswith(target)]
+        assert hits, "target %r matches no module" % target
+        assert all(names[h] is nn.Linear for h in hits), \
+            "target %r also matches non-Linear modules: %s" % (target, hits)
