@@ -428,6 +428,21 @@ def main():
     
     max_steps = train_request.get("max_steps", -1)
     log_info(f"max_steps: {max_steps}")
+
+    # That value bounded only the eval/save callback below. HF's Trainer takes its step
+    # budget from training_args, which HfArgumentParser filled from the command line — and
+    # no --max_steps is ever passed there — so a capped run still executed the whole epoch
+    # plan and the deadline callback truncated it mid-schedule.
+    #
+    # Verified 2026-09-04 on d99ce208 / falcon-rw-1b: this line logged `max_steps: 499`
+    # while the progress bar ran to 750, identical to the uncapped control. This is the
+    # second break in the same chain; the first was run_config -> train_request in
+    # adaptive_config.py, next to the max_length plumbing that had already been fixed.
+    if isinstance(max_steps, int) and max_steps > 0 and training_args.max_steps != max_steps:
+        log_info(f"[max-steps] applying request cap to training_args: "
+                 f"{training_args.max_steps} -> {max_steps} "
+                 f"(cosine schedule now spans the steps that fit the budget)")
+        training_args.max_steps = max_steps
     
     start_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     state = get_state()

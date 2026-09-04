@@ -102,8 +102,41 @@ case "$STAGE" in
     export USE_KL=1
     export KL_COEF=1.5
     ;;
+  sb0|sb1)
+    # Step-budget A/B (2026-09-04). Both arms are stage `b` — our full shipping config —
+    # because the question is not "do our features help" but "does the LR schedule finishing
+    # inside the budget beat one the deadline truncates". Everything except the step plan is
+    # held identical.
+    #
+    #   sb0  control    max_steps=-1, schedule laid over the full epoch plan, cut by the
+    #                   deadline callback partway down the cosine.
+    #   sb1  treatment  max_steps=EXPT_MAX_STEPS, measured from sb0's actual stopping point,
+    #                   so the same number of steps carries a schedule that reaches its floor.
+    export ADAPTIVE_MODE=1
+    export INSTRUCT_DEDUP=1
+    export BASELINE_USE_COMPLETION_LOSS=1
+    export BASELINE_USE_SEQLEN=1
+    export BASELINE_USE_NEARDUP=1
+    export BASELINE_USE_DPO_GAP=1
+    export TRAINING_WSM_GATE=1
+    export EMIT_PER_EXAMPLE_LOSSES=1
+    export REG_RATIO_ARG=""
+    unset USE_KL KL_COEF || true
+    if [ "$STAGE" = "sb1" ]; then
+      # Refuse to run the treatment as a silent copy of the control. An arm that quietly
+      # loses its one distinguishing variable still produces a number, and that number
+      # reads exactly like a null result.
+      [ "${EXPT_MAX_STEPS:-0}" -gt 0 ] 2>/dev/null || {
+        echo "stage sb1 needs EXPT_MAX_STEPS=<steps> — without it this is just sb0" >&2
+        exit 2
+      }
+      export EXPT_MAX_STEPS
+    else
+      unset EXPT_MAX_STEPS || true
+    fi
+    ;;
   *)
-    echo "unknown stage '$STAGE' (want: a | a0 | b | kl)" >&2
+    echo "unknown stage '$STAGE' (want: a | a0 | b | kl | sb0 | sb1)" >&2
     exit 2
     ;;
 esac

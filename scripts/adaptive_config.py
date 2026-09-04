@@ -2540,11 +2540,47 @@ def build_adaptive_run_config(
         # Only apply cap if epoch-based count exceeds budget by significant margin.
         # Compute rough epoch-based total steps for instruct.
         _est_epoch_steps = max(50, (ds_metrics.num_samples * run_config.get("epoch_num", 2)) // max(1, batch * gpu_count * grad_accum))
-        if _est_epoch_steps > _budget_max_steps * 1.5:
-            # Budget significantly tighter than epoch-based — cap to budget
-            run_config["max_steps"] = _budget_max_steps
-            print(f"[adaptive] EXP-T universal cap fires: est_epoch_steps={_est_epoch_steps} > "
-                  f"1.5×budget={_budget_max_steps*1.5:.0f} → max_steps={_budget_max_steps}", flush=True)
+        # The 1.5 is a hysteresis band, and it is the reason 597dc05e overran in the live
+        # tournament of 2026-08-31: est 1150 vs budget 862 is 1.33x, inside the band, so no
+        # cap fired, max_steps stayed -1, and the deadline callback cut the run at step 680
+        # of a 1150-step cosine schedule — a model stopped mid-decay rather than one whose
+        # schedule completed. A plan that overruns by up to 50% is left uncapped by design.
+        # Both knobs below default to exactly the shipped behaviour and exist so an A/B can
+        # move one thing at a time; neither is read on a normal run.
+        _cap_ratio = float(os.getenv("EXPT_BUDGET_CAP_RATIO", "1.5"))
+        _forced_steps = int(os.getenv("EXPT_MAX_STEPS", "0"))
+        if _forced_steps > 0:
+            # Treatment arm: lay the schedule over a step count measured to fit, so the
+            # cosine decay reaches its floor inside the budget instead of being truncated.
+            run_config["max_steps"] = _forced_steps
+            print(f"[adaptive] EXPT_MAX_STEPS override: est_epoch_steps={_est_epoch_steps}, "
+                  f"budget={_budget_max_steps} → max_steps={_forced_steps}", flush=True)
+        elif _est_epoch_steps > _budget_max_steps * _cap_ratio:
+            # MEASURED HARMFUL, 2026-09-04, and off by default because of it.
+            #
+            # Until today this branch was inert: the value it set never reached the trainer
+            # (see the plumbing note below). Connecting that wire turns the cap ON, so it
+            # had to be measured before it could be allowed to fire. Two equal-budget A/Bs
+            # on d99ce208 / falcon-rw-1b, same seed, same steps, scored on one common
+            # held-out set — the ONLY difference being whether the cosine spanned the full
+            # epoch plan or the steps that fit:
+            #
+            #   truncated at 66%   control 1.517357   capped 1.529758   -0.0124 nats
+            #   truncated at 16%   control 1.570686   capped 1.613697   -0.0430 nats
+            #
+            # The capped arm won 197 and 76 of 1000 examples. No crossover: capping loses in
+            # both regimes and loses MORE the deeper the truncation it was meant to fix. A
+            # truncated cosine is simply a higher-LR schedule, and for a fixed step budget
+            # the higher LR trained better. So the branch stays visible but does not fire
+            # unless someone opts in with EXPT_BUDGET_CAP=1.
+            if os.getenv("EXPT_BUDGET_CAP", "0") == "1":
+                run_config["max_steps"] = _budget_max_steps
+                print(f"[adaptive] EXP-T universal cap fires: est_epoch_steps={_est_epoch_steps} > "
+                      f"{_cap_ratio}×budget={_budget_max_steps*_cap_ratio:.0f} → max_steps={_budget_max_steps}", flush=True)
+            else:
+                print(f"[adaptive] EXP-T budget cap WOULD fire (est_epoch_steps={_est_epoch_steps} > "
+                      f"{_cap_ratio}×budget={_budget_max_steps*_cap_ratio:.0f}) but is disabled: measured "
+                      f"-0.0124 to -0.0430 nats on d99ce208. Set EXPT_BUDGET_CAP=1 to enable.", flush=True)
 
     # ------------------------------------------------------------------
     # reg_ratio — the single, deliberate LR multiplier site.
@@ -2692,6 +2728,34 @@ def get_adaptive_training_json(task_type: str, train_info: dict) -> dict:
     # _select_max_length already mirrors the validator's halving rule, so this
     # connects a correct computation to its consumers rather than inventing policy.
     train_request["max_length"] = run_config["max_length"]
+
+    # Plumb the step cap exactly as max_length above had to be plumbed — same seam, same
+    # failure. Without this line the universal cap computes a number, prints it, and throws
+    # it away: train_instruct.py:429 reads train_request["max_steps"], which still carries
+    # args.max_steps (-1) from text_trainer.py:904, so the trainer runs the full epoch plan
+    # and the deadline callback truncates it mid-schedule.
+    #
+    # Verified 2026-09-04 on d99ce208 / falcon-rw-1b: the config printed
+    #   [adaptive] EXPT_MAX_STEPS override: est_epoch_steps=748, budget=550 → max_steps=499
+    # while the trainer printed `max_steps: -1`, `total_steps_all_epochs: 747.0`, and ran a
+    # 750-step progress bar identical to the uncapped control. Every "universal cap fires"
+    # line ever logged on an instruct run reported a decision that was discarded.
+    #
+    # Gated on the SAME opt-in as the cap itself, because this line alone is enough to
+    # activate capping on GRPO and DPO. Those trainers never touch training_args.max_steps
+    # either, but they hand the request value to CustomEvalSaveCallback, and
+    # customized_trainer.py:884 stops training when global_step == max_steps. GRPO's branch
+    # above ALWAYS sets run_config["max_steps"] (the budget cap, and the <500M drift cap),
+    # so an unguarded copy would switch both on at once — on a path whose metric runs the
+    # other way (higher wins) and which the instruct A/Bs say nothing about.
+    #
+    # So the wire is connectable and tested, and still dead by default, everywhere.
+    _cap_opt_in = (
+        os.getenv("EXPT_BUDGET_CAP", "0") == "1"
+        or int(os.getenv("EXPT_MAX_STEPS", "0") or 0) > 0
+    )
+    if _cap_opt_in and "max_steps" in run_config:
+        train_request["max_steps"] = run_config["max_steps"]
 
     train_request["adaptive_meta"] = {
         "arch_family": arch_family,
