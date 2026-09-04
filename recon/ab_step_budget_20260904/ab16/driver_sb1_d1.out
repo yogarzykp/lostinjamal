@@ -1,0 +1,32 @@
+=== A/B · task d99ce208-2ff2-47ec-8899-650972d0ae33 · tiiuae/falcon-rw-1b · 0.3h per arm · seed 42 (tag d1) ===
+=== common held-out: /cache/datasets/d99ce208-2ff2-47ec-8899-650972d0ae33_test_data.json (1000 rows)
+
+--- arm sb1 (0.3h) ---
+[gpu] 81007 MiB free — proceeding
+    submission: /app/checkpoints/d99ce208-2ff2-47ec-8899-650972d0ae33/ab-sb1-d1
+    own loss.txt (NOT comparable across arms): 119,proxy=no_eval
+
+=== scoring every arm on the one common held-out set ===
+  [sb1] held-out examples: 1,000
+  [sb1] [2026-09-04 04:28:45,289] [INFO] [real_accelerator.py:219:get_accelerator] Setting ds_accelerator to cuda (auto detect)
+  [sb1] /usr/local/lib/python3.11/dist-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_name" in PromptModelConfig has conflict with protected namespace "model_".
+  [sb1] 
+  [sb1] You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  [sb1]   warnings.warn(
+  [sb1]       8/1000
+  [sb1]     168/1000
+  [sb1]     328/1000
+  [sb1]     488/1000
+  [sb1]     648/1000
+  [sb1]     808/1000
+  [sb1]     968/1000
+  [sb1] 
+  [sb1] per-example summary: {'n': 1000, 'n_finite': 1000, 'mean': 1.6136967951059342, 'p10': 1.000730037689209, 'p50': 1.5763691663742065, 'p90': 2.2915358543395996, 'max': 3.572707414627075}
+  [sb1] fingerprint        : ce9acd85e86e67c2
+  [sb1] 
+  [sb1] OUR TEST LOSS      : 1.6137
+  [sb1] 
+  [sb1] (no leaderboard printed: these ranks belong to task 865ff4ab; against another task's held-out set they compare unrelated distributions and mean nothing)
+  [sb1] per-example vector written to /root/smoke/ab/sb1_d1.json
+
+=== per-arm vectors written to /root/smoke/ab/ — compare with compare_ab.py ===
