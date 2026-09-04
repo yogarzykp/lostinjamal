@@ -147,9 +147,35 @@ def test_gpt_oss_is_excluded_from_the_preflight():
 
 
 def test_tokenisation_is_skipped_when_the_model_cannot_load():
-    tok = CODE.index("tokenize_cmd, os.path.join(ds_folder")
-    guard = CODE.rindex("if not load_blocker:", 0, tok)
-    assert tok - guard < 200, "tokenisation is no longer guarded by the preflight"
+    """The tokenise call must sit inside `if not load_blocker:`.
+
+    This used to assert on the literal `"tokenize_cmd, os.path.join(ds_folder"` and measure
+    the character distance back to the guard. That string stopped existing when the
+    tokenisation gate hoisted the log path into a `_tokenise_log` variable — so the test
+    raised ValueError on a missing substring rather than failing with a diagnosis, and it
+    said nothing about whether the guard had actually survived. It had.
+
+    Ask the syntax tree where the call really sits. A refactor that moves the line is then
+    invisible here, and only a refactor that moves it OUT of the guard fails.
+    """
+    tree = ast.parse(CODE)
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.If) or not isinstance(node.test, ast.UnaryOp):
+            continue
+        if "load_blocker" not in ast.dump(node.test):
+            continue
+        for call in ast.walk(node):
+            if (
+                isinstance(call, ast.Call)
+                and isinstance(call.func, ast.Name)
+                and call.func.id == "run_cmd_with_log"
+                and any(isinstance(a, ast.Name) and a.id == "tokenize_cmd" for a in call.args)
+            ):
+                return
+    pytest.fail(
+        "run_cmd_with_log(tokenize_cmd, ...) is not inside an `if not load_blocker:` block, "
+        "so a model no retry can load still spends budget being tokenised for"
+    )
 
 
 def test_the_retry_ladder_is_skipped_when_the_model_cannot_load():

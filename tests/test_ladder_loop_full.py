@@ -47,14 +47,46 @@ def mode_of(cmd):
 class Loop:
     """Everything `main()` would shell out to, replaced by a recorder."""
 
-    def __init__(self, monkeypatch, tmp_path, *, scores, next_runs, lrs=None):
+    def __init__(self, monkeypatch, tmp_path, *, scores, next_runs, lrs=None,
+                 task_id=None, task_type="InstructTextTask"):
         self.calls = []
         self.state = {}
         self.scores = list(scores)
         self.next_runs = next_runs
         self.forced_lrs = lrs
         self.tmp = tmp_path
+        self.task_id = task_id
+        self.task_type = task_type
         self._install(monkeypatch)
+
+    def _tokenise(self, cmd, log_path=None, *a, **k):
+        """Stand in for the tokenise subprocess — INCLUDING what it leaves behind.
+
+        `run_cmd_with_log` was stubbed to a bare no-op, which was harmless until
+        `tokenisation_gate` (a50b7f6, "refuse to train on a dataset it never wrote")
+        started checking the ARTEFACT rather than the exit status. A stub that runs
+        nothing and writes nothing is indistinguishable from the trl/transformers clash
+        that cost us all three round-1 tasks in tourn_e758aac2d861c378, so the gate
+        correctly aborted `main()` before the ladder was reached.
+
+        That is why these two tests broke: from 2026-08-21 to 2026-08-27 they passed
+        because `main()` would train on a dataset that was never written. The assertion
+        `main() never reached the training loop` was pinning the defect, not the feature.
+
+        Writing real files keeps the gate LIVE rather than stubbing it away — if its
+        contract changes, these tests notice.
+        """
+        if self.task_id:
+            os.makedirs("datasets", exist_ok=True)
+            for name in tt.TOKENISED_OUTPUTS.get(self.task_type, ()):
+                with open(os.path.join("datasets", name.format(t=self.task_id)), "w") as fh:
+                    json.dump([{"input_ids": [1, 2, 3], "labels": [1, 2, 3]}], fh)
+        if log_path:
+            parent = os.path.dirname(log_path)
+            if parent:
+                os.makedirs(parent, exist_ok=True)
+            with open(log_path, "w") as fh:
+                fh.write("stub: tokenisation succeeded\n")
 
     def _get_state(self):
         return json.loads(json.dumps(self.state))
@@ -98,10 +130,14 @@ class Loop:
         return {"train_request": tr, "run_cmd": cmd}
 
     def _install(self, monkeypatch):
+        # `ds_folder` is the relative "datasets", so main() reads and writes under the
+        # working directory. Run in tmp_path rather than the repo root: the tokenised
+        # stand-ins then land somewhere disposable instead of beside the source.
+        monkeypatch.chdir(self.tmp)
         monkeypatch.setattr(tt, "get_state", self._get_state)
         monkeypatch.setattr(tt, "set_state", self._set_state)
         monkeypatch.setattr(tt, "run_training", self._run_training)
-        monkeypatch.setattr(tt, "run_cmd_with_log", lambda *a, **k: None)
+        monkeypatch.setattr(tt, "run_cmd_with_log", self._tokenise)
         monkeypatch.setattr(tt, "delete_poor_checkpoints", lambda *a, **k: None)
         import adaptive_config
         monkeypatch.setattr(adaptive_config, "get_adaptive_training_json", self._config)
@@ -159,7 +195,8 @@ def test_main_walks_the_candidate_list(monkeypatch, tmp_path):
     about the loop instead of running it, which proves only that the reasoning is
     self-consistent. This drives the real thing and reads what it handed to training.
     """
-    loop = Loop(monkeypatch, tmp_path, scores=[2.90, 2.85, 2.80], next_runs=3)
+    loop = Loop(monkeypatch, tmp_path, scores=[2.90, 2.85, 2.80], next_runs=3,
+                task_id="drive_test")
 
     cache = tmp_path / "cache"
     cache.mkdir()
@@ -206,7 +243,8 @@ def test_the_loop_reaches_a_final_selection(monkeypatch, tmp_path):
     place `CustomEvalSaveCallback` records a score. No score, no growth in `runs`, so
     `index = len(state["runs"])` stayed at 0 and every launch re-used lrs[0].
     """
-    loop = Loop(monkeypatch, tmp_path, scores=[2.90, 2.85, 2.80], next_runs=3)
+    loop = Loop(monkeypatch, tmp_path, scores=[2.90, 2.85, 2.80], next_runs=3,
+                task_id="sel_test")
     cache = tmp_path / "c2"; cache.mkdir()
     ds = cache / "sel_test_train_data.json"
     ds.write_text(json.dumps([{"instruct": f"q{i}", "input": "", "output": f"a{i}"}

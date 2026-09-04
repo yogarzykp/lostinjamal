@@ -28,21 +28,53 @@ def test_substitution_changes_the_rate_when_the_flag_has_a_neighbour():
     assert lr_of(out) == 2.5e-6
 
 
-def test_substitution_returns_none_when_the_flag_is_last():
-    """The blind spot. `(\\s+)` after the value means a trailing flag never matches.
+def test_substitution_still_works_when_the_flag_is_last():
+    """The blind spot, now closed — this test used to assert the bug.
 
-    The caller does `train_cmd = replace_args_in_cmd(...)` and later `if train_cmd:`,
-    so a None here does not raise — it skips the run. A ladder whose candidate runs are
-    skipped looks like a ladder that ran and agreed with its prior.
+    The old inline expression ended `(\\s+)`, so a flag that happened to be the command's
+    LAST token never matched and the helper returned None. The caller does
+    `train_cmd = replace_args_in_cmd(...)` and later `if train_cmd:`, so that None did not
+    raise — it skipped the run, and a ladder whose candidate runs are skipped looks exactly
+    like a ladder that ran and agreed with its prior.
+
+    `_arg_pattern` now ends `(\\s+|$)` (fixed in 54a9d7e), and the ordering that makes this
+    bite is not hypothetical: dpo_config.py already appends `--padding_free True` last.
+    Asserting the old None here kept a fixed bug pinned in place for two weeks.
     """
     cmd = "python train_instruct.py --seed 42 --learning_rate 1e-4"
-    assert tt.replace_args_in_cmd(cmd, "learning_rate", "2.5e-6") is None
+    out = tt.replace_args_in_cmd(cmd, "learning_rate", "2.5e-6")
+    assert out is not None, "a trailing flag is invisible again — the ladder would skip runs"
+    assert lr_of(out) == 2.5e-6
+    assert "1e-4" not in out, f"the old rate survived alongside the new one: {out!r}"
 
 
-def test_extraction_shares_the_blind_spot():
-    """Same regex shape, and `halve_request_max_length` depends on it."""
+def test_a_flag_that_is_absent_leaves_the_command_intact():
+    """The other half of the same fix, and it had no test at all.
+
+    Returning None on no-match poisoned every call site: each assigns the result straight
+    back into train_cmd and none checks it, so an unmatched flag turned the next launch
+    into None rather than a command. Three of those call sites are the OOM ladder's rungs,
+    so the failure landed on a run already in trouble.
+    """
+    cmd = "python train_instruct.py --seed 42"
+    out = tt.replace_args_in_cmd(cmd, "learning_rate", "2.5e-6")
+    assert out == cmd, (
+        "an absent flag must hand back the command unchanged; returning None here turns "
+        "the next launch into None instead of a command"
+    )
+
+
+def test_extraction_also_sees_a_trailing_flag():
+    """Same shared pattern, and `halve_request_max_length` depends on it.
+
+    The two helpers read through one `_arg_pattern` precisely so they cannot drift: a flag
+    readable by one and invisible to the other is how the OOM ladder's last rung would
+    silently decline to fire.
+    """
     assert tt.extract_value_from_cmd("a --request_path r.json --x 1", "request_path") == "r.json"
-    assert tt.extract_value_from_cmd("a --x 1 --request_path r.json", "request_path") is None
+    assert tt.extract_value_from_cmd("a --x 1 --request_path r.json", "request_path") == "r.json"
+    # Absence is still meaningfully None here — callers branch on it.
+    assert tt.extract_value_from_cmd("a --x 1", "request_path") is None
 
 
 def test_substituting_every_candidate_rate_yields_distinct_commands():
