@@ -7,9 +7,40 @@ Used by adaptive_config.py for runtime LR selection — replaces hardcoded
 bucket lookup. Works regardless of model_name (survives anonymization).
 """
 import math
+import os
 from typing import Iterable, List, Tuple
 
 import torch
+
+
+def pick_lr(lrs, smoothed_losses, slope_idx, picker=None):
+    """Turn a swept curve into the rate a run will train at.
+
+    Split out of find_lr_lrrt so the choice can be tested without torch, a GPU or a real
+    sweep — the picker comparison of 2026-08-22 needed four GPU curves to answer a question
+    that is arithmetic once the curve exists.
+
+    `picker` defaults to $LRRT_PICKER, which defaults to the shipped `slope10`.
+    Returns (lr, index_used, picker_name).
+    """
+    if not lrs:
+        raise ValueError("pick_lr needs a non-empty lr sweep")
+    slope_idx = max(0, min(slope_idx, len(lrs) - 1))
+    loss_idx = (smoothed_losses.index(min(smoothed_losses))
+                if smoothed_losses else slope_idx)
+    loss_idx = max(0, min(loss_idx, len(lrs) - 1))
+    table = {
+        "slope10": (lrs[slope_idx] / 10.0, slope_idx),
+        "slope": (lrs[slope_idx], slope_idx),
+        "lossmin": (lrs[loss_idx], loss_idx),
+        "lossmin10": (lrs[loss_idx] / 10.0, loss_idx),
+    }
+    name = picker if picker is not None else os.getenv("LRRT_PICKER", "slope10")
+    if name not in table:
+        print(f"[lrrt] unknown LRRT_PICKER={name!r}; using slope10", flush=True)
+        name = "slope10"
+    lr, idx_used = table[name]
+    return lr, idx_used, name
 
 
 def find_lr_lrrt(
@@ -136,12 +167,30 @@ def find_lr_lrrt(
     else:
         idx = searchable.index(min(searchable)) + skip + 1  # +1: slopes[i] = lr[i]-lr[i-1]
 
-    suggested_lr = lrs[idx]
-    # Optional: divide by 10 for safety (Smith's original advice — pick LR slightly LEFT of min)
-    # Practical: take steep-descent LR / 10 as starting point
-    safe_lr = suggested_lr / 10.0
+    slope_idx = idx
+    # The loss minimum, the other classic pick. Computed ALWAYS, even when unused, because a
+    # log that records a decision without the evidence behind it cannot be re-analysed: the
+    # summary line survives in logs long after the curve file is gone, and the 2026-08-22
+    # picker comparison had to be redone from scratch for exactly that reason.
+    loss_idx = smoothed_losses.index(min(smoothed_losses)) if smoothed_losses else idx
 
-    print(f"[lrrt] suggested_lr={suggested_lr:.2e}, safe_lr={safe_lr:.2e} (idx={idx}/{len(lrs)})", flush=True)
+    # Default is the shipped behaviour, byte for byte. The alternatives exist so a picker
+    # A/B can move one thing at a time; nothing reads this env on a normal run.
+    #   slope10 (default)  steepest descent / 10   — what every tournament run has used
+    #   slope              steepest descent
+    #   lossmin            the loss minimum        — lands ABOVE the incumbent
+    #   lossmin10          loss minimum / 10       — lands BELOW it
+    # Direction matters more than distance here: our own measurement puts a 10x-HIGH prior at
+    # +36% held-out loss and a 10x-LOW prior at +2.7%, so the nearer pick in log-distance is
+    # not automatically the cheaper one.
+    safe_lr, chosen_idx, _picker = pick_lr(lrs, smoothed_losses, slope_idx)
+    suggested_lr = lrs[slope_idx]
+
+    print(f"[lrrt] suggested_lr={suggested_lr:.2e}, safe_lr={safe_lr:.2e} "
+          f"(idx={chosen_idx}/{len(lrs)}) picker={_picker}", flush=True)
+    print(f"[lrrt] candidates: slope={lrs[slope_idx]:.3e}@{slope_idx} "
+          f"slope10={lrs[slope_idx]/10.0:.3e} lossmin={lrs[loss_idx]:.3e}@{loss_idx} "
+          f"lossmin10={lrs[loss_idx]/10.0:.3e}", flush=True)
     return safe_lr, lrs, smoothed_losses
 
 
