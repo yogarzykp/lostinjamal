@@ -2188,7 +2188,19 @@ def build_adaptive_run_config(
         "gpu_nums": gpu_count,
         "output_dir": train_info.get("output_dir", "/workspace/data/trained_model"),
         "request_path": train_info.get("request_path", ""),
-        "distributed": "ds" if param_count > 9e9 and gpu_count >= 4 else "ddp",
+        # `gpu_count >= 4` was calibrated against H100 counts, and text tournaments do not
+        # run on H100s. validator/tournament/dstack_orchestrator.py provisions H200s and
+        # converts the requirement by TOTAL VRAM: 4x H100 -> ceil(4*80/141) = 3x H200,
+        # 8x H100 -> 5x H200. So the 35-40B half of the boss round's guaranteed large
+        # instruct task (validator BOSS_ROUND_LARGE_INSTRUCT_MIN/MAX_SIZE_B = 35/71) lands
+        # on THREE GPUs, `>= 4` is false, and a 35B model would train under DDP — which
+        # replicates the whole model per GPU instead of sharding it. ZeRO-3 is what makes
+        # that model fit at all.
+        #
+        # Keyed on the condition that actually matters: a model too big for one card, and
+        # more than one card to shard it across. Single-GPU behaviour is unchanged, so no
+        # run we have ever made is affected.
+        "distributed": "ds" if param_count > 9e9 and gpu_count > 1 else "ddp",
         "gradient_checkpointing": "True",
         "gradient_accumulation_steps": grad_accum,
         "warmup_steps": warmup,
