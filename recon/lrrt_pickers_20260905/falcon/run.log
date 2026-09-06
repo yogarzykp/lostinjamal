@@ -1,0 +1,163 @@
+=== stage sb0 · task d99ce208-2ff2-47ec-8899-650972d0ae33 · model tiiuae/falcon-rw-1b · 0.25h ===
+  ADAPTIVE_MODE=1
+  BASELINE_USE_COMPLETION_LOSS=1
+  BASELINE_USE_DPO_GAP=1
+  BASELINE_USE_NEARDUP=1
+  BASELINE_USE_SEQLEN=1
+  EMIT_PER_EXAMPLE_LOSSES=1
+  INSTRUCT_DEDUP=1
+  TRAINING_WSM_GATE=1
+
+/usr/local/lib/python3.11/dist-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_hash" in MinerSubmission has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+---STARTING TEXT TRAINING SCRIPT---
+submission_dir: /app/checkpoints/d99ce208-2ff2-47ec-8899-650972d0ae33/curve-falcon
+end_time:  2026-09-05 15:43:21
+[text_trainer] ADAPTIVE_MODE=on — using dynamics-driven config
+[adaptive] WARN: param_count unknown, defaulting to 1B
+[adaptive] model max_position_embeddings=2048
+[dynamics] field-mapped lengths: prompt_p95=681 full_seq_p95=779 full_seq_p99=813 (legacy chain p95=121)
+[dynamics] NOTE: legacy chain p95=121 is 6.4x below the field-mapped measurement — the chain is measuring a different quantity than the one that must fit in max_length
+[adaptive] dataset metrics: n=24961 p95=121
+[adaptive] max_length sized from full_seq_p95=779
+[adaptive] 1-GPU empirical bucket: batch=100 (target=100 for param=1.00B)
+[adaptive] Tier 1 family_lr SKIP (low conf): 3.5000e-05 conf=LOW n=1
+[adaptive] Tier 2 AR-CSV HIT: lr=1.0000e-05 (arch=FalconForCausalLM size=1000000000 task=instruct)
+[adaptive] epoch loss signal=2.500 (no baseline stats)
+[adaptive-instruct] profile: io_jaccard=0.226 train_dev_jaccard=0.231 flags=cot:0.34 math:0.00 code:0.21 script=latin lang_ratio=0.99
+[adaptive-instruct] task_class=reasoning
+[adaptive] Tier 2 AR-CSV preserved: lr=1.0000e-05 (would have been overridden by instruct_hp to 1.0000e-04)
+[hp-override:depth-warmup] depth=24 → warmup_steps 35→42 (√depth scaling)
+[adaptive] ALIBI model detected (arch=unknown, family=unknown, alibi_attr=True) — attn_implementation=sdpa (FA3 incompatible with alibi)
+[adaptive] ⚠️  EXP-T: budget 0.25h / 6.0s/step = 138 steps < 550 eval floor. Config too slow for budget.
+[adaptive] EXP-T hours_budget=0.25h step_time_est=6.0s (fallback:no-probe) → max_steps_budget=550
+[adaptive-instruct] family=unknown (arch=unknown, name=unknown) epoch=3 lr=1.00e-05 min_lr_rate=0.2 wd=0.01 max_len=1024 packing=True neftune=0 warmup=42 reg_ratio=1.0
+[adaptive] arch=unknown param=1,000,000,000 ds_n=24961 seq_p95=121
+[adaptive] PLAN: lr=1.00e-05 batch=100 epochs=3 max_len=1024 lora=False grad_accum=1
+[hp-override:d2z] no fire: tpp=0.02≤1.0 OR epochs=3<2 (n_train=24961, params=1.00B, est_tokens=19444619)
+[resolver] SUGGESTION: lr=3.50e-05 (T1_empirical n=1 task_class=skill) vs adaptive_init_lr=1.00e-05 → ratio=3.50x
+[adaptive] reg_ratio=1.00000 (neutral, lr unchanged)
+[adaptive] packing disabled: disable_fa is set, and packing without flash-attn lets rows attend across block boundaries
+[CONFIG-RESOLVED] path=adaptive task_type=InstructTextTask task_id=d99ce208-2ff2-47ec-8899-650972d0ae33 lr=1e-05 batch=100 steps_or_epochs=3 model=?
+/workspace/axo_py/lib/python3.11/site-packages/requests/__init__.py:113: RequestsDependencyWarning: urllib3 (2.7.0) or chardet (6.0.0.post1)/charset_normalizer (3.5.1) doesn't match a supported version!
+  warnings.warn(
+[dedup] {'input': 25992, 'exact_removed': 31, 'jaccard_removed': 0, 'after_exact': 25961, 'after_jaccard': 25961, 'enabled': True, 'jaccard_threshold': None, 'ngram_k': 5}
+[split] {'n': 25961, 'buckets': 25959, 'collapsed': 2, 'oversized_buckets': 0, 'target': 1000, 'dev': 1000, 'train': 24961, 'forced_leak': 0}
+Processing datasets during training can lead to VRAM instability. Please pre-process your dataset.
+Removed 0 empty output items from train_ds
+Removed 0 empty output items from dev_ds
+split /cache/datasets/d99ce208-2ff2-47ec-8899-650972d0ae33_train_data.json (25961 items) into datasets/train_d99ce208-2ff2-47ec-8899-650972d0ae33.json (24961 items) and datasets/dev_d99ce208-2ff2-47ec-8899-650972d0ae33.json (1000 items)
+max_length=1024
+Processing instruct dataset type
+
+Generating train split: 0 examples [00:00, ? examples/s]
+Generating train split: 24961 examples [00:01, 17005.89 examples/s]
+Generating train split: 24961 examples [00:01, 16949.83 examples/s]
+
+Tokenizing Prompts (num_proc=24):   0%|          | 0/24961 [00:00<?, ? examples/s]
+Tokenizing Prompts (num_proc=24):   0%|          | 24/24961 [00:00<04:22, 95.03 examples/s]
+Tokenizing Prompts (num_proc=24):   2%|▏         | 381/24961 [00:00<00:18, 1349.77 examples/s]
+Tokenizing Prompts (num_proc=24):   4%|▍         | 1029/24961 [00:00<00:08, 2939.67 examples/s]
+Tokenizing Prompts (num_proc=24):   8%|▊         | 2110/24961 [00:00<00:04, 5384.23 examples/s]
+Tokenizing Prompts (num_proc=24):  13%|█▎        | 3282/24961 [00:00<00:02, 7318.57 examples/s]
+Tokenizing Prompts (num_proc=24):  19%|█▊        | 4646/24961 [00:00<00:02, 9201.91 examples/s]
+Tokenizing Prompts (num_proc=24):  25%|██▍       | 6228/24961 [00:00<00:01, 11192.38 examples/s]
+Tokenizing Prompts (num_proc=24):  31%|███       | 7756/24961 [00:00<00:01, 12359.16 examples/s]
+Tokenizing Prompts (num_proc=24):  38%|███▊      | 9409/24961 [00:01<00:01, 13591.46 examples/s]
+Tokenizing Prompts (num_proc=24):  44%|████▍     | 10967/24961 [00:01<00:00, 14171.18 examples/s]
+Tokenizing Prompts (num_proc=24):  50%|█████     | 12544/24961 [00:01<00:00, 14582.12 examples/s]
+Tokenizing Prompts (num_proc=24):  57%|█████▋    | 14128/24961 [00:01<00:00, 14902.34 examples/s]
+Tokenizing Prompts (num_proc=24):  63%|██████▎   | 15716/24961 [00:01<00:00, 15107.02 examples/s]
+Tokenizing Prompts (num_proc=24):  69%|██████▉   | 17249/24961 [00:01<00:00, 15107.44 examples/s]
+Tokenizing Prompts (num_proc=24):  75%|███████▌  | 18776/24961 [00:01<00:00, 14512.13 examples/s]
+Tokenizing Prompts (num_proc=24):  81%|████████  | 20240/24961 [00:01<00:00, 14287.24 examples/s]
+Tokenizing Prompts (num_proc=24):  87%|████████▋ | 21689/24961 [00:01<00:00, 13582.38 examples/s]
+Tokenizing Prompts (num_proc=24):  93%|█████████▎| 23094/24961 [00:02<00:00, 12515.92 examples/s]
+Tokenizing Prompts (num_proc=24):  98%|█████████▊| 24370/24961 [00:02<00:00, 9831.03 examples/s] 
+Tokenizing Prompts (num_proc=24): 100%|██████████| 24961/24961 [00:02<00:00, 9813.70 examples/s]
+
+Dropping Long Sequences (num_proc=24):   0%|          | 0/24961 [00:00<?, ? examples/s]
+Dropping Long Sequences (num_proc=24):  38%|███▊      | 9361/24961 [00:00<00:00, 90099.18 examples/s]
+Dropping Long Sequences (num_proc=24): 100%|██████████| 24961/24961 [00:00<00:00, 113601.27 examples/s]
+Dropped 9 long samples from dataset
+Filtered out 0 samples with empty outputs
+Loaded dataset with 24952 samples
+Dumped 24952 samples to datasets/train_tokenized_d99ce208-2ff2-47ec-8899-650972d0ae33.json
+[len-check] tokenised 24952/24961 rows (9 dropped, 0.0%) at max_length=1024
+[len-check] tokenized dataset p95=774 max=999 vs planned max_length=1024; 0/24952 (0.0%) reach the cap
+Processing datasets during training can lead to VRAM instability. Please pre-process your dataset.
+Processing instruct dataset type
+
+Generating train split: 0 examples [00:00, ? examples/s]
+Generating train split: 1000 examples [00:00, 33976.83 examples/s]
+
+Tokenizing Prompts (num_proc=24):   0%|          | 0/1000 [00:00<?, ? examples/s]
+Tokenizing Prompts (num_proc=24):   4%|▎         | 35/1000 [00:00<00:07, 135.75 examples/s]
+Tokenizing Prompts (num_proc=24):  25%|██▌       | 252/1000 [00:00<00:00, 820.78 examples/s]
+Tokenizing Prompts (num_proc=24):  42%|████▏     | 420/1000 [00:00<00:00, 1066.38 examples/s]
+Tokenizing Prompts (num_proc=24):  70%|██████▉   | 699/1000 [00:00<00:00, 1465.26 examples/s]
+Tokenizing Prompts (num_proc=24):  92%|█████████▏| 916/1000 [00:00<00:00, 1538.50 examples/s]
+Tokenizing Prompts (num_proc=24): 100%|██████████| 1000/1000 [00:00<00:00, 1154.24 examples/s]
+
+Dropping Long Sequences (num_proc=24):   0%|          | 0/1000 [00:00<?, ? examples/s]
+Dropping Long Sequences (num_proc=24):  88%|████████▊ | 877/1000 [00:00<00:00, 8651.49 examples/s]
+Dropping Long Sequences (num_proc=24): 100%|██████████| 1000/1000 [00:00<00:00, 5031.34 examples/s]
+Filtered out 0 samples with empty outputs
+Loaded dataset with 1000 samples
+Dumped 1000 samples to datasets/dev_tokenized_d99ce208-2ff2-47ec-8899-650972d0ae33.json
+[len-check] tokenised 1000/1000 rows (0 dropped, 0.0%) at max_length=1024
+[len-check] tokenized dataset p95=779 max=928 vs planned max_length=1024; 0/1000 (0.0%) reach the cap
+Tokenization completed in 29 seconds
+************* Training attempt 1/5 for task d99ce208-2ff2-47ec-8899-650972d0ae33*************
+[Runtime] Disabled optional DeepSpeed import for non-DeepSpeed run
+2026-09-05 15:32:09,803 - datasets - INFO - PyTorch version 2.6.0 available.
+LOCAL_RANK: 0 in customized_trainer.py
+padding_side:  right
+padding_side:  right
+2026-09-05 15:32:13,143 - root - INFO - print: train_size: 24952; dev_size: 1000
+2026-09-05 15:32:13,143 - root - INFO - print: min_data_size_num: 10000; max_length: 1024
+2026-09-05 15:32:14,043 - root - INFO - print: [CrossLingual] detection: fallback fertility test: 0.215 <= 0.4 (script=latin, category=default)
+2026-09-05 15:32:14,043 - root - INFO - print: world_size: 1
+2026-09-05 15:32:14,043 - root - INFO - print: total_steps_per_epoch: 249
+2026-09-05 15:32:14,049 - root - INFO - print: Using sdpa as the attention implementation
+2026-09-05 15:32:14,049 - root - INFO - print: Using attn_implementation: sdpa
+2026-09-05 15:32:15,622 - root - INFO - print: Created output directory: /workspace/scripts/soutputs/d99ce208-2ff2-47ec-8899-650972d0ae33_0
+2026-09-05 15:32:15,623 - root - INFO - print: periodic_save_steps: 500
+2026-09-05 15:32:15,623 - root - INFO - print: max_steps: -1
+2026-09-05 15:32:15,625 - root - INFO - print: total_steps_per_epoch: 249; total_steps_all_epochs: 747.0
+[early_stop] dynamic config: patience=2 (adaptive from total_steps=747.0, derived_epochs=4), window=3, min_delta=0.0, cv_enabled=False cv_window=20 cv_thresh=0.05
+/root/lostinjamal/scripts/train_instruct.py:555: FutureWarning: `tokenizer` is deprecated and will be removed in version 5.0.0 for `Trainer.__init__`. Use `processing_class` instead.
+  trainer = Trainer(
+[2026-09-05 15:32:16,224] [INFO] [real_accelerator.py:219:get_accelerator] Setting ds_accelerator to cuda (auto detect)
+2026-09-05 15:32:16,281 - root - INFO - x86_64-linux-gnu-gcc -Wsign-compare -DNDEBUG -g -fwrapv -O2 -Wall -g -fstack-protector-strong -Wformat -Werror=format-security -g -fwrapv -O2 -fPIC -c /tmp/tmpn04gate5/test.c -o /tmp/tmpn04gate5/test.o
+2026-09-05 15:32:16,295 - root - INFO - x86_64-linux-gnu-gcc /tmp/tmpn04gate5/test.o -laio -o /tmp/tmpn04gate5/a.out
+2026-09-05 15:32:16,843 - root - INFO - x86_64-linux-gnu-gcc -Wsign-compare -DNDEBUG -g -fwrapv -O2 -Wall -g -fstack-protector-strong -Wformat -Werror=format-security -g -fwrapv -O2 -fPIC -c /tmp/tmpiypr5_0w/test.c -o /tmp/tmpiypr5_0w/test.o
+2026-09-05 15:32:16,857 - root - INFO - x86_64-linux-gnu-gcc /tmp/tmpiypr5_0w/test.o -L/usr/local/cuda -L/usr/local/cuda/lib64 -lcufile -o /tmp/tmpiypr5_0w/a.out
+2026-09-05 15:32:16,893 - root - INFO - x86_64-linux-gnu-gcc -Wsign-compare -DNDEBUG -g -fwrapv -O2 -Wall -g -fstack-protector-strong -Wformat -Werror=format-security -g -fwrapv -O2 -fPIC -c /tmp/tmp29ikp7hx/test.c -o /tmp/tmp29ikp7hx/test.o
+2026-09-05 15:32:16,907 - root - INFO - x86_64-linux-gnu-gcc /tmp/tmp29ikp7hx/test.o -laio -o /tmp/tmp29ikp7hx/a.out
+/usr/local/lib/python3.11/dist-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_name" in PromptModelConfig has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+Trainer.tokenizer is now deprecated. You should use `Trainer.processing_class = processing_class` instead.
+[per-layer-lr] SKIPPED: PER_LAYER_LR_ENABLED not set to 1 (default off)
+2026-09-05 15:32:17,941 - root - INFO - print: [WSM] merge will be gated on held-out loss
+2026-09-05 15:32:17,941 - root - INFO - print: [probe] LR probes will be scored on held-out dev loss
+2026-09-05 15:32:17,941 - root - INFO - print: [per-example] recording per-example eval losses to telemetry
+2026-09-05 15:32:17,942 - root - INFO - print: [lr-search] sweeping at batch=4 (training batch is 100)
+[lrrt] step 87 loss diverging (7.538 > 4.0× min), stopping
+[lrrt] suggested_lr=1.29e-06, safe_lr=1.29e-07 (idx=22/88) picker=slope10
+[lrrt] candidates: slope=1.292e-06@22 slope10=1.292e-07 lossmin=1.353e-04@62 lossmin10=1.353e-05
+2026-09-05 15:32:38,886 - root - INFO - print: [lr-search] sweep curve written (88 points, accepted=True)
+2026-09-05 15:32:38,889 - root - INFO - print: [lr-search] task=instruct bounds=[1.0e-06,1.0e-03] lrrt=1.000e-06 (clamped from 1.292e-07) incumbent=1.000e-05 -> probe ['1.000e-06', '3.162e-06']  UNBRACKETED(nothing above the incumbent; upward probe suppressed: explored span 1.00d >= 1.0d)
+2026-09-05 15:32:38,889 - root - INFO - print: [lr-search] reloading model to discard the sweep's weights
+2026-09-05 15:32:38,903 - root - INFO - print: Using sdpa as the attention implementation
+2026-09-05 15:32:38,903 - root - INFO - print: Using attn_implementation: sdpa
+wandb: WARNING The `run_name` is currently set to the same value as `TrainingArguments.output_dir`. If this was not intended, please specify a different run name by setting the `TrainingArguments.run_name` parameter.
+wandb: Tracking run with wandb version 0.19.10
+wandb: W&B syncing is set to `offline` in this directory. Run `wandb online` or set WANDB_MODE=online to enable cloud syncing.
+
+/root/lostinjamal/ops/smoke/run_instruct_replay.sh: line 163:  1928 Killed                  python -m text_trainer --task-id "$TASK_ID" --model "$MODEL" --dataset "$TRAIN_JSON" --dataset-type "$DATASET_TYPE" --task-type InstructTextTask --file-format json --hours-to-complete "$HOURS" --expected-repo-name "$REPO_NAME" $REG_RATIO_ARG 2>&1
+      1929 Done                    | tee "$LOG"

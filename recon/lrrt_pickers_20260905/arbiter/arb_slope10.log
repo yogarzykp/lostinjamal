@@ -1,0 +1,26 @@
+=== ARBITER picker=slope10 ===
+=== LR recovery gate · unsloth/Qwen2-1.5B-Instruct · 1.3h per run · tolerance x2.0 ===
+
+--- baseline (prior untouched) ---
+[gpu] 81007 MiB free — proceeding
+    settled on LR = 8.06985566921199e-05
+
+--- prior poisoned x10  (forced LR = 8.069856e-04) ---
+[gpu] 81007 MiB free — proceeding
+    settled on LR = 0.000806971167178741
+    confirmed poisoned: planned incumbent = 8.070e-04
+
+--- prior poisoned x0.1  (forced LR = 8.069856e-06) ---
+[gpu] 81007 MiB free — proceeding
+    settled on LR = 8.06971167178741e-06
+    confirmed poisoned: planned incumbent = 8.070e-06
+
+════════════════ RECOVERY RESULT ════════════════
+FACTOR   POISONED       SETTLED        OFF-BY     VERDICT
+10       8.069856e-04   0.000806971167178741 x10.00     STUCK
+0.1      8.069856e-06   8.06971167178741e-06 x10.00     STUCK
+═════════════════════════════════════════════════
+baseline LR: 8.06985566921199e-05   tolerance: x2.0
+STUCK on at least one poisoned prior — the search cannot leave a wrong prior's
+neighbourhood. Expected for the current ladder; see tests/test_lr_recovery_reach.py.
+=== SELESAI slope10 ===

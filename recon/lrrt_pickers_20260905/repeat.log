@@ -1,0 +1,19 @@
+=== qwen ulangan 2 ===
+  kurva disalin
+  [lrrt] candidates: slope=4.229e-05@52 slope10=4.229e-06 lossmin=1.205e-04@61 lossmin10=1.205e-05
+=== smol ulangan 2 ===
+  kurva disalin
+  [lrrt] candidates: slope=4.037e-07@12 slope10=4.037e-08 lossmin=2.477e-03@87 lossmin10=2.477e-04
+=== falcon ulangan 2 ===
+  kurva disalin
+  [lrrt] candidates: slope=1.292e-06@22 slope10=1.292e-07 lossmin=1.353e-04@62 lossmin10=1.353e-05
+=== qwen ulangan 3 ===
+  kurva disalin
+  [lrrt] candidates: slope=4.229e-05@52 slope10=4.229e-06 lossmin=1.205e-04@61 lossmin10=1.205e-05
+=== smol ulangan 3 ===
+  kurva disalin
+  [lrrt] candidates: slope=4.037e-07@12 slope10=4.037e-08 lossmin=2.783e-03@88 lossmin10=2.783e-04
+=== falcon ulangan 3 ===
+  kurva disalin
+  [lrrt] candidates: slope=1.292e-06@22 slope10=1.292e-07 lossmin=1.353e-04@62 lossmin10=1.353e-05
+=== SELESAI ===

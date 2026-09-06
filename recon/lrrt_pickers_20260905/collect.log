@@ -1,0 +1,22 @@
+=== sel qwen (unsloth/Qwen2-1.5B-Instruct) ===
+  kurva ditulis ~105s
+  TIDAK ADA kurva
+      0%|          | 0/1011 [00:00<?, ?it/s]`use_cache=True` is incompatible with gradient checkpointing. Setting `use_cache=False`.
+    /root/lostinjamal/ops/smoke/run_instruct_replay.sh: line 163:    55 Killed                  python -m text_trainer --task-id "$TASK_ID" --model "$MODEL" --dataset "$TRAIN_JSON" --dataset-type "$DATASET_TYPE" --task-type InstructTextTask --file-format json --hours-to-complete "$HOURS" --expected-repo-name "$REPO_NAME" $REG_RATIO_ARG 2>&1
+            56 Done                    | tee "$LOG"
+  [lrrt] candidates: slope=4.229e-05@52 slope10=4.229e-06 lossmin=1.205e-04@61 lossmin10=1.205e-05
+=== sel smol (unsloth/SmolLM-135M-Instruct) ===
+  kurva ditulis ~75s
+  TIDAK ADA kurva
+      0%|          | 1/1071 [00:01<21:15,  1.19s/it]
+    /root/lostinjamal/ops/smoke/run_instruct_replay.sh: line 163:   987 Killed                  python -m text_trainer --task-id "$TASK_ID" --model "$MODEL" --dataset "$TRAIN_JSON" --dataset-type "$DATASET_TYPE" --task-type InstructTextTask --file-format json --hours-to-complete "$HOURS" --expected-repo-name "$REPO_NAME" $REG_RATIO_ARG 2>&1
+           988 Done                    | tee "$LOG"
+  [lrrt] candidates: slope=4.037e-07@12 slope10=4.037e-08 lossmin=2.477e-03@87 lossmin10=2.477e-04
+=== sel falcon (tiiuae/falcon-rw-1b) ===
+  kurva ditulis ~85s
+  TIDAK ADA kurva
+    
+    /root/lostinjamal/ops/smoke/run_instruct_replay.sh: line 163:  1928 Killed                  python -m text_trainer --task-id "$TASK_ID" --model "$MODEL" --dataset "$TRAIN_JSON" --dataset-type "$DATASET_TYPE" --task-type InstructTextTask --file-format json --hours-to-complete "$HOURS" --expected-repo-name "$REPO_NAME" $REG_RATIO_ARG 2>&1
+          1929 Done                    | tee "$LOG"
+  [lrrt] candidates: slope=1.292e-06@22 slope10=1.292e-07 lossmin=1.353e-04@62 lossmin10=1.353e-05
+=== SELESAI ===

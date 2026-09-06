@@ -1,0 +1,19 @@
+=== slope10 / qwen ===
+  [lrrt] suggested_lr=4.23e-05, safe_lr=4.23e-06 (idx=52/96) picker=slope10
+  task=instruct bounds=[1.0e-06,1.0e-03] lrrt=4.229e-06 incumbent=8.070e-05 -> probe ['4.229e-06', '1.847e-05']  UNBRACKETED(nothing above the incumbent; upward probe suppressed: explored span 1.28d >= 1.0d)
+=== slope10 / smol ===
+  [lrrt] suggested_lr=4.04e-07, safe_lr=4.04e-08 (idx=12/100) picker=slope10
+  task=instruct bounds=[1.0e-06,1.0e-03] lrrt=1.000e-06 (clamped from 4.037e-08) incumbent=8.030e-04 -> probe ['1.000e-06', '2.834e-05']  UNBRACKETED(nothing above the incumbent; upward probe suppressed: explored span 2.90d >= 1.0d)
+=== slope10 / falcon ===
+  [lrrt] suggested_lr=1.29e-06, safe_lr=1.29e-07 (idx=22/90) picker=slope10
+  task=instruct bounds=[1.0e-06,1.0e-03] lrrt=1.000e-06 (clamped from 1.292e-07) incumbent=1.000e-05 -> probe ['1.000e-06', '3.162e-06']  UNBRACKETED(nothing above the incumbent; upward probe suppressed: explored span 1.00d >= 1.0d)
+=== lossmin10 / qwen ===
+  [lrrt] suggested_lr=4.23e-05, safe_lr=1.20e-05 (idx=61/98) picker=lossmin10
+  task=instruct bounds=[1.0e-06,1.0e-03] lrrt=1.205e-05 incumbent=8.070e-05 -> probe ['1.205e-05', '4.538e-04']
+=== lossmin10 / smol ===
+  [lrrt] suggested_lr=4.04e-07, safe_lr=2.78e-04 (idx=88/100) picker=lossmin10
+  task=instruct bounds=[1.0e-06,1.0e-03] lrrt=2.783e-04 incumbent=8.030e-04 -> probe ['2.783e-04', '1.000e-03']
+=== lossmin10 / falcon ===
+  [lrrt] suggested_lr=1.29e-06, safe_lr=1.35e-05 (idx=62/87) picker=lossmin10
+  task=instruct bounds=[1.0e-06,1.0e-03] lrrt=1.353e-05 incumbent=1.000e-05 -> probe ['1.353e-05']
+=== SELESAI ===

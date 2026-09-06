@@ -1,0 +1,164 @@
+=== stage sb0 · task d99ce208-2ff2-47ec-8899-650972d0ae33 · model unsloth/SmolLM-135M-Instruct · 0.25h ===
+  ADAPTIVE_MODE=1
+  BASELINE_USE_COMPLETION_LOSS=1
+  BASELINE_USE_DPO_GAP=1
+  BASELINE_USE_NEARDUP=1
+  BASELINE_USE_SEQLEN=1
+  EMIT_PER_EXAMPLE_LOSSES=1
+  INSTRUCT_DEDUP=1
+  TRAINING_WSM_GATE=1
+
+/usr/local/lib/python3.11/dist-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_hash" in MinerSubmission has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+---STARTING TEXT TRAINING SCRIPT---
+submission_dir: /app/checkpoints/d99ce208-2ff2-47ec-8899-650972d0ae33/curve-smol
+end_time:  2026-09-05 15:42:03
+[text_trainer] ADAPTIVE_MODE=on — using dynamics-driven config
+[adaptive] model max_position_embeddings=2048
+[dynamics] field-mapped lengths: prompt_p95=718 full_seq_p95=829 full_seq_p99=897 (legacy chain p95=133)
+[dynamics] NOTE: legacy chain p95=133 is 6.2x below the field-mapped measurement — the chain is measuring a different quantity than the one that must fit in max_length
+[adaptive] dataset metrics: n=24961 p95=133
+[adaptive] max_length sized from full_seq_p95=829
+[adaptive] 1-GPU empirical bucket: batch=64 (target=64 for param=0.15B)
+[hp-override:gqa-batch-boost] gqa_ratio=3.0 (q=9/kv=3) → batch_size 64→70 (×1.09)
+[adaptive] Tier 1 family_lr HIT: lr=8.0300e-04 conf=MED n=6 task=instruct arch=LlamaForCausalLM (was generic 8.0000e-06)
+[adaptive] epoch loss signal=2.500 (no baseline stats)
+[adaptive-instruct] profile: io_jaccard=0.226 train_dev_jaccard=0.231 flags=cot:0.34 math:0.00 code:0.21 script=latin lang_ratio=0.99
+[adaptive-instruct] task_class=reasoning
+[adaptive-instruct] task_class=reasoning OVERRIDE: lr 4.30e-04→3.00e-04, epoch 3→3, neftune 0→0
+[adaptive] Tier 1 (family_lr) preserved: lr=8.0300e-04 conf=MED n=6 (would have been overridden by instruct_hp to 3.0000e-04)
+[hp-override:depth-warmup] depth=30 → warmup_steps 35→47 (√depth scaling)
+[adaptive] EXP-T hours_budget=0.25h step_time_est=1.4s (fallback:no-probe) → max_steps_budget=591
+[adaptive-instruct] family=smollm (arch=llama, name=smollm) epoch=3 lr=8.03e-04 min_lr_rate=0.25 wd=0.0 max_len=1024 packing=False neftune=0 warmup=47 reg_ratio=0.7
+[adaptive] arch=llama param=147,750,912 ds_n=24961 seq_p95=133
+[adaptive] PLAN: lr=8.03e-04 batch=70 epochs=3 max_len=1024 lora=False grad_accum=1
+[hp-override:d2z] no fire: tpp=0.14≤1.0 OR epochs=3<2 (n_train=24961, params=0.15B, est_tokens=20692669)
+[resolver] SUGGESTION: lr=7.84e-04 (T1_empirical n=2 task_class=skill) vs adaptive_init_lr=8.03e-04 → ratio=0.98x
+[adaptive] EXP-T budget cap WOULD fire (est_epoch_steps=1069 > 1.5×budget=886) but is disabled: measured -0.0124 to -0.0430 nats on d99ce208. Set EXPT_BUDGET_CAP=1 to enable.
+[adaptive] reg_ratio=1.00000 (neutral, lr unchanged)
+[CONFIG-RESOLVED] path=adaptive task_type=InstructTextTask task_id=d99ce208-2ff2-47ec-8899-650972d0ae33 lr=0.000803 batch=70 steps_or_epochs=3 model=?
+/workspace/axo_py/lib/python3.11/site-packages/requests/__init__.py:113: RequestsDependencyWarning: urllib3 (2.7.0) or chardet (6.0.0.post1)/charset_normalizer (3.5.1) doesn't match a supported version!
+  warnings.warn(
+[dedup] {'input': 25992, 'exact_removed': 31, 'jaccard_removed': 0, 'after_exact': 25961, 'after_jaccard': 25961, 'enabled': True, 'jaccard_threshold': None, 'ngram_k': 5}
+[split] {'n': 25961, 'buckets': 25959, 'collapsed': 2, 'oversized_buckets': 0, 'target': 1000, 'dev': 1000, 'train': 24961, 'forced_leak': 0}
+Processing datasets during training can lead to VRAM instability. Please pre-process your dataset.
+Removed 0 empty output items from train_ds
+Removed 0 empty output items from dev_ds
+split /cache/datasets/d99ce208-2ff2-47ec-8899-650972d0ae33_train_data.json (25961 items) into datasets/train_d99ce208-2ff2-47ec-8899-650972d0ae33.json (24961 items) and datasets/dev_d99ce208-2ff2-47ec-8899-650972d0ae33.json (1000 items)
+max_length=1024
+Processing instruct dataset type
+
+Generating train split: 0 examples [00:00, ? examples/s]
+Generating train split: 24961 examples [00:01, 17243.20 examples/s]
+Generating train split: 24961 examples [00:01, 17185.26 examples/s]
+
+Tokenizing Prompts (num_proc=24):   0%|          | 0/24961 [00:00<?, ? examples/s]
+Tokenizing Prompts (num_proc=24):   0%|          | 26/24961 [00:00<04:06, 101.13 examples/s]
+Tokenizing Prompts (num_proc=24):   1%|▏         | 328/24961 [00:00<00:22, 1116.22 examples/s]
+Tokenizing Prompts (num_proc=24):   4%|▎         | 911/24961 [00:00<00:09, 2597.06 examples/s]
+Tokenizing Prompts (num_proc=24):   8%|▊         | 1887/24961 [00:00<00:04, 4824.72 examples/s]
+Tokenizing Prompts (num_proc=24):  12%|█▏        | 3001/24961 [00:00<00:03, 6708.61 examples/s]
+Tokenizing Prompts (num_proc=24):  17%|█▋        | 4256/24961 [00:00<00:02, 8475.94 examples/s]
+Tokenizing Prompts (num_proc=24):  23%|██▎       | 5676/24961 [00:00<00:01, 10186.45 examples/s]
+Tokenizing Prompts (num_proc=24):  29%|██▉       | 7225/24961 [00:00<00:01, 11774.49 examples/s]
+Tokenizing Prompts (num_proc=24):  35%|███▌      | 8793/24961 [00:01<00:01, 12930.60 examples/s]
+Tokenizing Prompts (num_proc=24):  42%|████▏     | 10390/24961 [00:01<00:01, 13810.38 examples/s]
+Tokenizing Prompts (num_proc=24):  48%|████▊     | 11935/24961 [00:01<00:00, 14301.48 examples/s]
+Tokenizing Prompts (num_proc=24):  54%|█████▍    | 13451/24961 [00:01<00:00, 14414.67 examples/s]
+Tokenizing Prompts (num_proc=24):  60%|█████▉    | 14938/24961 [00:01<00:00, 14493.01 examples/s]
+Tokenizing Prompts (num_proc=24):  66%|██████▌   | 16453/24961 [00:01<00:00, 14620.72 examples/s]
+Tokenizing Prompts (num_proc=24):  72%|███████▏  | 17969/24961 [00:01<00:00, 14746.92 examples/s]
+Tokenizing Prompts (num_proc=24):  78%|███████▊  | 19452/24961 [00:01<00:00, 14667.76 examples/s]
+Tokenizing Prompts (num_proc=24):  84%|████████▍ | 20946/24961 [00:01<00:00, 13899.84 examples/s]
+Tokenizing Prompts (num_proc=24):  90%|████████▉ | 22365/24961 [00:02<00:00, 12361.25 examples/s]
+Tokenizing Prompts (num_proc=24):  95%|█████████▍| 23639/24961 [00:02<00:00, 10428.95 examples/s]
+Tokenizing Prompts (num_proc=24):  99%|█████████▉| 24761/24961 [00:02<00:00, 7203.70 examples/s] 
+Tokenizing Prompts (num_proc=24): 100%|██████████| 24961/24961 [00:02<00:00, 9343.90 examples/s]
+
+Dropping Long Sequences (num_proc=24):   0%|          | 0/24961 [00:00<?, ? examples/s]
+Dropping Long Sequences (num_proc=24):  42%|████▏     | 10401/24961 [00:00<00:00, 103219.64 examples/s]
+Dropping Long Sequences (num_proc=24): 100%|██████████| 24961/24961 [00:00<00:00, 118329.22 examples/s]
+Dropped 29 long samples from dataset
+Filtered out 0 samples with empty outputs
+Loaded dataset with 24932 samples
+Dumped 24932 samples to datasets/train_tokenized_d99ce208-2ff2-47ec-8899-650972d0ae33.json
+[len-check] tokenised 24932/24961 rows (29 dropped, 0.1%) at max_length=1024
+[len-check] tokenized dataset p95=821 max=1024 vs planned max_length=1024; 1/24932 (0.0%) reach the cap
+Processing datasets during training can lead to VRAM instability. Please pre-process your dataset.
+Processing instruct dataset type
+
+Generating train split: 0 examples [00:00, ? examples/s]
+Generating train split: 1000 examples [00:00, 35740.92 examples/s]
+
+Tokenizing Prompts (num_proc=24):   0%|          | 0/1000 [00:00<?, ? examples/s]
+Tokenizing Prompts (num_proc=24):   4%|▎         | 35/1000 [00:00<00:07, 136.23 examples/s]
+Tokenizing Prompts (num_proc=24):  24%|██▎       | 235/1000 [00:00<00:00, 800.03 examples/s]
+Tokenizing Prompts (num_proc=24):  41%|████      | 409/1000 [00:00<00:00, 1089.51 examples/s]
+Tokenizing Prompts (num_proc=24):  66%|██████▌   | 659/1000 [00:00<00:00, 1434.48 examples/s]
+Tokenizing Prompts (num_proc=24):  86%|████████▋ | 864/1000 [00:00<00:00, 1379.98 examples/s]
+Tokenizing Prompts (num_proc=24): 100%|██████████| 1000/1000 [00:00<00:00, 1129.81 examples/s]
+
+Dropping Long Sequences (num_proc=24):   0%|          | 0/1000 [00:00<?, ? examples/s]
+Dropping Long Sequences (num_proc=24):  88%|████████▊ | 877/1000 [00:00<00:00, 8763.41 examples/s]
+Dropping Long Sequences (num_proc=24): 100%|██████████| 1000/1000 [00:00<00:00, 4890.15 examples/s]
+Dropped 1 long samples from dataset
+Filtered out 0 samples with empty outputs
+Loaded dataset with 999 samples
+Dumped 999 samples to datasets/dev_tokenized_d99ce208-2ff2-47ec-8899-650972d0ae33.json
+[len-check] tokenised 999/1000 rows (1 dropped, 0.1%) at max_length=1024
+[len-check] tokenized dataset p95=825 max=1005 vs planned max_length=1024; 0/999 (0.0%) reach the cap
+Tokenization completed in 30 seconds
+************* Training attempt 1/5 for task d99ce208-2ff2-47ec-8899-650972d0ae33*************
+[Runtime] Disabled optional DeepSpeed import for non-DeepSpeed run
+2026-09-05 15:30:52,351 - datasets - INFO - PyTorch version 2.6.0 available.
+LOCAL_RANK: 0 in customized_trainer.py
+padding_side:  left
+padding_side:  left
+2026-09-05 15:30:55,818 - root - INFO - print: train_size: 24932; dev_size: 999
+2026-09-05 15:30:55,818 - root - INFO - print: min_data_size_num: 7000; max_length: 1024
+2026-09-05 15:30:56,722 - root - INFO - print: [CrossLingual] detection: fallback fertility test: 0.223 <= 0.4 (script=latin, category=default)
+2026-09-05 15:30:56,722 - root - INFO - print: world_size: 1
+2026-09-05 15:30:56,722 - root - INFO - print: total_steps_per_epoch: 356
+2026-09-05 15:30:56,728 - root - INFO - print: Using attn_implementation: flash_attention_2
+You are attempting to use Flash Attention 2.0 with a model not initialized on GPU. Make sure to move the model to GPU after initializing it on CPU with `model.to('cuda')`.
+2026-09-05 15:30:56,808 - root - INFO - print: Created output directory: /workspace/scripts/soutputs/d99ce208-2ff2-47ec-8899-650972d0ae33_0
+2026-09-05 15:30:56,808 - root - INFO - print: periodic_save_steps: 500
+2026-09-05 15:30:56,808 - root - INFO - print: max_steps: -1
+2026-09-05 15:30:56,810 - root - INFO - print: total_steps_per_epoch: 356; total_steps_all_epochs: 1068.0
+[early_stop] dynamic config: patience=2 (adaptive from total_steps=1068.0, derived_epochs=6), window=3, min_delta=0.0, cv_enabled=False cv_window=20 cv_thresh=0.05
+/root/lostinjamal/scripts/train_instruct.py:555: FutureWarning: `tokenizer` is deprecated and will be removed in version 5.0.0 for `Trainer.__init__`. Use `processing_class` instead.
+  trainer = Trainer(
+[2026-09-05 15:30:57,071] [INFO] [real_accelerator.py:219:get_accelerator] Setting ds_accelerator to cuda (auto detect)
+2026-09-05 15:30:57,129 - root - INFO - x86_64-linux-gnu-gcc -Wsign-compare -DNDEBUG -g -fwrapv -O2 -Wall -g -fstack-protector-strong -Wformat -Werror=format-security -g -fwrapv -O2 -fPIC -c /tmp/tmpe1sy8cwl/test.c -o /tmp/tmpe1sy8cwl/test.o
+2026-09-05 15:30:57,144 - root - INFO - x86_64-linux-gnu-gcc /tmp/tmpe1sy8cwl/test.o -laio -o /tmp/tmpe1sy8cwl/a.out
+2026-09-05 15:30:57,688 - root - INFO - x86_64-linux-gnu-gcc -Wsign-compare -DNDEBUG -g -fwrapv -O2 -Wall -g -fstack-protector-strong -Wformat -Werror=format-security -g -fwrapv -O2 -fPIC -c /tmp/tmpv04m3eww/test.c -o /tmp/tmpv04m3eww/test.o
+2026-09-05 15:30:57,702 - root - INFO - x86_64-linux-gnu-gcc /tmp/tmpv04m3eww/test.o -L/usr/local/cuda -L/usr/local/cuda/lib64 -lcufile -o /tmp/tmpv04m3eww/a.out
+2026-09-05 15:30:57,738 - root - INFO - x86_64-linux-gnu-gcc -Wsign-compare -DNDEBUG -g -fwrapv -O2 -Wall -g -fstack-protector-strong -Wformat -Werror=format-security -g -fwrapv -O2 -fPIC -c /tmp/tmplxojmw00/test.c -o /tmp/tmplxojmw00/test.o
+2026-09-05 15:30:57,752 - root - INFO - x86_64-linux-gnu-gcc /tmp/tmplxojmw00/test.o -laio -o /tmp/tmplxojmw00/a.out
+/usr/local/lib/python3.11/dist-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_name" in PromptModelConfig has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+Trainer.tokenizer is now deprecated. You should use `Trainer.processing_class = processing_class` instead.
+[per-layer-lr] SKIPPED: PER_LAYER_LR_ENABLED not set to 1 (default off)
+2026-09-05 15:30:58,837 - root - INFO - print: [WSM] merge will be gated on held-out loss
+2026-09-05 15:30:58,837 - root - INFO - print: [probe] LR probes will be scored on held-out dev loss
+2026-09-05 15:30:58,837 - root - INFO - print: [per-example] recording per-example eval losses to telemetry
+2026-09-05 15:30:58,837 - root - INFO - print: [lr-search] sweeping at batch=4 (training batch is 70)
+[lrrt] suggested_lr=4.04e-07, safe_lr=4.04e-08 (idx=12/100) picker=slope10
+[lrrt] candidates: slope=4.037e-07@12 slope10=4.037e-08 lossmin=2.477e-03@87 lossmin10=2.477e-04
+2026-09-05 15:31:09,318 - root - INFO - print: [lr-search] sweep curve written (100 points, accepted=True)
+2026-09-05 15:31:09,322 - root - INFO - print: [lr-search] task=instruct bounds=[1.0e-06,1.0e-03] lrrt=1.000e-06 (clamped from 4.037e-08) incumbent=8.030e-04 -> probe ['1.000e-06', '2.834e-05']  UNBRACKETED(nothing above the incumbent; upward probe suppressed: explored span 2.90d >= 1.0d)
+2026-09-05 15:31:09,322 - root - INFO - print: [lr-search] reloading model to discard the sweep's weights
+2026-09-05 15:31:09,336 - root - INFO - print: Using attn_implementation: flash_attention_2
+wandb: WARNING The `run_name` is currently set to the same value as `TrainingArguments.output_dir`. If this was not intended, please specify a different run name by setting the `TrainingArguments.run_name` parameter.
+wandb: Tracking run with wandb version 0.19.10
+wandb: W&B syncing is set to `offline` in this directory. Run `wandb online` or set WANDB_MODE=online to enable cloud syncing.
+
+  0%|          | 0/1071 [00:00<?, ?it/s]`use_cache=True` is incompatible with gradient checkpointing. Setting `use_cache=False`.
+
+  0%|          | 1/1071 [00:01<21:15,  1.19s/it]
+/root/lostinjamal/ops/smoke/run_instruct_replay.sh: line 163:   987 Killed                  python -m text_trainer --task-id "$TASK_ID" --model "$MODEL" --dataset "$TRAIN_JSON" --dataset-type "$DATASET_TYPE" --task-type InstructTextTask --file-format json --hours-to-complete "$HOURS" --expected-repo-name "$REPO_NAME" $REG_RATIO_ARG 2>&1
+       988 Done                    | tee "$LOG"
