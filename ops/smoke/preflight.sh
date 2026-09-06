@@ -58,6 +58,33 @@ command -v nvidia-smi >/dev/null 2>&1 && {
     || warn "only ${FREE} MiB free — another process is holding the GPU, results will be noisy"
 } || bad "no nvidia-smi"
 
+# nvidia-smi is not the thing that trains. It talks to the driver directly and answers
+# happily inside a container where torch cannot initialise CUDA at all — measured
+# 2026-09-07, where nvidia-smi reported two H100s and 81007 MiB free while torch reported
+# device_count 0 and every stage of the gate died on
+#   ValueError: --tf32 requires Ampere or a newer GPU arch
+# on a card that is two generations newer than Ampere. The whole five-path run was spent
+# before anything noticed. Ask the library that does the work.
+python - <<'PYCHK'
+import sys
+try:
+    import torch
+except Exception as exc:
+    print(f"TORCH_IMPORT_FAILED {type(exc).__name__}: {exc}"); sys.exit(2)
+if not torch.cuda.is_available():
+    print("CUDA_UNAVAILABLE"); sys.exit(1)
+n = torch.cuda.device_count()
+if n < 1:
+    print("ZERO_DEVICES"); sys.exit(1)
+caps = ",".join(f"{i}:{torch.cuda.get_device_capability(i)[0]}.{torch.cuda.get_device_capability(i)[1]}" for i in range(n))
+print(f"OK {n} {caps}")
+PYCHK
+case $? in
+  0) ok "torch sees CUDA ($(python -c "import torch;print(torch.cuda.device_count())" 2>/dev/null) device(s))" ;;
+  1) bad "nvidia-smi answers but torch.cuda is unavailable — this box cannot train, and every stage will fail late" ;;
+  *) bad "torch could not be imported for the CUDA check" ;;
+esac
+
 # Training writes a full checkpoint per save into output_dir and nothing prunes them
 # (no save_total_limit anywhere), and the LR ladder gives every attempt its OWN output
 # dir. Five paths back to back filled a 969 GB disk on the first real gate run, and the
