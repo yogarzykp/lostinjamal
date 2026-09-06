@@ -223,8 +223,32 @@ def main():
     # Multi-GPU DDP + gradient_checkpointing reentrant variant raises
     # "Expected to mark a variable ready only once" — switch to non-reentrant.
     # Also slightly lower memory. Safe for single-GPU too.
+    #
+    # BUT NOT UNDER ZeRO-3, where non-reentrant is fatal. Measured 2026-09-07 on
+    # Qwen2.5-14B across 2 GPUs: both ranks died with
+    #   torch.utils.checkpoint.CheckpointError: Recomputed values for the following
+    #   tensors have different metadata than during the forward pass
+    #   saved: torch.Size([13824, 5120])   recomputed: torch.Size([0])
+    # ZeRO-3 releases a gathered parameter after the forward pass, so the recomputation
+    # sees an empty shard. The non-reentrant implementation is precisely the one that
+    # VALIDATES recomputed metadata, so it is the variant that notices and raises.
+    #
+    # train_dpo.py:291 has known this since it was written and branches on
+    # is_deepspeed_zero3_enabled(). instruct never got the branch — and instruct is the
+    # task type the boss round guarantees at 35-71B, which is exactly where ZeRO-3 fires.
+    # Same shape as the three byte-identical find_all_linear_names copies: a correct fix
+    # that reached one path out of several.
     if training_args.gradient_checkpointing:
-        training_args.gradient_checkpointing_kwargs = {"use_reentrant": False}
+        _zero3 = False
+        try:
+            from transformers.integrations import is_deepspeed_zero3_enabled
+            _zero3 = is_deepspeed_zero3_enabled()
+        except Exception as _e:  # pragma: no cover - depends on the transformers build
+            log_info(f"could not determine ZeRO-3 state ({type(_e).__name__}: {_e}); "
+                     f"assuming not ZeRO-3")
+        training_args.gradient_checkpointing_kwargs = {"use_reentrant": bool(_zero3)}
+        log_info(f"gradient checkpointing: use_reentrant={bool(_zero3)} "
+                 f"(deepspeed_zero3={_zero3})")
     train_info = json.load(open(training_args.request_path, "r"))
     train_request = train_info["train_request"]
     # log_info(f"Training request: {train_request}", "start")
