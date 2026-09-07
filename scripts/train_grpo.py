@@ -458,8 +458,26 @@ def main():
 
     training_args.save_only_model = True  # only save the model, not the optimizer
  
+    # ZeRO-3 needs the REENTRANT checkpoint variant. The non-reentrant one validates
+    # recomputed activation metadata, and ZeRO-3 releases a gathered parameter after the
+    # forward pass, so recomputation sees torch.Size([0]) and every rank dies with
+    # CheckpointError before step one. Measured on Qwen2.5-14B / 2 GPUs, 2026-09-07.
+    #
+    # train_grpo had no ZeRO-3 branch here at all — it forced non-reentrant unconditionally.
+    # HF's Trainer re-applies args.gradient_checkpointing_kwargs inside _inner_training_loop,
+    #   if args.gradient_checkpointing:
+    #       self.model.gradient_checkpointing_enable(gradient_checkpointing_kwargs=args.gradient_checkpointing_kwargs)
+    # so the args value is what actually reaches training. This is the seam that decides.
+    #
+    # It became reachable when adaptive_config widened the ds/ddp threshold to gpu_count>1:
+    # a >9B GRPO task is provisioned x2, so it lands on 3+ GPUs and now takes ZeRO-3.
+    # A crash here is not a bad score, it is a forfeit — no checkpoint is written, the
+    # relaunch ladder only pattern-matches OOM, and add_random_noise ships a noised base
+    # model as the finetune.
     if training_args.gradient_checkpointing:
-        training_args.gradient_checkpointing_kwargs = {"use_reentrant": False}
+        _zero3 = is_deepspeed_zero3_enabled()
+        training_args.gradient_checkpointing_kwargs = {"use_reentrant": bool(_zero3)}
+        log_info(f"gradient checkpointing: use_reentrant={bool(_zero3)} (deepspeed_zero3={_zero3})")
         
     print("train_ds.column_names: ", train_ds.column_names)
     print("dev_ds.column_names: ", dev_ds.column_names)

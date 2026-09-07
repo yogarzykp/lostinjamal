@@ -76,6 +76,46 @@ def test_the_zero3_probe_cannot_take_the_run_down_with_it():
     pytest.fail("the is_deepspeed_zero3_enabled import is not guarded by try/except")
 
 
+GRPO = os.path.join(ROOT, "scripts", "train_grpo.py")
+
+
+@pytest.mark.parametrize("path,name", [(INSTRUCT, "train_instruct"), (DPO, "train_dpo"), (GRPO, "train_grpo")])
+def test_no_trainer_hard_codes_non_reentrant(path, name):
+    """The exact line that forfeits a ZeRO-3 run, in each file it lived in.
+
+    All three trainers set training_args.gradient_checkpointing_kwargs, and HF's Trainer
+    re-applies that value inside _inner_training_loop — so this assignment, not any
+    model.gradient_checkpointing_enable() call, is what reaches training. DPO had such a
+    call forty lines earlier and it was dead for exactly this reason.
+    """
+    src = _src(path)
+    assert '{"use_reentrant": False}' not in src, (
+        f"{name} hard-codes non-reentrant checkpointing. Under ZeRO-3 that aborts every "
+        "rank with CheckpointError before step one, no checkpoint is written, and the "
+        "run falls through to the noise fallback — a forfeit, not a bad score"
+    )
+
+
+@pytest.mark.parametrize("path,name", [(INSTRUCT, "train_instruct"), (DPO, "train_dpo"), (GRPO, "train_grpo")])
+def test_every_trainer_decides_reentrant_from_zero3(path, name):
+    """adaptive_config's `distributed` key is read by all three trainers, so a threshold
+    change that routes one of them to ZeRO-3 routes any of them. The fix has to be in all
+    three or the next widening re-opens the hole in whichever was missed."""
+    tree = ast.parse(_src(path))
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Assign):
+            continue
+        tgt = node.targets[0]
+        if isinstance(tgt, ast.Attribute) and tgt.attr == "gradient_checkpointing_kwargs":
+            dumped = ast.dump(node.value)
+            assert "Name" in dumped or "Call" in dumped, (
+                f"{name} assigns a literal to gradient_checkpointing_kwargs; it must "
+                "depend on the ZeRO-3 state"
+            )
+            return
+    pytest.fail(f"{name} never assigns training_args.gradient_checkpointing_kwargs")
+
+
 def test_dpo_still_has_the_branch_instruct_was_missing():
     """The reference implementation. If this ever goes, the two paths have diverged again."""
     assert "is_deepspeed_zero3_enabled()" in _src(DPO)
