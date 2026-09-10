@@ -693,6 +693,63 @@ class CustomEvalSaveCallback(TrainerCallback):
             return
         print(f"GO INTO CUSTOMIZED EVALUATE AT STEP: {state.global_step}", flush=True)
 
+        # Track for window smoothing
+        self.eval_history.append(float(eval_loss))
+        # WSM: record latest eval_loss+step pair so on_save can track ckpt to pool.
+        # Tracked at EVERY eval (not just NEW BEST) — top-K filter rejects spikes.
+        self._wsm_last_eval_loss = float(eval_loss)
+        self._wsm_last_eval_step = int(state.global_step)
+
+        improved = (
+            self.best_checkpoint_info is None
+            or eval_loss < self.best_checkpoint_info["loss"] - self.early_stop_min_delta
+        )
+        if improved:
+            print(f"Updating the best checkpoint info at step: {state.global_step} with eval_loss: {eval_loss}", flush=True)
+            self.best_checkpoint_info = {
+                "loss": eval_loss,
+                "step": state.global_step
+            }
+            self.update_best_checkpoint = True
+            self.no_improve_count = 0
+            # ── Cross-instance persist (lotob-grpo-hard) ──
+            # Save new best to state_manager so subsequent subprocess
+            # instances can compare against it (prevents worse final-run
+            # ckpt from overwriting an earlier probe-run best).
+            # DDP guard 2026-05-12: only rank-0 writes — multiple ranks
+            # racing on shared Redis key produces inconsistent reads. Per
+            # multi-GPU audit, this was MED severity (race window real).
+            if os.environ.get("TRAINING_BEST_CKPT_PERSIST", "1") == "1" and is_main_process(LOCAL_RANK):
+                try:
+                    _state = get_state() or {}
+                    _state["global_best_checkpoint"] = {
+                        "loss": float(eval_loss),
+                        "step": int(state.global_step),
+                    }
+                    set_state(_state)
+                except Exception as _exc:
+                    print(f"[best_ckpt persist] save skipped: {_exc}", flush=True)
+        # Everything below the promotion is observational. It sits HERE, and not
+        # where it used to sit — above the promotion — because on 2026-09-07 that
+        # ordering cost us a checkpoint in a live tournament. Task 59469903
+        # evaluated at step 500 (0.05278521) and again at step 544 (0.05173291),
+        # the deadline eval. The step-500 promotion happened; the step-544 one
+        # never did, because the container was killed inside the per-example pass
+        # below, 242s into it. We shipped the worse of two checkpoints we had
+        # already measured, and gave away 0.00105 nats against a 0.0072 gap to
+        # rank 1 on that task.
+        #
+        # The rule this encodes: the one statement that decides which artefact we
+        # ship must never sit downstream of work whose own comment says nothing
+        # reads it. The boss does the same thing structurally — its on_evaluate
+        # promotes with nothing at all between the metric and the promotion
+        # (god-text-tourn-2ba0f79237bffcf7-20260907-position-1,
+        # scripts/customized_trainer.py:249-267).
+        #
+        # Placed before the early-stop branch rather than at the end of the method
+        # so that it still runs on every path: that branch returns early in several
+        # places, and telemetry that only fires on improving evals would be a
+        # biased sample of exactly the runs we want to study.
         # Label side of the estimator dataset: what this configuration scored.
         # Paired with the config record adaptive_config wrote before training.
         try:
@@ -724,8 +781,9 @@ class CustomEvalSaveCallback(TrainerCallback):
         # different checkpoint than the mean did. That measurement, not the PR,
         # is what should decide adoption.
         #
-        # Costs one extra forward pass over the dev set per eval. Set
-        # EMIT_PER_EXAMPLE_LOSSES=0 to skip it.
+        # Costs one extra forward pass over the dev set per eval — measured at
+        # 349.7s against 109.2s for the batched eval it duplicates. Default OFF as
+        # of this change; set EMIT_PER_EXAMPLE_LOSSES=1 to capture it.
         try:
             from per_example_eval import (
                 collect_per_example_losses,
@@ -759,39 +817,7 @@ class CustomEvalSaveCallback(TrainerCallback):
         except Exception as _exc:
             print(f"[per-example] skipped ({type(_exc).__name__}: {_exc})", flush=True)
 
-        # Track for window smoothing
-        self.eval_history.append(float(eval_loss))
-        # WSM: record latest eval_loss+step pair so on_save can track ckpt to pool.
-        # Tracked at EVERY eval (not just NEW BEST) — top-K filter rejects spikes.
-        self._wsm_last_eval_loss = float(eval_loss)
-        self._wsm_last_eval_step = int(state.global_step)
-
-        if self.best_checkpoint_info is None or eval_loss < self.best_checkpoint_info["loss"] - self.early_stop_min_delta:
-            print(f"Updating the best checkpoint info at step: {state.global_step} with eval_loss: {eval_loss}", flush=True)
-            self.best_checkpoint_info = {
-                "loss": eval_loss,
-                "step": state.global_step
-            }
-            self.update_best_checkpoint = True
-            self.no_improve_count = 0
-            # ── Cross-instance persist (lotob-grpo-hard) ──
-            # Save new best to state_manager so subsequent subprocess
-            # instances can compare against it (prevents worse final-run
-            # ckpt from overwriting an earlier probe-run best).
-            # DDP guard 2026-05-12: only rank-0 writes — multiple ranks
-            # racing on shared Redis key produces inconsistent reads. Per
-            # multi-GPU audit, this was MED severity (race window real).
-            if os.environ.get("TRAINING_BEST_CKPT_PERSIST", "1") == "1" and is_main_process(LOCAL_RANK):
-                try:
-                    _state = get_state() or {}
-                    _state["global_best_checkpoint"] = {
-                        "loss": float(eval_loss),
-                        "step": int(state.global_step),
-                    }
-                    set_state(_state)
-                except Exception as _exc:
-                    print(f"[best_ckpt persist] save skipped: {_exc}", flush=True)
-        else:
+        if not improved:
             self.no_improve_count += 1
             if self.best_checkpoint_info is not None:
                 print(

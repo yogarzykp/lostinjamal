@@ -56,8 +56,25 @@ EMIT_ENV = "EMIT_PER_EXAMPLE_LOSSES"
 
 
 def enabled() -> bool:
-    """Default on. Set EMIT_PER_EXAMPLE_LOSSES=0 to skip the extra forward pass."""
-    return os.getenv(EMIT_ENV, "1") == "1"
+    """Default OFF. Set EMIT_PER_EXAMPLE_LOSSES=1 to capture the vector.
+
+    It was default-on, on the argument that the vector is "free to capture on runs
+    we are doing anyway". Measured on tournament task 59469903 it is not free: the
+    pass took 349.7s against 109.2s for the batched eval it duplicates, and it
+    reproduced that eval's mean to 2.4e-6 — 0.0046%. At the run's measured 2.885
+    s/step that is ~121 training steps per eval.
+
+    What it buys is also less than it looks. The vector is written to
+    <output_dir>/run_telemetry.jsonl, which is inside the container and is not the
+    submission directory, so it does not survive the run; nothing in scripts/ reads
+    it back. The measurement it exists to enable — whether win-rate selection would
+    pick a different checkpoint than the mean — needs the file to outlive the box
+    first.
+
+    ops/smoke/* export EMIT_PER_EXAMPLE_LOSSES=1 explicitly, so the gate keeps its
+    smoke coverage; only tournament runs change behaviour.
+    """
+    return os.getenv(EMIT_ENV, "0") == "1"
 
 
 def per_example_losses_from_logits(logits: torch.Tensor, labels: torch.Tensor) -> list:
