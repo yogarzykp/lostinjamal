@@ -1,0 +1,60 @@
+{
+  "tournament_id": "tourn_2ba0f79237bffcf7_20260907",
+  "provenance": {
+    "endpoint": "https://www.gradients.io/app/research/tournament/tourn_2ba0f79237bffcf7_20260907",
+    "query": {
+      "tourn_id": "tourn_2ba0f79237bffcf7_20260907"
+    },
+    "fetched_at": "2026-09-10T18:21:16Z"
+  },
+  "http_status": 200,
+  "participants": {
+    "hotkeys": [
+      "5CcwdezWzkcQaMxPh3WrfdB67c8WvdWXStyjkh61MJyP1vis",
+      "5DLy32QP39w7Y5xJSggknW6KH8mDnRpQ2PPXETtVuC6637Ev",
+      "5DXVNvDmGZqdXbqRzsJZdJVoAgbLdhdFrrrmtAAfsh4QkGUU",
+      "5E2fNjMWkC7NhjFsobwdDT1ym9R8ws7iDMnaZtE1RcnAsfZf",
+      "5E6p1x3eCugTn634Dc2GrwyTjwb6j6hgzEGzZgQ8Xuyr5fXW",
+      "5EUHojrMhLPHWFpgZDS6oHyYgWSe6haqnfKE2mdy4U7bEEnQ",
+      "5EcZmz41oFGaJVte8DEzuGd8QyBBxjhTobhrK4A5y4b1Q24Y",
+      "5EhyCWPuyYUDD5RMQ8FM5jknMqfTtSQZ3a3PDARRhjSdCAYb",
+      "5FW2EqiCeLknueng7Bp9rj4JrPNv5F6nxNg7yUtART6U1odT",
+      "5GU4Xkd3dCGTU3s8VLcHGc5wsD5M8XyxDca5yDQhYm1mVXFu",
+      "5GcAxvH7oAr9hT2bauAU8y2B8GUiZbvmwrrnj1B4op9toCnY",
+      "5HBgDWKxNX3333Yit3qMokkYY4Guz1r8Qfons2UJTSU5oqjV",
+      "5HLA2QWYy3GpNwCiBCwMMhGw5hpPosSeZ41my8B3nuFDQHNF"
+    ],
+    "training_repositories": [],
+    "raw": null
+  },
+  "status": "completed",
+  "base_winner_hotkey": "5H9AM1bG7m1BFagftX3B4X1SfyeBSsMYodTcWuM9ieQZk2NK",
+  "winner_hotkey": "5GU4Xkd3dCGTU3s8VLcHGc5wsD5M8XyxDca5yDQhYm1mVXFu",
+  "tasks": {
+    "task_ids": [
+      "29fc1a10-5cc0-4d2d-9fda-70f59bda942e",
+      "3da4fc7a-d2c2-4412-802f-fba9fd255704",
+      "59469903-e203-4bea-8f1e-18c672ff772a",
+      "9611f54a-5877-41de-9fe1-3248473b62a8",
+      "c1f6fd2b-44cd-4ad9-acc6-c378ece1521e",
+      "cd6788e7-0d07-4350-8990-45e90676a9f9",
+      "d97bc9b8-c8e0-40f3-8c15-d4e98d6c7c41",
+      "dd558022-496c-4779-8fef-118689e7a227",
+      "e87c9918-080d-498e-b224-5aa7e2b8fbf0",
+      "ef9824ae-b617-45c7-a5ea-5b1ed01688b4"
+    ],
+    "task_types": [
+      "ChatTask",
+      "DpoTask",
+      "GrpoTask",
+      "InstructTextTask"
+    ],
+    "has_paired_example_wins": true,
+    "has_boss_round_performance": true,
+    "raw": null
+  },
+  "diff_report": {
+    "status": "AVAILABLE",
+    "note": "re-run with --diff-report to fetch the body (the URL is presigned and is deliberately not printed)"
+  }
+}

@@ -1,0 +1,58 @@
+{
+  "provenance": {
+    "endpoint": "https://api.gradients.io/auditing/tasks/33024949-bb85-44df-a71d-4ce98e1cab61",
+    "query": {
+      "task_id": "33024949-bb85-44df-a71d-4ce98e1cab61"
+    },
+    "fetched_at": "2026-09-08T15:52:16Z"
+  },
+  "task_id": "33024949-bb85-44df-a71d-4ce98e1cab61",
+  "status": "awaiting_model_prep",
+  "task_type": "DpoTask",
+  "model_id": "unsloth/Llama-3.2-3B",
+  "model_type": {
+    "status": "UNAVAILABLE",
+    "reason": "'model_type' not present in this task's auditing API response"
+  },
+  "ds": "Hidden",
+  "trigger_word": {
+    "status": "UNAVAILABLE",
+    "reason": "'trigger_word' not present in this task's auditing API response"
+  },
+  "is_organic": false,
+  "trained_model_repository": null,
+  "hours_to_complete": 1.25,
+  "image_text_pair_count": {
+    "status": "UNAVAILABLE",
+    "reason": "'image_text_pairs' not present in this task's auditing API response"
+  },
+  "dataset_url_expires_at": {
+    "status": "UNAVAILABLE",
+    "reason": "no presigned link to read an expiry from"
+  },
+  "hotkey_details": [
+    {
+      "hotkey": "5GcAxvH7oAr9hT2bauAU8y2B8GUiZbvmwrrnj1B4op9toCnY",
+      "submission_id": null,
+      "quality_score": 0.0,
+      "test_loss": 0.0,
+      "synth_loss": 0.0,
+      "repo": null,
+      "rank": 1,
+      "score_reason": null,
+      "offer_response": null
+    },
+    {
+      "hotkey": "5GU4Xkd3dCGTU3s8VLcHGc5wsD5M8XyxDca5yDQhYm1mVXFu",
+      "submission_id": null,
+      "quality_score": 0.0,
+      "test_loss": 0.0,
+      "synth_loss": 0.0,
+      "repo": null,
+      "rank": 1,
+      "score_reason": null,
+      "offer_response": null
+    }
+  ],
+  "kl_note": "use_kl and kl_coef are always False/None here even for KL tasks — the config is not persisted once a task finishes. See references/kl-and-augmentation.md"
+}

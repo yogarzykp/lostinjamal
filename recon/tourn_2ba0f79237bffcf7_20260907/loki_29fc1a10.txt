@@ -1,0 +1,20 @@
+{
+  "pages_fetched": 1,
+  "line_count": 0,
+  "hit_page_cap": false,
+  "window_days": 1,
+  "lines": [],
+  "provenance": {
+    "endpoint": "http://185.141.218.122:3001/api/datasources/proxy/uid/PABAB4B93E00F8D83/loki/api/v1/query_range",
+    "query": {
+      "task_id": "29fc1a10-5cc0-4d2d-9fda-70f59bda942e",
+      "hotkey": "5HBgDWKxNX3333Yit3qMokkYY4Guz1r8Qfons2UJTSU5oqjV"
+    },
+    "fetched_at": "2026-09-07T11:55:59Z"
+  },
+  "containers": [],
+  "wandb_run_names": {
+    "status": "UNAVAILABLE",
+    "reason": "no 'Synced W&B Run' line — this miner ran WANDB_MODE=offline. For a task after 2026-08-11 that is the norm and `wandb-find` will find nothing either: the public project stopped receiving syncs that day. Before it, try `wandb-find` anyway."
+  }
+}
