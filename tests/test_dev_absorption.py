@@ -390,6 +390,92 @@ def test_a_nan_loss_declines_rather_than_shipping_it(absorb, tmp_path, submissio
     assert _fingerprint(submission) == before
 
 
+def _sharded_submission(tmp_path):
+    """A submission in the shape every model large enough to shard arrives in."""
+    d = tmp_path / "submission"
+    d.mkdir()
+    (d / "config.json").write_text(json.dumps({"architectures": ["LlamaForCausalLM"]}))
+    (d / "tokenizer.json").write_text("{}")
+    (d / "model-00001-of-00002.safetensors").write_bytes(b"shard one")
+    (d / "model-00002-of-00002.safetensors").write_bytes(b"shard two")
+    (d / "model.safetensors.index.json").write_text(json.dumps({
+        "metadata": {"total_size": 18},
+        "weight_map": {
+            "model.embed_tokens.weight": "model-00001-of-00002.safetensors",
+            "lm_head.weight": "model-00002-of-00002.safetensors",
+        },
+    }))
+    return str(d)
+
+
+def test_a_sharded_submission_does_not_keep_an_index_naming_deleted_shards(
+        absorb, tmp_path, stack):
+    """The forfeit shape: absorption re-serialises to ONE file where the checkpoint
+    it replaces was sharded.
+
+    save_pretrained writes no index in that case, so an index left over from the
+    previous layout survives the swap and names shards that were just deleted.
+    from_pretrained prefers the index whenever it is present, so the submission does
+    not load at all — a zero, not a worse score. Nothing in the 2.6B/360M round-1
+    draw could surface it; the boss round's 35-71B task guarantees it.
+
+    The champion avoids this from the other side: dev_pass.py stages into an empty
+    directory and copies only NON-weight files across, and its _is_weight_file lists
+    the index for exactly this reason (dev_pass.py:154-157).
+    """
+    sub = _sharded_submission(tmp_path)
+    got, log = _call(absorb, sub, _dev(tmp_path, 16))
+    assert got is not None, log
+
+    left = set(os.listdir(sub))
+    assert "model.safetensors" in left, left
+    assert not [n for n in left if n.startswith("model-0000")], (
+        f"pre-absorption shards survived: {sorted(left)}"
+    )
+    assert "model.safetensors.index.json" not in left, (
+        "a stale shard index survived the swap; it names shards that no longer exist, "
+        "so from_pretrained will fail on this submission"
+    )
+
+
+def test_the_bin_shard_index_is_cleared_too(absorb, tmp_path, stack):
+    """Same defect, .bin serialisation. The champion's predicate misses this one;
+    ours covers it because our shape deletes rather than selectively copies."""
+    d = tmp_path / "submission"
+    d.mkdir()
+    (d / "config.json").write_text(json.dumps({"architectures": ["LlamaForCausalLM"]}))
+    (d / "pytorch_model-00001-of-00002.bin").write_bytes(b"shard one")
+    (d / "pytorch_model.bin.index.json").write_text(json.dumps({"weight_map": {}}))
+    got, log = _call(absorb, str(d), _dev(tmp_path, 16))
+    assert got is not None, log
+    left = set(os.listdir(str(d)))
+    assert "pytorch_model.bin.index.json" not in left, sorted(left)
+
+
+def test_the_weights_written_check_still_rejects_an_index_alone(absorb, tmp_path, stack):
+    """The stale-artefact predicate must not be folded into _weights_only.
+
+    _weights_only also answers "did save_pretrained actually write weights". If the
+    index counted as weights, a save that produced nothing but an index would pass
+    that check and ship a submission with no model in it.
+    """
+    src = _source(MODULE)
+    tree = ast.parse(src)
+    names = {n.name for n in tree.body if isinstance(n, ast.FunctionDef)}
+    assert {"_weights_only", "_stale_weight_artefact"} <= names, names
+
+    ns = {}
+    exec(compile(ast.Module(
+        body=[n for n in tree.body
+              if isinstance(n, ast.FunctionDef) and n.name in
+              ("_weights_only", "_stale_weight_artefact")],
+        type_ignores=[]), "<dev_absorption>", "exec"), ns)
+    assert ns["_weights_only"]("model.safetensors.index.json") is False
+    assert ns["_stale_weight_artefact"]("model.safetensors.index.json") is True
+    assert ns["_weights_only"]("model.safetensors") is True
+    assert ns["_stale_weight_artefact"]("model.safetensors") is True
+
+
 def test_a_staged_directory_without_weights_is_refused(absorb, tmp_path, submission, stack):
     """save_pretrained can return quietly having written nothing; that is not a success."""
     quiet = _FakeModel()

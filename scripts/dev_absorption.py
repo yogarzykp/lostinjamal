@@ -80,6 +80,36 @@ def _weights_only(name: str) -> bool:
     return name.endswith(".safetensors") or name.endswith(".bin")
 
 
+def _stale_weight_artefact(name: str) -> bool:
+    """What has to leave staging before save_pretrained writes the absorbed weights.
+
+    A shard index is not a weight file, but it names weight files. If the absorbed
+    model serialises to a different layout than the checkpoint it replaces — above
+    all a single model.safetensors where the previous one was sharded —
+    save_pretrained writes no new index, the old one survives, and it names shards
+    that were just deleted. from_pretrained prefers the index whenever it is present,
+    so the submission does not load at all. That is a forfeit, not a worse score, and
+    it only appears on models large enough to shard: nothing in this tournament's
+    2.6B/360M round-1 draw could have surfaced it, and the boss round's 35-71B task
+    guarantees it.
+
+    The boss reaches the same guarantee from the other side: dev_pass.py stages into
+    an empty directory and copies only NON-weight files across (its _is_weight_file at
+    dev_pass.py:154-157 lists the index for exactly this reason), so a stale index can
+    never arrive. We stage by copying everything and deleting, so the index has to be
+    named here instead.
+
+    Deliberately NOT folded into _weights_only: that predicate also answers "did any
+    weights actually get written" at the post-save check, and an index on its own is
+    not weights. Merging them would let a save that produced nothing but an index pass
+    that check.
+    """
+    return _weights_only(name) or name in (
+        "model.safetensors.index.json",
+        "pytorch_model.bin.index.json",
+    )
+
+
 def _prior_dev_loss(submission_dir: str):
     """The dev loss already measured for THIS checkpoint, as (value, note).
 
@@ -262,7 +292,7 @@ def absorb_dev_split(
             shutil.rmtree(staging)
         shutil.copytree(submission_dir, staging)
         for name in os.listdir(staging):
-            if _weights_only(name):
+            if _stale_weight_artefact(name):
                 os.remove(os.path.join(staging, name))
         model.config.save_pretrained(staging)
         model.save_pretrained(staging, safe_serialization=True)
