@@ -76,9 +76,18 @@ PYEOF
 
 
 # --- gates shared by every path ------------------------------------------------
-# `Training successfully done` is the only line printed after the post-training NaN
-# scan and the architectures restore, so its absence means those never ran even if
-# a model file exists on disk.
+# `Training successfully done` proves the trainer returned with a submission on disk
+# (text_trainer.py:1315). It does NOT prove the post-training checks passed: the
+# NaN/Inf scan, the zero-weight scan and the noise fallback all run AFTER it, and
+# train_instruct.py:934 streams the same words the moment trainer.train() returns.
+# So a run that produced a model, then fell back to a noised base, still carries the
+# line — and until 2026-09-12 this gate reported such a run as "training completed".
+# That is the exact forfeit shape the ZeRO-3 checkpointing branch exists to prevent,
+# and the gate would have green-lit it. The second grep closes that: both markers
+# are printed only on the fallback path (text_trainer.py:1329/1331 on a NaN or
+# all-zero submission, StageClock "noise fallback" at :1397 after a failed run).
+# The per-attempt "Training failed for task X at count=N" (:1276) is deliberately
+# NOT matched — the OOM ladder prints it on attempts it then recovers from.
 common_gates() {
   local name="$1" log="$2" sub="$3"
   [ -f "$log" ] || { fail "$name" "no log at $log"; return; }
@@ -86,6 +95,16 @@ common_gates() {
   grep -aq "Training successfully done" "$log" \
     && pass "$name" "training completed" \
     || fail "$name" "no 'Training successfully done' — post-training checks did not run"
+
+  # Two plain literals rather than one regex, so test_gate_assertions_have_producers
+  # can prove each has a printer: "falling back to noise" is text_trainer.py:1329/1331,
+  # "noise fallback" is the StageClock mark at :1397 (the other two occurrences of those
+  # words in the file are a docstring and a comment, never printed).
+  if grep -aq "falling back to noise" "$log" || grep -aq "noise fallback" "$log"; then
+    fail "$name" "submission is a noised base — the run fell back after training"
+  else
+    pass "$name" "no noise fallback"
+  fi
 
   # Tracebacks alone do not mean failure here: the OOM ladder deliberately crashes an
   # attempt, halves the batch and relaunches, so a recovered OOM leaves a traceback in
