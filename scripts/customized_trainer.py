@@ -377,17 +377,27 @@ class CustomEvalSaveCallback(TrainerCallback):
         loss (validator/evaluation/evaluators/dpo.py, BETA_DPO=0.1), so scoring
         probes the same way aligns selection with what we are actually ranked on.
 
-        Fail-open: any error falls back to the training loss so a probe run is
-        never lost to an eval failure.
+        Never returns None, and a failed held-out eval ranks LAST (+inf) rather than
+        being scored on the training loss. Both were live defects: a None here reached
+        min()/argmin over state["runs"] in text_trainer.main(), which has no outer
+        guard — TypeError, exit != 0, no upload. And the old "fall back to train loss"
+        put one probe's TRAINING loss into a ranking whose siblings hold held-out
+        losses; on DPO that is exactly the quantity that prefers the most destructive
+        LR. inf is deterministic, comparable, and loses nothing that the fallback
+        would have kept: a probe with no measurement cannot be chosen on merit anyway.
+        With no scorer wired at all, every sibling is on training loss too, so that
+        path keeps returning it — guarded to inf when there is no loss yet.
         """
         train_loss = None
         try:
-            train_loss = state.log_history[-1]["loss"]
+            train_loss = float(state.log_history[-1]["loss"])
+            if train_loss != train_loss:
+                train_loss = None
         except Exception:
             pass
 
         if self.probe_eval_fn is None:
-            return train_loss
+            return train_loss if train_loss is not None else float("inf")
 
         try:
             eval_loss = float(self.probe_eval_fn())
@@ -401,10 +411,11 @@ class CustomEvalSaveCallback(TrainerCallback):
             return eval_loss
         except Exception as exc:
             print(
-                f"[probe] held-out eval failed ({exc}); falling back to train loss {train_loss}",
+                f"[probe] held-out eval failed ({exc}); ranking this probe last "
+                f"(train loss was {train_loss}, not comparable to siblings' held-out losses)",
                 flush=True,
             )
-            return train_loss
+            return float("inf")
 
     def on_step_end(self, args, state: TrainerState, control: TrainerControl, **kwargs):
         # Custom logic to decide whether to save or evaluate

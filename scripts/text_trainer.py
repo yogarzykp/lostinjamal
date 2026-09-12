@@ -6,6 +6,7 @@ Standalone script for text model training (InstructText, DPO, and GRPO)
 import argparse
 import asyncio
 import json
+import math
 import os
 import shutil
 import copy
@@ -509,12 +510,51 @@ def patch_wandb_symlinks(base_dir: str):
                     pathlib.Path(full_path).touch()
 
 
+def _finite_loss(run) -> float | None:
+    """A run's current_loss as a finite float, or None when it has no usable one.
+
+    Same rule as customized_trainer._current_min_loss, which already guards the
+    callback side. A run arrives without a finite loss in two real ways: its probe
+    eval failed and the scorer had nothing to fall back to, or the end_time handler
+    stopped it before checking_step — success.txt is written, the run is appended to
+    state["runs"], and state["train"] was created without the key. Either used to be
+    a TypeError / KeyError inside main(), which has no outer guard: exit != 0 before
+    the fallback, and nothing is uploaded.
+    """
+    if not isinstance(run, dict):
+        return None
+    v = run.get("current_loss")
+    if isinstance(v, bool) or not isinstance(v, (int, float)):
+        return None
+    v = float(v)
+    return v if math.isfinite(v) else None
+
+
+def best_probe_index(train_runs: list[dict]) -> int:
+    """Index of the probe with the lowest finite loss — never raises.
+
+    With nothing measured, the final run still needs a command: take the most recent
+    probe's and say so, rather than raise and forfeit the task.
+    """
+    scored = [(loss, i) for i, r in enumerate(train_runs) if (loss := _finite_loss(r)) is not None]
+    if scored:
+        return min(scored)[1]
+    print(f"[ladder] no probe produced a finite loss across {len(train_runs)} run(s); "
+          f"using the last probe's command", flush=True)
+    return len(train_runs) - 1
+
+
 def delete_poor_checkpoints(train_runs: list[dict]):
-    lowest_loss = min([run["current_loss"] for run in train_runs])
-    for run in train_runs:
-        if run["current_loss"] > lowest_loss:
+    """Remove checkpoints that measured worse than the best. Unmeasured is not poor."""
+    measured = [(loss, run) for run in train_runs if (loss := _finite_loss(run)) is not None]
+    if not measured:
+        print(f"[ladder] no finite loss among {len(train_runs)} run(s); keeping every checkpoint", flush=True)
+        return
+    lowest_loss = min(loss for loss, _ in measured)
+    for loss, run in measured:
+        if loss > lowest_loss:
             if os.path.exists(run["output_dir"]):
-                print(f"Deleting checkpoint {run['output_dir']} with loss {run['current_loss']}", flush=True)
+                print(f"Deleting checkpoint {run['output_dir']} with loss {loss}", flush=True)
                 shutil.rmtree(run["output_dir"])
 
 
@@ -1227,8 +1267,8 @@ def main():
                 else: # the final run
                     # first find from runs the best loss
                     c_train_info["train_request"]["checking_mode"] = "none"
-                    index = np.argmin([run["current_loss"] for run in state["runs"]])
-                    print(f"BL;{index};{state['runs'][index]['current_loss']}; {state['lrs'][index]}", flush=True)
+                    index = best_probe_index(state["runs"])
+                    print(f"BL;{index};{state['runs'][index].get('current_loss')}; {state['lrs'][index]}", flush=True)
                     train_cmd = state["runs"][index]["train_cmd"]  #replace_args_in_cmd(train_cmd, "learning_rate", str(state["lrs"][index]))
                     final_output_dir = state["runs"][index]["output_dir"]
                     state["mode"] = "finish"

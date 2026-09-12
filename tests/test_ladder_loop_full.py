@@ -138,7 +138,10 @@ class Loop:
         monkeypatch.setattr(tt, "set_state", self._set_state)
         monkeypatch.setattr(tt, "run_training", self._run_training)
         monkeypatch.setattr(tt, "run_cmd_with_log", self._tokenise)
-        monkeypatch.setattr(tt, "delete_poor_checkpoints", lambda *a, **k: None)
+        # delete_poor_checkpoints used to be stubbed out here. It raised on a run with no
+        # finite current_loss — exactly what this harness produces when a probe is
+        # stopped early — so the stub was hiding a real main() crash. It is guarded now
+        # (text_trainer._finite_loss) and runs for real through this loop.
         import adaptive_config
         monkeypatch.setattr(adaptive_config, "get_adaptive_training_json", self._config)
 
