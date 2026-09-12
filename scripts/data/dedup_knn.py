@@ -31,14 +31,28 @@ JACCARD_PROGRESS_EVERY = int(os.getenv("INSTRUCT_DEDUP_JACCARD_PROGRESS_EVERY", 
 JACCARD_MAX_SECONDS = int(os.getenv("INSTRUCT_DEDUP_JACCARD_MAX_SECONDS", "900"))  # 15 min default
 
 
-def _canonical_text(sample: dict, instruct_keys: tuple[str, ...], output_keys: tuple[str, ...]) -> str:
-    """Concatenate instruction + output with canonical whitespace."""
-    instruct = ""
+def _prompt_side(sample: dict, instruct_keys: tuple[str, ...]) -> str:
+    """Every prompt-side field that carries text, joined in key order.
+
+    This used to take the FIRST non-empty field and stop. On a standard G.O.D
+    `instruct` / `input` / `output` row that means `input` never entered the key, so a
+    classification, yes-no or MCQ dataset — constant instruction, the real content in
+    `input`, a handful of distinct labels — canonicalised every row to
+    `<instruction>\n---\n<label>`. Measured 2026-09-13: 4000 distinct rows collapsed to
+    2 and the split printed `dev: 1, train: 3`, with only a crosscheck WARNING to show
+    for it. Joining all populated fields is what split_policy.leak_key already does.
+    """
+    parts = []
     for k in instruct_keys:
         v = sample.get(k)
         if isinstance(v, str) and v.strip():
-            instruct = v
-            break
+            parts.append(v.strip())
+    return "\n".join(parts)
+
+
+def _canonical_text(sample: dict, instruct_keys: tuple[str, ...], output_keys: tuple[str, ...]) -> str:
+    """Concatenate instruction + output with canonical whitespace."""
+    instruct = _prompt_side(sample, instruct_keys)
     output = ""
     for k in output_keys:
         v = sample.get(k)
@@ -122,12 +136,11 @@ def dedup_samples(
 
     ngram_sets: list[set[str]] = []
     for sample in exact_filtered:
-        instruct = ""
-        for k in instruct_keys:
-            v = sample.get(k)
-            if isinstance(v, str) and v.strip():
-                instruct = v.strip().lower()
-                break
+        # Same rule as the exact stage: all prompt-side text, not the first field. A
+        # constant instruction with distinct inputs would otherwise give every row the
+        # same n-gram set, Jaccard 1.0, and the near-dup stage would finish the collapse
+        # the exact stage had just been fixed not to start.
+        instruct = _prompt_side(sample, instruct_keys).lower()
         ngram_sets.append(_char_ngrams(instruct, ngram_k))
     print(f"[dedup] Stage 2 ngram_sets built in {time.time() - t0:.1f}s. Starting pairwise loop...", flush=True)
 

@@ -80,6 +80,45 @@ def test_instruct_rows_still_dedup_on_fields_not_on_whole_row():
     assert len(kept) == 1, "named-field dedup must ignore incidental extra columns"
 
 
+def test_a_constant_instruction_with_distinct_inputs_is_not_a_duplicate():
+    """The RED the CPU preflight raised on 2026-09-13.
+
+    Standard G.O.D instruct rows are `instruct` / `input` / `output`. A classification,
+    yes-no or MCQ dataset has a CONSTANT instruction ("Classify the sentiment"), the
+    real content in `input`, and a handful of distinct outputs. Both dedup stages used
+    to take the FIRST non-empty prompt-side field and stop, so `input` never entered
+    the key and every row canonicalised to `<instruction>\n---\n<label>`: measured,
+    4000 distinct rows collapsed to 2, and the split printed `dev: 1, train: 3`. Every
+    earlier test here used input='' and so could not see it.
+    """
+    rows = [
+        {"instruct": "Classify the sentiment of the text.", "input": f"review number {i}",
+         "output": "positive" if i % 2 else "negative"}
+        for i in range(400)
+    ]
+    kept, stats = dedup_from_env(rows)
+    assert len(kept) == 400, f"{len(kept)} of 400 survived — `input` is not in the dedup key ({stats})"
+
+
+def test_rows_identical_on_instruction_and_input_still_collapse():
+    """The fix must widen the key, not disable dedup."""
+    rows = [
+        {"instruct": "Classify.", "input": "same text", "output": "pos"}
+        for _ in range(20)
+    ]
+    kept, _ = dedup_from_env(rows)
+    assert len(kept) == 1
+
+
+def test_every_prompt_side_field_enters_the_key_in_a_stable_order():
+    """`instruction` + `input` present together: both must count, and the key must not
+    depend on which one happens to be checked first."""
+    a = {"instruction": "Translate.", "input": "hello", "output": "halo"}
+    b = {"instruction": "Translate.", "input": "goodbye", "output": "halo"}
+    kept, _ = dedup_from_env([a, b])
+    assert len(kept) == 2, "rows differing only in `input` were merged"
+
+
 def test_rows_with_unserialisable_values_do_not_crash():
     rows = [{"conversations": [{"from": "user", "value": "x"}], "weird": object()} for _ in range(3)]
     kept, _ = dedup_from_env(rows)
