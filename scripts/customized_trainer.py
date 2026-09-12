@@ -6,6 +6,7 @@ from transformers import (
     TrainerState,
     TrainerControl,
 )
+import math
 import os
 from typing import Callable, Optional, Dict
 import shutil
@@ -702,6 +703,18 @@ class CustomEvalSaveCallback(TrainerCallback):
         eval_loss = self.compute_loss(state, metrics)
         if state.global_step < 2 or eval_loss is None:
             return
+        if not math.isfinite(eval_loss):
+            # compute_loss returns +inf when the checkpoint metric could not be
+            # computed (KL failed twice) — right for RANKING that checkpoint last, but
+            # this method used to treat it as a measurement: at the first eval it was
+            # promoted (best is None, so anything "improves"), copied to the submission
+            # with loss inf, and every later inf raised no_improve_count until the
+            # patience-only early stop truncated the run. A metric that failed is no
+            # measurement: nothing is promoted, nothing is counted, nothing enters the
+            # smoothing window. Reproduced on CPU 2026-09-13 (preflight class 5).
+            print(f"[eval] step {state.global_step} unranked (metric {eval_loss}) — "
+                  f"not promoted, not counted against patience", flush=True)
+            return
         print(f"GO INTO CUSTOMIZED EVALUATE AT STEP: {state.global_step}", flush=True)
 
         # Track for window smoothing
@@ -1182,6 +1195,13 @@ class CustomEvalSaveCallback(TrainerCallback):
         if best_single is None:
             best_single = self.current_best_loss
 
+        if best_single is not None and not math.isfinite(best_single):
+            # An inf best-single means the run never produced a measured checkpoint.
+            # `merged < inf` is true for any number, so the merge would be written on
+            # the strength of a comparison against nothing. Refuse, keep what is there.
+            print(f"[WSM] SKIPPED: best single loss is {best_single} (unmeasured); "
+                  f"a merge cannot be verified against it", flush=True)
+            return
         if self.merge_eval_fn is None or best_single is None:
             # No way to measure the merge. Writing it anyway is a coin flip on the
             # one file we are scored on, and the best-only checkpoint in place is
