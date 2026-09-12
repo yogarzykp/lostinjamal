@@ -21,6 +21,7 @@ checked against the pre-fix ordering by construction: they fail if the telemetry
 call is moved back above the promotion.
 """
 
+import importlib.machinery
 import os
 import sys
 import types
@@ -34,7 +35,16 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(
 # file runnable off the smoke box. importorskip was the alternative and is worse
 # here: it would make these tests silently absent on the machine where the ordering
 # is most likely to be refactored, and a test that cannot fail is not a test.
-sys.modules.setdefault("wandb", types.ModuleType("wandb"))
+#
+# The stub must carry a ModuleSpec. A bare types.ModuleType has __spec__ None, and
+# accelerate/utils/imports.py:51 probes `importlib.util.find_spec("wandb")`, which
+# raises ValueError on a spec-less module — fatal to the transformers import chain.
+# The first version of this file used the bare stub and passed only under the system
+# python (transformers 4.57.6, accelerate absent); under the trainer's own pins it
+# failed 1/4 when run alone and passed in the suite purely by collection order.
+_wandb = sys.modules.setdefault("wandb", types.ModuleType("wandb"))
+if getattr(_wandb, "__spec__", None) is None:
+    _wandb.__spec__ = importlib.machinery.ModuleSpec("wandb", None)
 
 
 class _State:
@@ -84,12 +94,22 @@ def _evaluate(cb, step, loss):
     cb.on_evaluate(args=None, state=_State(step), control=None, metrics={"eval_loss": loss})
 
 
-def test_a_kill_inside_telemetry_still_leaves_the_better_checkpoint_promoted(tmp_path):
+def test_a_kill_inside_telemetry_still_leaves_the_better_checkpoint_promoted_in_memory(tmp_path):
     """The exact 59469903 failure: the process dies inside the observational pass.
 
     SystemExit stands in for the container cleanup. If telemetry runs first, the
     promotion never happens and best_checkpoint_info still names the older,
-    worse step — which is what shipped.
+    worse step.
+
+    IN MEMORY ONLY. This is a bare callback with no Trainer, so on_save — the only
+    thing that copies a checkpoint into the submission directory — never runs.
+    Measured with a real transformers 4.51.3 Trainer
+    (tests/test_promotion_survives_a_real_trainer.py): a kill inside telemetry
+    leaves the submission at the PREVIOUS best on both the old and the new ordering,
+    because the Trainer calls on_save only after on_evaluate returns. What lands the
+    better artefact in the 59469903 timeline is EMIT_PER_EXAMPLE_LOSSES defaulting
+    off, not this reorder. The reorder is hygiene; keep it, but do not read this
+    test as proof the checkpoint was preserved.
     """
     cb = _callback(tmp_path)
     _evaluate(cb, 500, 0.05278521403670311)

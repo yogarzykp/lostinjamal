@@ -731,18 +731,28 @@ class CustomEvalSaveCallback(TrainerCallback):
                     print(f"[best_ckpt persist] save skipped: {_exc}", flush=True)
         # Everything below the promotion is observational. It sits HERE, and not
         # where it used to sit — above the promotion — because on 2026-09-07 that
-        # ordering cost us a checkpoint in a live tournament. Task 59469903
-        # evaluated at step 500 (0.05278521) and again at step 544 (0.05173291),
-        # the deadline eval. The step-500 promotion happened; the step-544 one
-        # never did, because the container was killed inside the per-example pass
-        # below, 242s into it. We shipped the worse of two checkpoints we had
-        # already measured, and gave away 0.00105 nats against a 0.0072 gap to
-        # rank 1 on that task.
+        # ordering was in the way of a checkpoint in a live tournament. Task
+        # 59469903 evaluated at step 500 (0.05278521) and again at step 544
+        # (0.05173291), the deadline eval. The step-500 promotion happened; the
+        # step-544 one never did, because the container was killed inside the
+        # per-example pass below, 242s into it. We shipped the worse of two
+        # checkpoints we had already measured, 0.00105 nats against a 0.0072 gap
+        # to rank 1 on that task.
         #
-        # The rule this encodes: the one statement that decides which artefact we
-        # ship must never sit downstream of work whose own comment says nothing
-        # reads it. The boss does the same thing structurally — its on_evaluate
-        # promotes with nothing at all between the metric and the promotion
+        # Be precise about what this reorder buys, because it was measured
+        # (tests/test_promotion_survives_a_real_trainer.py, real transformers
+        # 4.51.3 Trainer): promoting first makes best_checkpoint_info correct in
+        # memory when the process dies inside the telemetry — and nothing more.
+        # The copy into the submission directory happens in on_save, which the
+        # Trainer calls only AFTER on_evaluate returns (trainer.py:3095-3104), so a
+        # kill inside this block still leaves the artefact at the previous best,
+        # on the old ordering and on this one alike. What actually lands the
+        # step-544 artefact in that timeline is EMIT_PER_EXAMPLE_LOSSES defaulting
+        # off (per_example_eval.py): with no 242s pass here, on_evaluate returns
+        # at once, on_save copies within ~11s, and the deadline is met. The reorder
+        # is hygiene — the statement that decides the artefact should never sit
+        # downstream of work nothing reads — not the fix. The boss's on_evaluate
+        # has nothing at all between the metric and the promotion
         # (god-text-tourn-2ba0f79237bffcf7-20260907-position-1,
         # scripts/customized_trainer.py:249-267).
         #

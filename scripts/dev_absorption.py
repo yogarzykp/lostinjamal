@@ -86,12 +86,26 @@ def _stale_weight_artefact(name: str) -> bool:
     A shard index is not a weight file, but it names weight files. If the absorbed
     model serialises to a different layout than the checkpoint it replaces — above
     all a single model.safetensors where the previous one was sharded —
-    save_pretrained writes no new index, the old one survives, and it names shards
-    that were just deleted. from_pretrained prefers the index whenever it is present,
-    so the submission does not load at all. That is a forfeit, not a worse score, and
-    it only appears on models large enough to shard: nothing in this tournament's
-    2.6B/360M round-1 draw could have surfaced it, and the boss round's 35-71B task
-    guarantees it.
+    save_pretrained writes no new index (modeling_utils.py:3570 touches an index only
+    when it writes one), the old one survives, and it names shards that were just
+    deleted.
+
+    How much that costs was measured after this was written, and it is less than the
+    first version of this docstring claimed. transformers 4.51.3 resolves a bare
+    model.safetensors BEFORE the index on both the local-directory branch
+    (modeling_utils.py:898 before :905) and the hub branch (:997), and 5.12.1 reads the
+    same way — so on every loader we can see, a stale index beside a single file is
+    inert at scoring time. It bites only when the single file is absent or the
+    validator's image loads differently, and that image's transformers is the one
+    version not measured. Clearing it is correct hygiene, not forfeit prevention.
+
+    Nor does the layout change on our own artefacts today: every path trains and
+    saves bf16 (train_instruct.py:131,203 / train_dpo.py:265 / train_grpo.py:403),
+    the Trainer saves at the default shard size, on_save copies verbatim, and this
+    module reloads bf16 and saves at the same default — measured 3 shards in, 3 out,
+    identical weight_map (tests/test_absorption_on_a_real_sharded_model.py). The
+    trigger is a dtype or key-set change between the two saves; an fp32 checkpoint
+    reloaded here as bf16 reproduces it.
 
     The boss reaches the same guarantee from the other side: dev_pass.py stages into
     an empty directory and copies only NON-weight files across (its _is_weight_file at
