@@ -134,6 +134,24 @@ def instruct_kl_divergence(
         return float(instruct_kl_tensor(base_logits, finetuned_logits, labels).item())
 
 
+def resolve_kl_for_request(train_request: dict, env=None):
+    """(use_kl, kl_coef, reason, source) for the training subprocess.
+
+    The request carries `use_kl` / `kl_coef` only when adaptive_config built it —
+    it is the sole writer. On the legacy cascade (adaptive crashed or failed its
+    sanity check) the keys are absent, and train_instruct used to read that absence
+    as "KL off": plain cross-entropy on a task the validator scores WITH KL, and
+    checkpoint selection on the unweighted number. The container environment still
+    says USE_KL=1 on that path, so fall through to it and say which source decided.
+    """
+    if isinstance(train_request, dict) and "use_kl" in train_request:
+        use_kl = bool(train_request.get("use_kl"))
+        coef = train_request.get("kl_coef")
+        return use_kl, coef, train_request.get("kl_reason"), "request"
+    use_kl, coef, reason = read_kl_config(env)
+    return use_kl, coef, reason, "env (request carried no use_kl — legacy config path)"
+
+
 def weighted_loss(eval_loss: float, kl_coef: float, kl_divergence: float) -> float:
     """The ranked metric on a KL-flagged task (instruct_text.py:263)."""
     return eval_loss + kl_coef * kl_divergence

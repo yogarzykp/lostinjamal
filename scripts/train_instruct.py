@@ -557,15 +557,18 @@ def main():
     # Reference logits come from disable_adapter() on the same weights, which is
     # why adaptive_config forces the LoRA path for these tasks. Falls back to the
     # stock Trainer whenever the flag is off — see scripts/kl_objective.py.
-    _use_kl = bool(train_request.get("use_kl"))
-    _kl_coef = train_request.get("kl_coef")
+    # Only adaptive_config writes use_kl into the request. On the legacy cascade the
+    # key is absent, and reading absence as "off" trained plain CE on a KL-scored
+    # task; the environment still says USE_KL=1 there. kl_objective resolves both.
+    from kl_objective import resolve_kl_for_request
+    _use_kl, _kl_coef, _kl_reason, _kl_source = resolve_kl_for_request(train_request)
     if _use_kl and _kl_coef:
         from kl_trainer_mixin import KLWeightedTrainerMixin
 
         class _KLTrainer(KLWeightedTrainerMixin, Trainer):
             pass
 
-        log_info(f"[kl] composite objective: {train_request.get('kl_reason')}")
+        log_info(f"[kl] composite objective: {_kl_reason} (from {_kl_source})")
         trainer = _KLTrainer(
             model=model,
             tokenizer=tokenizer,
