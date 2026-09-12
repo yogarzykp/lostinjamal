@@ -216,3 +216,71 @@ def test_return_outputs_contract_is_preserved():
     loss, outputs = _make_trainer(kl_coef=0.5).compute_loss(model, inputs, return_outputs=True)
     assert hasattr(outputs, "logits")
     assert torch.isfinite(loss).all()
+
+
+# --- a KL term that fails must not keep reporting its last good value --------------
+
+def test_a_failed_kl_step_does_not_log_a_stale_kl(capsys):
+    """Found by the CPU preflight 2026-09-13 (class 5). After the KL term raised on a
+    step, the log line for that step — and every CE-only step after it — still carried
+    the LAST successful kl value, because _kl_last was never reset. A post-run reader
+    sees a kl number on steps where KL was not applied at all."""
+    model, inputs = _FakeAdapterModel(), _batch()
+    trainer = _make_trainer(kl_coef=0.5)
+    trainer.compute_loss(model, inputs)            # step 1: KL applied
+    trainer.log({"loss": 1.0})
+    assert "kl" in trainer.logged
+
+    real = trainer._reference_logits
+    trainer._reference_logits = lambda m, i: (_ for _ in ()).throw(RuntimeError("ref OOM"))
+    trainer.compute_loss(model, inputs)            # step 2: KL failed, plain CE
+    trainer.log({"loss": 1.0})
+    assert "kl" not in trainer.logged, f"stale kl reported on a CE-only step: {trainer.logged}"
+    out = capsys.readouterr().out
+    assert "KL term failed" in out
+
+    trainer._reference_logits = real
+    trainer.compute_loss(model, inputs)            # step 3: recovered
+    trainer.log({"loss": 1.0})
+    assert "kl" in trainer.logged
+    assert "recovered" in capsys.readouterr().out
+
+
+def test_ce_only_steps_are_counted_and_said(capsys):
+    model, inputs = _FakeAdapterModel(), _batch()
+    trainer = _make_trainer(kl_coef=0.5)
+    trainer._reference_logits = lambda m, i: (_ for _ in ()).throw(RuntimeError("ref OOM"))
+    for _ in range(3):
+        trainer.compute_loss(model, inputs)
+    trainer.log({"loss": 1.0})
+    assert trainer.logged.get("kl_off_steps") == 3, trainer.logged
+
+
+def test_missing_labels_is_said_once_not_silent(capsys):
+    """label_smoothing_factor != 0 makes Trainer pop `labels`; the mixin then trains
+    stock CE on a KL-scored task with no line at all. Unreachable at HEAD (adaptive
+    hard-codes 0.0) and one print away from being loud."""
+    from kl_trainer_mixin import KLWeightedTrainerMixin
+
+    class _NoLabelStub:
+        def __init__(self, *a, **kw):
+            pass
+
+        def compute_loss(self, model, inputs, return_outputs=False, **kwargs):
+            out = model(**{k: v for k, v in inputs.items() if k != "labels"})
+            loss = out.logits.float().mean()
+            return (loss, out) if return_outputs else loss
+
+        def log(self, logs, *a, **kw):
+            self.logged = logs
+
+    class T(KLWeightedTrainerMixin, _NoLabelStub):
+        pass
+
+    model = _FakeAdapterModel()
+    inputs = _batch(); inputs.pop("labels")
+    trainer = T(kl_coef=1.0)
+    trainer.compute_loss(model, inputs)
+    trainer.compute_loss(model, inputs)
+    out = capsys.readouterr().out
+    assert out.count("no labels in the batch") == 1, out
