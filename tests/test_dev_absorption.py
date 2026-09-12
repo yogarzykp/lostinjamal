@@ -124,6 +124,24 @@ def test_missing_dev_split_declines(absorb, tmp_path, submission):
     assert _fingerprint(submission) == before
 
 
+def test_a_lora_adapter_submission_declines_before_anything_is_read(absorb, tmp_path):
+    """The inference load path trains nothing and re-serialises the adapter, so an
+    adapter directory is declined outright — ahead of the dev-split read, so that this
+    torch-free harness can exercise it, and so that on a 35-71B task nothing is loaded.
+    The mechanism itself is pinned with real peft in
+    tests/test_absorption_declines_lora_adapters.py."""
+    d = tmp_path / "submission"
+    d.mkdir()
+    (d / "adapter_config.json").write_text(json.dumps({"peft_type": "LORA", "r": 16}))
+    (d / "adapter_model.safetensors").write_bytes(b"fp32 adapter, must survive")
+    (d / "tokenizer.json").write_text("{}")
+    before = _fingerprint(str(d))
+    got, log = _call(absorb, str(d), _dev(tmp_path, None))  # dev split deliberately absent
+    assert got is None and "LoRA adapter" in log and "untouched" in log, log
+    assert "no dev split" not in log, "the adapter guard must fire before the dev-split read"
+    assert _fingerprint(str(d)) == before
+
+
 def test_unparseable_dev_split_declines(absorb, tmp_path, submission):
     before = _fingerprint(submission)
     got, log = _call(absorb, submission, _dev(tmp_path, "{not json"))

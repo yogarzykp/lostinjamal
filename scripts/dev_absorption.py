@@ -124,6 +124,24 @@ def _stale_weight_artefact(name: str) -> bool:
     )
 
 
+def _is_adapter_submission(submission_dir: str) -> bool:
+    """A PEFT adapter directory, as opposed to a full model.
+
+    adapter_config.json is what PEFT writes and what AutoModelForCausalLM keys its
+    adapter integration off; the weights beside it are adapter_model.safetensors or
+    adapter_model.bin. Either marker is enough — a directory with the weights but no
+    config would not load as an adapter anyway, and one with the config but no weights
+    is not something absorption should be reshaping.
+    """
+    try:
+        names = os.listdir(submission_dir)
+    except OSError:
+        return False
+    return "adapter_config.json" in names or any(
+        n.startswith("adapter_model.") for n in names
+    )
+
+
 def _prior_dev_loss(submission_dir: str):
     """The dev loss already measured for THIS checkpoint, as (value, note).
 
@@ -182,6 +200,25 @@ def absorb_dev_split(
     """
     if not os.path.isdir(submission_dir):
         log("[dev-absorb] no submission directory — nothing to absorb into")
+        return None
+    # LoRA submissions are declined, before any I/O. Measured 2026-09-12 on the pinned
+    # stack (transformers 4.51.3, peft 0.15.1): loading an adapter directory through
+    # AutoModelForCausalLM.from_pretrained attaches it via the inference-oriented PEFT
+    # path — inference_mode=true, ZERO trainable parameters — so every step below is a
+    # no-op: 0 of 8 adapter tensors moved even at lr 1e-2. The pass still costs a full
+    # forward+backward over the dev set inside a post-training window measured at ~173s,
+    # then save_pretrained rewrites adapter_model.safetensors from fp32 to bf16 (a real,
+    # unrequested quantisation of the artefact we are about to be scored on), and the
+    # function reports "submission updated". Nothing improves; the adapter is degraded;
+    # the log says success.
+    #
+    # Where this bites: every instruct/chat task with use_lora=True — the >=7B size
+    # bands and the boss round's 35-71B — none of which absorption has met live yet.
+    # The full feature (PeftModel.from_pretrained(..., is_trainable=True) on the base)
+    # is a different change; until it exists, declining loses nothing that works today.
+    if _is_adapter_submission(submission_dir):
+        log("[dev-absorb] submission is a LoRA adapter — the inference load path trains "
+            "nothing and would only re-serialise the adapter; skipped, submission untouched")
         return None
     if not os.path.isfile(dev_tokenized_path):
         log(f"[dev-absorb] no dev split at {dev_tokenized_path}")
