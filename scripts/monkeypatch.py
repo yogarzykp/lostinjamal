@@ -262,12 +262,34 @@ class PackedDataset(Dataset):
         self.lengths = []
         self.data_points = []
         size = len(dataset.eval_dataset)
+        truncated = 0
         for i in range(size):
             dp = dataset.eval_dataset[i]
             input_length = len(dp["input_ids"])
             assert input_length == len(dp["attention_mask"]) == len(dp["labels"])
+            if input_length > self.max_input_length:
+                # max_length can shrink under an already-tokenised row: the OOM
+                # ladder's last rung halves it in the request JSON and relaunches
+                # without re-tokenising. The unpacked path copes (utility.pad_sequence
+                # keeps the tail); this path recorded the raw length, gave the row its
+                # own group, and pack_data_points_FA then asserted after padding by a
+                # negative amount — AssertionError, run_training False, empty
+                # submission, noise fallback. Same rule as pad_sequence: keep the TAIL,
+                # because in instruct SFT the prompt is masked and the completion at the
+                # end carries every trainable label.
+                dp = {
+                    **dp,
+                    "input_ids": list(dp["input_ids"])[-self.max_input_length:],
+                    "attention_mask": list(dp["attention_mask"])[-self.max_input_length:],
+                    "labels": list(dp["labels"])[-self.max_input_length:],
+                }
+                input_length = self.max_input_length
+                truncated += 1
             self.data_points.append(dp)
             self.lengths.append(input_length)
+        if truncated:
+            print(f"[packing] truncated {truncated} of {size} rows to the tail "
+                  f"{self.max_input_length} tokens (max_length shrank under them)", flush=True)
         self.groups =  pack_with_min_item_num(
             self.lengths, self.pack_length, min_item_num
         )
