@@ -21,9 +21,18 @@ What the validator actually requires (G.O.D validator/evaluation/model_checks.py
 base — `architectures`, `hidden_size`, `model_type`, layer/head counts — plus a context
 window not smaller than the base. It compares CONFIG ATTRIBUTES ONLY, never weights. A
 verbatim copy satisfies all of it, and the validator loads the result with its own
-transformers, not ours. The embedding perturbation is kept anyway: it preserves the
-original intent, costs one shard's worth of I/O, and means the submission is not a
-byte-identical copy of the base repo.
+transformers, not ours. A verbatim copy satisfies all of it.
+
+The perturbation is therefore OFF by default (settled 2026-09-13, G.O.D aeb401a9):
+`model_is_a_finetune` compares config attributes only (model_checks.py:98-123), the
+one identity rule is the repo-id string (validator/scoring/tasks.py:349-353), and an
+exhaustive grep of validator/ for sha256|hashlib|is_finetune finds no weight hash.
+Live confirmation: on task 29fc1a10 a competitor's byte-identical base scored 2.8929
+while our 0.01-noised copy scored 3.2921 — the noise was a 0.4-nat, two-rank tax on
+every fallback, paid to satisfy a check that does not exist. A "tiny" relative noise is
+not a middle ground: at bf16 precision (~0.4%) anything small enough to be free rounds
+away and the file is byte-identical anyway. FALLBACK_NOISE_STD=<float> re-enables it
+should a weight-identity guard ever appear upstream.
 """
 
 import json
@@ -32,7 +41,15 @@ import shutil
 
 import typer
 
-NOISE_STD = 0.01
+NOISE_STD = float(os.getenv("FALLBACK_NOISE_STD", "0") or 0)
+
+# Weight formats that duplicate a safetensors set. NousResearch/Llama-2-70b-hf carries
+# 128.5 GB of safetensors AND 257 GB of pytorch_model-*.bin; llama-3 repos carry
+# original/consolidated.*.pth. The validator loads safetensors. Copying the rest is 2-3x
+# the disk and the upload time on the most expensive task of the round, for nothing —
+# and on a box near its limit, the difference between a submission and ENOSPC.
+_REDUNDANT_WHEN_SAFETENSORS = (".bin", ".pth", ".pt", ".gguf", ".h5", ".msgpack", ".ckpt")
+_REDUNDANT_DIRS_WHEN_SAFETENSORS = {"original"}
 
 # Ordered by how specific they are. The generic suffix match at the end covers wrappers
 # that nest the decoder (`model.language_model.embed_tokens.weight`), which is the shape
@@ -47,8 +64,15 @@ _EMBED_KEYS = (
 
 
 def _skip(_dir, names):
-    """Never copy caches or VCS metadata into a submission."""
-    return {n for n in names if n in {".git", ".cache", "__pycache__"} or n.endswith(".lock")}
+    """Never copy caches, VCS metadata, or a second copy of the weights."""
+    out = {n for n in names if n in {".git", ".cache", "__pycache__"} or n.endswith(".lock")}
+    if any(n.endswith(".safetensors") for n in names):
+        for n in names:
+            if n.endswith(_REDUNDANT_WHEN_SAFETENSORS) or n == "pytorch_model.bin.index.json":
+                out.add(n)
+            elif n in _REDUNDANT_DIRS_WHEN_SAFETENSORS and os.path.isdir(os.path.join(_dir, n)):
+                out.add(n)
+    return out
 
 
 def _clone_tree(src, dst):
@@ -66,12 +90,31 @@ def _clone_tree(src, dst):
     try:
         shutil.copytree(src, dst, ignore=_skip, dirs_exist_ok=True, symlinks=False,
                         copy_function=os.link)
-        return "hardlink"
+        how = "hardlink"
     except Exception:
         # Partial trees are fine to overwrite: dirs_exist_ok fills the gaps, and every
         # file we may have linked is identical to its source by construction.
-        shutil.copytree(src, dst, ignore=_skip, dirs_exist_ok=True, symlinks=False)
-        return "copy"
+        try:
+            shutil.copytree(src, dst, ignore=_skip, dirs_exist_ok=True, symlinks=False)
+        except Exception as exc:
+            # A half-copied directory is worse than none: text_trainer reads any
+            # submission dir with two or more entries as a success and uploads it, and
+            # a model missing a shard fails at scoring. Remove what landed and say so.
+            shutil.rmtree(dst, ignore_errors=True)
+            raise RuntimeError(f"clone failed ({type(exc).__name__}: {exc}); "
+                               f"removed the partial submission") from exc
+        how = "copy"
+
+    # Small, non-weight files are edited in place by later stages —
+    # restore_submission_architectures rewrites config.json, tokenizer_sanitizer may
+    # rewrite tokenizer files. Through a hardlink that would rewrite the BASE model's
+    # own files (measured on a same-mount box). Weight shards may share an inode; the
+    # one we might edit is un-linked in _perturb_safetensors. Everything else is copied.
+    for root, _dirs, files in os.walk(dst):
+        for name in files:
+            if not name.endswith((".safetensors", ".bin", ".pth", ".pt", ".gguf", ".h5", ".msgpack", ".ckpt")):
+                _break_link(os.path.join(root, name))
+    return how
 
 
 def _break_link(path):
@@ -124,6 +167,12 @@ def _perturb_safetensors(folder):
     # Un-link BEFORE reading, so the write below can never land on the base model's inode.
     _break_link(shard)
 
+    if NOISE_STD <= 0:
+        # The clean copy is the submission. The shard is still un-linked above so that
+        # nothing downstream can ever write through to the base, on any box.
+        return True, (f"noise disabled (FALLBACK_NOISE_STD={NOISE_STD}) — clean copy of the base, "
+                      f"{os.path.basename(shard)} un-linked")
+
     tensors = load_file(shard)
     if name is None:
         name = _find_embedding(tensors.keys())
@@ -156,7 +205,11 @@ def main(model_path: str, save_folder: str):
         shutil.rmtree(save_folder, ignore_errors=True)
 
     print(f"[noise] cloning base model {model_path} -> {save_folder}", flush=True)
-    how = _clone_tree(model_path, save_folder)
+    try:
+        how = _clone_tree(model_path, save_folder)
+    except Exception as exc:
+        print(f"[noise] {exc}", flush=True)
+        raise SystemExit(1)
     print(f"[noise] clone method: {how}", flush=True)
 
     try:

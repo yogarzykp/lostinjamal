@@ -18,6 +18,7 @@ fail.
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -72,9 +73,14 @@ def _make_base_model(root, embed_key="model.embed_tokens.weight", sharded=False)
     return embed
 
 
-def _run(base, out):
+def _run(base, out, noise=None):
+    """noise=None runs the shipped default (clean copy); a number opts the perturbation in."""
+    env = dict(os.environ)
+    env.pop("FALLBACK_NOISE_STD", None)
+    if noise is not None:
+        env["FALLBACK_NOISE_STD"] = str(noise)
     return subprocess.run([sys.executable, SCRIPT, base, out],
-                          capture_output=True, text=True, timeout=300)
+                          capture_output=True, text=True, timeout=300, env=env)
 
 
 def _load_embed(folder, embed_key):
@@ -112,12 +118,12 @@ def test_embeddings_are_actually_perturbed():
     with tempfile.TemporaryDirectory() as tmp:
         base, out = os.path.join(tmp, "base"), os.path.join(tmp, "sub")
         original = _make_base_model(base)
-        assert _run(base, out).returncode == 0
+        assert _run(base, out, noise=0.01).returncode == 0
         got = _load_embed(out, "model.embed_tokens.weight")
         assert got.shape == original.shape and got.dtype == original.dtype
         assert not torch.equal(got, original), "embeddings identical — no noise was added"
         delta = (got.to(torch.float32) - original.to(torch.float32)).abs().mean().item()
-        assert delta < 1.0, f"noise far larger than NOISE_STD=0.01 suggests: {delta}"
+        assert delta < 1.0, f"noise far larger than FALLBACK_NOISE_STD=0.01 suggests: {delta}"
 
 
 def test_only_the_embedding_shard_is_rewritten():
@@ -125,7 +131,7 @@ def test_only_the_embedding_shard_is_rewritten():
     with tempfile.TemporaryDirectory() as tmp:
         base, out = os.path.join(tmp, "base"), os.path.join(tmp, "sub")
         _make_base_model(base, sharded=True)
-        assert _run(base, out).returncode == 0
+        assert _run(base, out, noise=0.01).returncode == 0
         other = safetensors_torch.load_file(
             os.path.join(out, "model-00002-of-00002.safetensors"))
         assert torch.equal(other["model.layers.0.mlp.weight"],
@@ -140,7 +146,7 @@ def test_finds_a_nested_embedding_key():
     with tempfile.TemporaryDirectory() as tmp:
         base, out = os.path.join(tmp, "base"), os.path.join(tmp, "sub")
         original = _make_base_model(base, embed_key=key)
-        r = _run(base, out)
+        r = _run(base, out, noise=0.01)
         assert r.returncode == 0
         assert "could not perturb" not in r.stdout, r.stdout
         assert not torch.equal(_load_embed(out, key), original)
@@ -217,7 +223,7 @@ def test_the_base_model_on_disk_is_never_modified():
         with open(base_shard, "rb") as fh:
             before = fh.read()
 
-        assert _run(base, out).returncode == 0
+        assert _run(base, out, noise=0.01).returncode == 0
 
         with open(base_shard, "rb") as fh:
             after = fh.read()
@@ -243,3 +249,109 @@ def test_the_submission_shard_is_not_left_hardlinked_to_the_base():
         assert os.stat(sub_shard).st_ino != os.stat(os.path.join(base, "model.safetensors")).st_ino, (
             "submission shard shares an inode with the base model"
         )
+
+
+# --- the shipped default: a clean copy ------------------------------------------------
+
+def test_the_default_submission_is_a_clean_copy_of_the_base():
+    """Settled from G.O.D source on 2026-09-13 (aeb401a9): model_is_a_finetune compares
+    config attributes only (validator/evaluation/model_checks.py:98-123) and the one
+    identity rule is the repo-id string (validator/scoring/tasks.py:349-353); nothing
+    in validator/ hashes weights. A competitor's byte-identical base scored 2.8929 on
+    LFM2 while our noised copy scored 3.2921. The noise was a 0.4-nat, two-rank tax on
+    every fallback, paid to satisfy a check that does not exist."""
+    with tempfile.TemporaryDirectory() as tmp:
+        base, out = os.path.join(tmp, "base"), os.path.join(tmp, "sub")
+        original = _make_base_model(base)
+        r = _run(base, out)
+        assert r.returncode == 0, r.stdout + r.stderr
+        assert torch.equal(_load_embed(out, "model.embed_tokens.weight"), original)
+        assert "noise disabled" in r.stdout, r.stdout
+
+
+def test_the_perturbation_stays_available_as_an_opt_in():
+    with tempfile.TemporaryDirectory() as tmp:
+        base, out = os.path.join(tmp, "base"), os.path.join(tmp, "sub")
+        original = _make_base_model(base)
+        assert _run(base, out, noise=0.01).returncode == 0
+        assert not torch.equal(_load_embed(out, "model.embed_tokens.weight"), original)
+
+
+def test_non_weight_files_are_private_copies_even_when_the_shard_is_hardlinked():
+    """restore_submission_architectures rewrites config.json in place after this runs.
+    Through a hardlink that would rewrite the BASE model's config — measured on a
+    same-mount box. Small files are always copied; only weight shards may share."""
+    with tempfile.TemporaryDirectory() as tmp:
+        base, out = os.path.join(tmp, "base"), os.path.join(tmp, "sub")
+        _make_base_model(base)
+        assert _run(base, out).returncode == 0
+        for name in ("config.json", "tokenizer_config.json"):
+            assert os.stat(os.path.join(out, name)).st_nlink == 1, f"{name} is still hardlinked to the base"
+
+
+# --- redundant weight formats ----------------------------------------------------------
+
+def test_duplicate_weight_formats_are_not_copied_when_safetensors_exist():
+    """NousResearch/Llama-2-70b-hf carries 128.5 GB of safetensors AND 257 GB of
+    pytorch_model-*.bin; llama-3 repos carry original/consolidated.*.pth. The
+    validator loads safetensors. Copying the rest is 2-3x the disk and the upload
+    time on the most expensive task of the round, for nothing."""
+    with tempfile.TemporaryDirectory() as tmp:
+        base, out = os.path.join(tmp, "base"), os.path.join(tmp, "sub")
+        _make_base_model(base)
+        for junk in ("pytorch_model-00001-of-00002.bin", "pytorch_model-00002-of-00002.bin",
+                     "pytorch_model.bin.index.json", "tf_model.h5", "flax_model.msgpack",
+                     "model.gguf"):
+            with open(os.path.join(base, junk), "wb") as fh:
+                fh.write(b"redundant")
+        os.makedirs(os.path.join(base, "original"))
+        with open(os.path.join(base, "original", "consolidated.00.pth"), "wb") as fh:
+            fh.write(b"redundant")
+        assert _run(base, out).returncode == 0
+        got = set(os.listdir(out))
+        assert "model.safetensors" in got and "config.json" in got
+        for junk in ("pytorch_model-00001-of-00002.bin", "pytorch_model.bin.index.json",
+                     "tf_model.h5", "flax_model.msgpack", "model.gguf", "original"):
+            assert junk not in got, f"{junk} was copied into the submission"
+
+
+def test_bin_weights_are_still_copied_when_they_are_the_only_weights():
+    with tempfile.TemporaryDirectory() as tmp:
+        base, out = os.path.join(tmp, "base"), os.path.join(tmp, "sub")
+        _make_base_model(base)
+        os.remove(os.path.join(base, "model.safetensors"))
+        with open(os.path.join(base, "pytorch_model.bin"), "wb") as fh:
+            fh.write(b"the only weights there are")
+        r = _run(base, out)
+        assert r.returncode == 0, r.stdout
+        assert "pytorch_model.bin" in os.listdir(out)
+
+
+# --- a clone that fails halfway --------------------------------------------------------
+
+def test_a_failed_clone_leaves_no_partial_submission(monkeypatch, tmp_path):
+    """text_trainer treats any submission dir with >= 2 entries as a success. A clone
+    that dies on ENOSPC after config.json and one shard would be uploaded as a model
+    and fail to load at scoring. Better no submission and a loud exit."""
+    import errno
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("add_random_noise_under_test", SCRIPT)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    base, out = str(tmp_path / "base"), str(tmp_path / "sub")
+    _make_base_model(base)
+
+    real_copytree = shutil.copytree
+
+    def _dies_halfway(src, dst, *a, **k):
+        os.makedirs(dst, exist_ok=True)
+        shutil.copy2(os.path.join(src, "config.json"), os.path.join(dst, "config.json"))
+        raise OSError(errno.ENOSPC, "No space left on device")
+
+    monkeypatch.setattr(mod.shutil, "copytree", _dies_halfway)
+    with pytest.raises(SystemExit) as e:
+        mod.main(base, out)
+    assert e.value.code != 0
+    assert not os.path.isdir(out) or not os.listdir(out), "a partial submission survived"
+    monkeypatch.setattr(mod.shutil, "copytree", real_copytree)
