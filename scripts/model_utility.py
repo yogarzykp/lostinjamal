@@ -5,7 +5,6 @@ import re
 from huggingface_hub import HfApi
 from transformers import AutoConfig
 import glob
-from safetensors.torch import load_file
 from pathlib import Path
 import torch
 import os
@@ -54,15 +53,39 @@ def get_use_liger(architecture: str) -> str:
 
 
 def count_params_from_safetensors(model_dir):
-    total_params = 0
-    shards = glob.glob(os.path.join(model_dir, "*.safetensors"))
+    """Exact parameter count from the safetensors HEADERS — no tensor is loaded.
+
+    This used to load_file() every shard and sum numel, i.e. materialise the whole
+    model in RAM to count it. On the boss round's guaranteed 35-71B instruct task
+    (Llama-2-70b-hf, ~130 GB bf16) that exceeds the validator's 110 GB/GPU container
+    limit: SIGKILL before a step runs, no fallback, no upload. It is reached whenever
+    the adaptive planner is bypassed — the legacy cascade — so on exactly the runs
+    already having a bad day.
+
+    Every safetensors file carries each tensor's shape in its header; safe_open reads
+    that in a few KB per shard and get_slice(...).get_shape() never touches the data.
+    Same number, exactly. A shard that will not parse is reported and skipped rather
+    than raised on: a finite count still routes the run, an exception here does not.
+    """
+    from safetensors import safe_open
+
+    shards = sorted(glob.glob(os.path.join(model_dir, "*.safetensors")))
     if not shards:
         return None
 
+    total_params = 0
     for shard_path in shards:
-        print(f"Loading shard: {shard_path}")
-        tensors = load_file(shard_path)
-        total_params += sum(v.numel() for v in tensors.values())
+        try:
+            with safe_open(shard_path, framework="pt") as st:
+                for key in st.keys():
+                    n = 1
+                    for d in st.get_slice(key).get_shape():
+                        n *= int(d)
+                    total_params += n
+        except Exception as exc:
+            print(f"[param-count] could not read header of {os.path.basename(shard_path)} "
+                  f"({type(exc).__name__}: {exc}); skipping that shard", flush=True)
+            continue
 
     return total_params
 
