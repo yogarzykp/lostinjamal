@@ -447,10 +447,15 @@ def probe_init_loss(
         dl = DataLoader(ds, batch_size=batch_size, shuffle=False)
 
         # Load model in bf16 for memory + speed
+        try:
+            from config_shim import load_kwargs_for as _rope_kw
+        except Exception:
+            _rope_kw = lambda *_a, **_k: {}  # noqa: E731
         model = AutoModelForCausalLM.from_pretrained(
             model_path,
             torch_dtype=torch.bfloat16,
             low_cpu_mem_usage=True,
+            **_rope_kw(model_path),  # the init-loss probe must see the real rope too
         ).to(device)
 
         init_loss = compute_init_loss(model, dl, max_batches=num_batches, device=device)

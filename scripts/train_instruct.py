@@ -33,6 +33,7 @@ from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
 import yaml
 from state_manager import get_state, set_state
 from attn_fallback import load_with_attn_fallback
+from config_shim import load_kwargs_for
 
 try:
     # Module scope: a raise here fails the import, so the trainer subprocess dies
@@ -126,6 +127,10 @@ def load_lora_model(training_args: TrainingArguments, model_path: str, lora_args
     model = load_with_attn_fallback(
         model_class.from_pretrained,
         model_path,
+        # 5.x-written configs (augmented mirrors, merged bases) lose rope_theta and
+        # rope_scaling on 4.51.3 — see config_shim. Extra kwargs, not model_kwargs, so
+        # the PEFT loads that reuse that dict never see them.
+        **load_kwargs_for(model_path, log=log_info),
         model_kwargs=dict(
             attn_implementation=attn_implementation,
             torch_dtype=torch.bfloat16,
@@ -198,6 +203,10 @@ def load_model(training_args: TrainingArguments, model_path: str, token_nums: in
     model = load_with_attn_fallback(
         model_class.from_pretrained,
         model_path,
+        # 5.x-written configs (augmented mirrors, merged bases) lose rope_theta and
+        # rope_scaling on 4.51.3 — see config_shim. Extra kwargs, not model_kwargs, so
+        # the PEFT loads that reuse that dict never see them.
+        **load_kwargs_for(model_path, log=log_info),
         model_kwargs=dict(
             # trust_remote_code=True, remove this because we already filter the model architecture, it will not be used with liger-kernel
             torch_dtype=torch.bfloat16,

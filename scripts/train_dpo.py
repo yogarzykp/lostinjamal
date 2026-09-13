@@ -51,6 +51,7 @@ import yaml
 from tokenize_dpo import get_dataset
 from transformers.modeling_utils import is_deepspeed_zero3_enabled
 from attn_fallback import load_with_attn_fallback
+from config_shim import load_kwargs_for
 
 
 
@@ -287,6 +288,7 @@ def main():
         train_request["model_path"],
         model_kwargs=model_kwargs,
         log=log_info,
+        **load_kwargs_for(train_request["model_path"], log=log_info),  # see config_shim
     )
     if len(training_args.fsdp) > 0 or is_deepspeed_zero3_enabled():
         # set gradient checkpointing to True with use_reentrant=True for deepspeed
@@ -300,7 +302,8 @@ def main():
     ref_model = None
     if "ref_model" in train_request:
         ref_model = model_class.from_pretrained(
-            train_request["ref_model"], **model_kwargs
+            train_request["ref_model"], **model_kwargs,
+            **load_kwargs_for(train_request["ref_model"], log=log_info),
         )
         # print("load ref_model: ", train_request["ref_model"])
 

@@ -124,6 +124,25 @@ def _stale_weight_artefact(name: str) -> bool:
     )
 
 
+try:
+    from config_shim import load_kwargs_for as _rope_load_kwargs
+except ImportError:
+    # Loaded by file path rather than as a package member (tests do this; a future
+    # caller might). The shim is pure python and sits beside this file, so resolve it
+    # the same way — and if even that fails, absorb as-is rather than decline: the
+    # shim must never be the reason a submission is left un-absorbed.
+    try:
+        import importlib.util as _ilu
+        _spec = _ilu.spec_from_file_location(
+            "config_shim", os.path.join(os.path.dirname(os.path.abspath(__file__)), "config_shim.py"))
+        _mod = _ilu.module_from_spec(_spec)
+        _spec.loader.exec_module(_mod)
+        _rope_load_kwargs = _mod.load_kwargs_for
+    except Exception:
+        def _rope_load_kwargs(*_a, **_k):
+            return {}
+
+
 def _is_adapter_submission(submission_dir: str) -> bool:
     """A PEFT adapter directory, as opposed to a full model.
 
@@ -250,7 +269,9 @@ def absorb_dev_split(
             f"(base {float(base_lr):.3e} x min_lr_rate {min_lr_rate})")
 
         model = AutoModelForCausalLM.from_pretrained(
-            submission_dir, torch_dtype=torch.bfloat16
+            submission_dir,
+            torch_dtype=torch.bfloat16,
+            **_rope_load_kwargs(submission_dir, log=log),  # see config_shim
         )
         device = "cuda" if torch.cuda.is_available() else "cpu"
         model.to(device)

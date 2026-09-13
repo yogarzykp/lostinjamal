@@ -49,7 +49,7 @@ def absorb():
     flag = annotations.compiler_flag
     tree = ast.parse(_source(MODULE))
     for node in tree.body:
-        if isinstance(node, (ast.Import, ast.ImportFrom, ast.FunctionDef, ast.Assign)):
+        if isinstance(node, (ast.Import, ast.ImportFrom, ast.FunctionDef, ast.Assign, ast.Try)):
             exec(compile(ast.Module(body=[node], type_ignores=[]), MODULE, "exec", flags=flag), ns)  # noqa: S102
     assert "absorb_dev_split" in ns, "absorb_dev_split is not defined at module scope"
     return ns["absorb_dev_split"]

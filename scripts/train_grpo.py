@@ -58,6 +58,7 @@ import yaml
 from tokenize_grpo import get_dataset
 from customized_trainer import resize_if_needed, set_generation_config, CustomEvalSaveCallback, GRPOCustomEvalSaveCallback, WhenToEvalHandler, init_wandb
 from attn_fallback import load_with_attn_fallback
+from config_shim import load_kwargs_for
 
 try:
     # Module scope: a raise here fails the import, so the trainer subprocess dies
@@ -422,6 +423,7 @@ def main():
         train_request["model_path"],
         model_kwargs=model_kwargs,
         log=log_info,
+        **load_kwargs_for(train_request["model_path"], log=log_info),  # see config_shim
     )
 
     # some model need to set the generation config or encounter the invalid generation config error
