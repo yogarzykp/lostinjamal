@@ -61,8 +61,18 @@ def liger_supported_model_types() -> frozenset:
         return LIGER_MODEL_TYPES_PINNED
 
 
-def get_use_liger_for_path(model_path: str) -> str:
+def get_use_liger_for_path(model_path: str, use_kl: bool = False) -> str:
     """"True"/"False" for --use_liger, decided by model_type and liger's own map.
+
+    Refused outright when the KL objective is active. Measured on the gate 2026-09-13:
+    with liger on, the KL stage logged `KL term failed (AttributeError: 'NoneType' object
+    has no attribute 'shape')` and then `recovered after 2000 CE-only step(s)`. liger's
+    fused cross-entropy computes the loss WITHOUT materialising logits — that is exactly
+    where its memory saving comes from — and the KL term needs those logits
+    (kl_trainer_mixin.py:112; the checkpoint metric at train_instruct.py:719-721 needs
+    them too). The validator scores eval_loss + kl_coef * KL, so a run that quietly falls
+    back to plain CE is judged on a question it never optimised. The two are mutually
+    exclusive and the objective wins.
 
     The adaptive path used to hardcode False. With liger off there is no fused
     cross-entropy, so the full [B, T, V] logits are materialised — a 256k-vocab model like
@@ -79,6 +89,8 @@ def get_use_liger_for_path(model_path: str) -> str:
     """
     import json as _json
 
+    if use_kl:
+        return "False"
     path = os.path.join(model_path, "config.json") if os.path.isdir(model_path) else None
     if not path or not os.path.isfile(path):
         return "False"

@@ -2178,11 +2178,15 @@ def build_adaptive_run_config(
     _ds_shape = resolve_distributed_shape(task_type_lc, param_count, gpu_count)
     try:
         from model_utility import get_use_liger_for_path
-        _use_liger = get_use_liger_for_path(model_path)
+        # _kl_on comes from read_kl_config above: liger's fused CE returns no logits,
+        # and the KL term needs them. Measured on the gate — see get_use_liger_for_path.
+        _use_liger = get_use_liger_for_path(model_path, use_kl=bool(_kl_on))
     except Exception as _liger_exc:
         _use_liger = "False"
         print(f"[adaptive] liger decision unavailable ({type(_liger_exc).__name__}) — off", flush=True)
-    print(f"[adaptive] use_liger={_use_liger} (model_type from config, liger dispatch map)", flush=True)
+    print(f"[adaptive] use_liger={_use_liger} (model_type from config, liger dispatch map"
+          f"{'; refused: KL objective needs logits liger does not materialise' if _kl_on else ''})",
+          flush=True)
     run_config = {
         "epoch_num": epochs,
         "batch_size": batch,

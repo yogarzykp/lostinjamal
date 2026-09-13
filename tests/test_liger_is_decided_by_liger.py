@@ -108,3 +108,47 @@ def test_the_legacy_hand_list_still_agrees_where_it_speaks(tmp_path):
     for cls, mt in pairs:
         assert mu.get_use_liger(cls) == "True"
         assert mt in mu.LIGER_MODEL_TYPES_PINNED, f"{cls} -> {mt} not patched by liger"
+
+
+# --- liger and the KL objective are mutually exclusive -------------------------------
+#
+# Measured on the gate, 2026-09-13, run 03d3a5a: with use_liger True the KL stage logged
+#
+#   [kl-trainer] KL term failed (AttributeError: 'NoneType' object has no attribute 'shape')
+#   [kl-trainer] KL term recovered after 2000 CE-only step(s)
+#
+# and the gate row read "KL term failed 2 time(s) — trained on the wrong objective".
+# outputs.logits is None because liger's fused cross-entropy computes the loss WITHOUT
+# materialising logits — that is exactly where its memory saving comes from. Our KL term
+# needs those logits (kl_trainer_mixin.py:112, and the checkpoint metric at
+# train_instruct.py:719-721). So on a KL-flagged task liger must stay off: the validator
+# scores eval_loss + kl_coef * KL, and a run that silently trains plain CE is scored on a
+# question it never optimised.
+
+
+def test_liger_is_refused_when_the_kl_objective_is_active(tmp_path):
+    d = _model_dir(tmp_path, model_type="qwen2")
+    assert mu.get_use_liger_for_path(d) == "True", "precondition: qwen2 is patched by liger"
+    assert mu.get_use_liger_for_path(d, use_kl=True) == "False", (
+        "liger's fused CE returns no logits, and the KL term needs them — this trains the "
+        "wrong objective on a KL-scored task"
+    )
+
+
+def test_kl_off_leaves_the_decision_to_liger(tmp_path):
+    d = _model_dir(tmp_path, model_type="qwen2")
+    assert mu.get_use_liger_for_path(d, use_kl=False) == "True"
+
+
+def test_an_unsupported_model_type_stays_false_either_way(tmp_path):
+    d = _model_dir(tmp_path, model_type="lfm2")
+    assert mu.get_use_liger_for_path(d, use_kl=False) == "False"
+    assert mu.get_use_liger_for_path(d, use_kl=True) == "False"
+
+
+def test_the_adaptive_path_passes_the_kl_flag_through():
+    src = open(os.path.join(ROOT, "scripts", "adaptive_config.py"), encoding="utf-8").read()
+    i = src.index("get_use_liger_for_path(")
+    assert "use_kl" in src[i:i + 160], (
+        "adaptive asks liger about the model but never tells it the KL objective is on"
+    )
