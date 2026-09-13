@@ -1,0 +1,58 @@
+fatal: cannot change to '/root/lostinjamal-preshim': No such file or directory
+################ ARM rope-lostinjamal-preshim () 14:20:22 ################
+=== A/B · task dd558022-496c-4779-8fef-118689e7a227 · gradients-io-tournaments/augmented-8bc5002e812b62b4 · 1.25h per arm · seed 42 (tag rope-lostinjamal-preshim) ===
+=== common held-out: /cache/datasets/dd558022-496c-4779-8fef-118689e7a227_test_data.json (1000 rows)
+
+--- arm b (1.25h) ---
+[gpu] 81007 MiB free — proceeding
+    submission: /app/checkpoints/dd558022-496c-4779-8fef-118689e7a227/ab-b-rope-lostinjamal-preshim
+    own loss.txt (NOT comparable across arms): 
+
+=== scoring every arm on the one common held-out set ===
+  [b] no submission produced — arm failed, see /root/smoke/logs/ab_b_rope-lostinjamal-preshim.out
+
+=== per-arm vectors written to /root/smoke/ab/ — compare with compare_ab.py ===
+################ ARM rope-lostinjamal-preshim selesai 14:20:22 ################
+################ ARM rope-lostinjamal (e73fc49 Runbook for the single-H100 box: gate, then the rope A/B on a live augmented task) 14:20:22 ################
+=== A/B · task dd558022-496c-4779-8fef-118689e7a227 · gradients-io-tournaments/augmented-8bc5002e812b62b4 · 1.25h per arm · seed 42 (tag rope-lostinjamal) ===
+=== common held-out: /cache/datasets/dd558022-496c-4779-8fef-118689e7a227_test_data.json (1000 rows)
+
+--- arm b (1.25h) ---
+[gpu] 81007 MiB free — proceeding
+    submission: /app/checkpoints/dd558022-496c-4779-8fef-118689e7a227/ab-b-rope-lostinjamal
+    own loss.txt (NOT comparable across arms): 600,0.781444251537323
+
+=== scoring every arm on the one common held-out set ===
+  [b] held-out examples: 1,000
+  [b] [2026-09-13 15:35:34,484] [INFO] [real_accelerator.py:219:get_accelerator] Setting ds_accelerator to cuda (auto detect)
+  [b] /usr/local/lib/python3.11/dist-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_name" in PromptModelConfig has conflict with protected namespace "model_".
+  [b] 
+  [b] You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  [b]   warnings.warn(
+  [b]       8/1000
+  [b]     168/1000
+  [b]     328/1000
+  [b]     488/1000
+  [b]     648/1000
+  [b]     808/1000
+  [b]     968/1000
+  [b] 
+  [b] per-example summary: {'n': 1000, 'n_finite': 1000, 'mean': 1.0174045887887477, 'p10': 0.44488853216171265, 'p50': 0.7943306565284729, 'p90': 1.6158215999603271, 'max': 11.807266235351562}
+  [b] fingerprint        : e2b655f3e525a39f
+  [b] 
+  [b] OUR TEST LOSS      : 1.0174
+  [b] 
+  [b] (no leaderboard printed: these ranks belong to task 865ff4ab; against another task's held-out set they compare unrelated distributions and mean nothing)
+  [b] per-example vector written to /root/smoke/ab/b_rope-lostinjamal.json
+
+=== per-arm vectors written to /root/smoke/ab/ — compare with compare_ab.py ===
+################ ARM rope-lostinjamal selesai 15:37:02 ################
+################ PERBANDINGAN ################
+usage: compare_ab.py [-h] --a A --b B [--label-a LABEL_A] [--label-b LABEL_B]
+                     [--resamples RESAMPLES]
+compare_ab.py: error: the following arguments are required: --a, --b
+total 28
+drwxr-xr-x 2 root root  4096 Sep 13 15:37 .
+drwxr-xr-x 7 root root  4096 Sep 13 14:21 ..
+-rw-r--r-- 1 root root 19940 Sep 13 15:37 b_rope-lostinjamal.json
+################ AB SELESAI 15:37:02 ################

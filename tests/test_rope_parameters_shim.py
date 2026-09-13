@@ -165,9 +165,14 @@ def test_a_shimmed_save_carries_both_shapes_consistently(tmp_path):
     ("train_grpo.py", "load_with_attn_fallback("),
     ("dev_absorption.py", "AutoModelForCausalLM.from_pretrained("),
     ("dynamics_utils.py", "AutoModelForCausalLM.from_pretrained("),
+    ("../ops/smoke/score_against_leaderboard.py", "AutoModelForCausalLM.from_pretrained("),
 ])
 def test_every_model_load_site_goes_through_the_shim(script, marker):
-    """Correct code nothing calls is this repo's most expensive bug class."""
+    """Correct code nothing calls is this repo's most expensive bug class.
+
+    The local scorer is on the list for a measured reason: without the shim it read the
+    LoRA arms' base at theta 10000 and inverted the 2026-09-13 A/B (-0.13 nats for the
+    shim locally, +0.16 nats under the validator's 5.12.1)."""
     src = open(os.path.join(ROOT, "scripts", script), encoding="utf-8").read()
     starts = [i for i in range(len(src)) if src.startswith(marker, i)]
     assert starts, f"{script}: no {marker}"

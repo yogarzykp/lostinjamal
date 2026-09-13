@@ -73,7 +73,23 @@ def main():
     tok = AutoTokenizer.from_pretrained(args.model)
     if tok.pad_token_id is None:
         tok.pad_token = tok.eos_token
-    model = AutoModelForCausalLM.from_pretrained(args.model, torch_dtype=torch.bfloat16, device_map="auto")
+    # This scorer runs on our pinned 4.51.3, which misreads a config written by
+    # transformers 5.x (rope_parameters) as rope_theta=10000 — including the BASE a
+    # LoRA submission points at. Measured 2026-09-13 on dd558022: scored this way, the
+    # arm trained at the true theta looked 0.13 nats WORSE than the arm trained at the
+    # misread one; scored under transformers 5.12.1 (what the validator runs) it was
+    # 0.16 nats BETTER. The shim makes this loader read the base the way the validator
+    # does. When in doubt, score in a 5.12.x venv and compare.
+    from config_shim import load_kwargs_for
+    base_dir = args.model
+    try:
+        import json as _json
+        _ac = _json.load(open(os.path.join(args.model, "adapter_config.json")))
+        base_dir = _ac.get("base_model_name_or_path") or args.model
+    except Exception:
+        pass
+    model = AutoModelForCausalLM.from_pretrained(args.model, torch_dtype=torch.bfloat16, device_map="auto",
+                                                 **load_kwargs_for(base_dir))
     model.eval()
 
     losses = []
