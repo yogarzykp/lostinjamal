@@ -33,26 +33,38 @@ def remove_sep_token(items, sep_token: str): # model berkeley-nest/Starling-LM-7
     return items
 
 
-def is_poor_item(item):
-    for key, value in item.items():
+def is_poor_item(item, required=None):
+    """A row the DPO objective cannot use: a required field missing, None or blank.
+
+    `required` is the task's (prompt, chosen, rejected) field names. It used to be
+    every column: a blank `system` — empty on most rows of most validator DPO
+    datasets — dropped the whole pair. Measured 2026-09-13: a 95%-empty system column
+    left 134 train / 44 dev rows of 3600, and the log said only "Removed 3422 empty
+    items". With required=None the old all-columns rule applies, for callers that
+    have no field mapping to give.
+    """
+    keys = required if required else list(item.keys())
+    for key in keys:
+        value = item.get(key)
         if value is None or (type(value) is str and len(value.strip()) == 0):
             return True
     return False
 
 
-def remove_empty_items(items: list):
+def remove_empty_items(items: list, required=None):
     result = []
     count = 0
     for item in items:
-        if not is_poor_item(item):
+        if not is_poor_item(item, required):
             result.append(item)
         else:
             count += 1
-    print(f"Removed {count} empty items")
+    scope = f"on {list(required)}" if required else "on any column"
+    print(f"Removed {count} empty items ({scope}); {len(result)} remain")
     return result
 
 
-def split_dataset(total_data_path: str, train_data_path: str, dev_data_path: str, seed: int = 42, dev_size: int = 200, max_data_size: int = -1, model: str = ""):
+def split_dataset(total_data_path: str, train_data_path: str, dev_data_path: str, seed: int = 42, dev_size: int = 200, max_data_size: int = -1, model: str = "", fields=None):
     """Split the dataset into train and dev"""
     # Load the dataset
     with open(total_data_path, 'r') as file:
@@ -61,7 +73,7 @@ def split_dataset(total_data_path: str, train_data_path: str, dev_data_path: str
     random.seed(seed)
     random.shuffle(data)
     stringify_wrong_item(data)
-    data = remove_empty_items(data)
+    data = remove_empty_items(data, required=fields)
     if model in REMOVE_ADD_TOKEN:
         print(f"Removing {REMOVE_ADD_TOKEN[model]} token from {model}")
         data = remove_sep_token(data, REMOVE_ADD_TOKEN[model])
@@ -179,8 +191,14 @@ def main(training_request_path: str):
         print(f"Max data size is {max_data_size}, so we will only extract {max_data_size} samples randomly")
     
     model_name = training_request["train_request"]["model_name"]
-    
-    split_dataset(total_path, train_path, dev_path, max_data_size=max_data_size, model=model_name)
+    _dt = training_request["train_request"].get("dataset_type") or {}
+    _fields = tuple(f for f in (_dt.get("field_prompt"), _dt.get("field_chosen"), _dt.get("field_rejected")) if f)
+    if len(_fields) != 3:
+        print(f"[tokenize_dpo] dataset_type carries {len(_fields)}/3 field names; "
+              f"empty-row filter falls back to every column", flush=True)
+        _fields = None
+
+    split_dataset(total_path, train_path, dev_path, max_data_size=max_data_size, model=model_name, fields=_fields)
     t2 = datetime.now()
     print(f"Tokenization completed in {(t2 - t1).seconds} seconds")
 
