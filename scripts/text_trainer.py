@@ -796,6 +796,49 @@ def restore_submission_architectures(submission_dir: str, base_model_path: str) 
 MAX_LOOP_RUNS = 8
 
 
+def sanity_check_train_info(ti: dict) -> tuple[bool, str]:
+    """Validate adaptive's output has sane fields. Returns (ok, reason).
+
+    Adaptive can import + return without raising but produce nonsense (NaN
+    LR, batch=0, missing run_cmd). Catch those before they crash train_*.py
+    at step 1 — burning one of our 2 retry attempts.
+    """
+    if not isinstance(ti, dict):
+        return False, f"train_info not dict ({type(ti).__name__})"
+    if "run_cmd" not in ti or not isinstance(ti["run_cmd"], str) or not ti["run_cmd"].strip():
+        return False, "missing/empty run_cmd"
+    tr = ti.get("train_request")
+    if not isinstance(tr, dict):
+        return False, f"train_request not dict ({type(tr).__name__})"
+    # LR sanity. The planner puts LR and batch into the COMMAND STRING, not into
+    # train_request, so reading the request alone found nothing and the guard
+    # passed anything — measured 2026-09-13: a run_cmd with --learning_rate 1e3
+    # sailed through. Read the request first (harmless), then the command.
+    cmd = ti["run_cmd"]
+    lr_candidates = [tr.get("learning_rate"), tr.get("lr"), tr.get("init_lr"),
+                     extract_value_from_cmd(cmd, "learning_rate"), extract_value_from_cmd(cmd, "lr")]
+    lr = next((v for v in lr_candidates if v is not None), None)
+    if lr is not None:
+        try:
+            lr_f = float(lr)
+            if not (1e-8 < lr_f < 1e-1):
+                return False, f"learning_rate out of bounds: {lr_f}"
+        except (TypeError, ValueError):
+            return False, f"learning_rate non-numeric: {lr!r}"
+    # batch sanity — explicit None chain (avoid `or` falsy-on-zero bug)
+    bs_candidates = [tr.get("batch_size"), tr.get("per_device_train_batch_size"), tr.get("micro_batch_size"),
+                     extract_value_from_cmd(cmd, "per_device_train_batch_size"),
+                     extract_value_from_cmd(cmd, "batch_size"), extract_value_from_cmd(cmd, "micro_batch_size")]
+    bs = next((v for v in bs_candidates if v is not None), None)
+    if bs is not None:
+        try:
+            if int(bs) <= 0:
+                return False, f"batch_size <= 0: {bs}"
+        except (TypeError, ValueError):
+            return False, f"batch_size non-int: {bs!r}"
+    return True, ""
+
+
 def main():
     print("---STARTING TEXT TRAINING SCRIPT---", flush=True)
     parser = argparse.ArgumentParser(description="Text Model Training Script")
@@ -960,40 +1003,6 @@ def main():
     # config-builder bug never takes the whole training down — cascade to
     # legacy battle-tested config builder instead. Worst case: validator gets
     # a vanilla submission instead of no submission at all.
-    def _sanity_check_train_info(ti: dict) -> tuple[bool, str]:
-        """Validate adaptive's output has sane fields. Returns (ok, reason).
-
-        Adaptive can import + return without raising but produce nonsense (NaN
-        LR, batch=0, missing run_cmd). Catch those before they crash train_*.py
-        at step 1 — burning one of our 2 retry attempts.
-        """
-        if not isinstance(ti, dict):
-            return False, f"train_info not dict ({type(ti).__name__})"
-        if "run_cmd" not in ti or not isinstance(ti["run_cmd"], str) or not ti["run_cmd"].strip():
-            return False, "missing/empty run_cmd"
-        tr = ti.get("train_request")
-        if not isinstance(tr, dict):
-            return False, f"train_request not dict ({type(tr).__name__})"
-        # LR sanity — accept any field name that might carry it
-        lr_candidates = [tr.get("learning_rate"), tr.get("lr"), tr.get("init_lr")]
-        lr = next((v for v in lr_candidates if v is not None), None)
-        if lr is not None:
-            try:
-                lr_f = float(lr)
-                if not (1e-8 < lr_f < 1e-1):
-                    return False, f"learning_rate out of bounds: {lr_f}"
-            except (TypeError, ValueError):
-                return False, f"learning_rate non-numeric: {lr!r}"
-        # batch sanity — explicit None chain (avoid `or` falsy-on-zero bug)
-        bs_candidates = [tr.get("batch_size"), tr.get("per_device_train_batch_size"), tr.get("micro_batch_size")]
-        bs = next((v for v in bs_candidates if v is not None), None)
-        if bs is not None:
-            try:
-                if int(bs) <= 0:
-                    return False, f"batch_size <= 0: {bs}"
-            except (TypeError, ValueError):
-                return False, f"batch_size non-int: {bs!r}"
-        return True, ""
 
     use_adaptive = os.getenv("ADAPTIVE_MODE", "1") == "1"
     _train_info_snapshot = copy.deepcopy(train_info)  # restore point if adaptive crashes
@@ -1005,7 +1014,7 @@ def main():
             train_info = get_adaptive_training_json(args.task_type, train_info)
             # SAFETY LAYER (A) 2026-05-23: sanity-check adaptive's output before
             # accepting. If LR/batch/run_cmd are insane, cascade to legacy.
-            _ok, _why = _sanity_check_train_info(train_info)
+            _ok, _why = sanity_check_train_info(train_info)
             if not _ok:
                 print(
                     f"[ADAPTIVE-SANITY] adaptive returned invalid train_info: {_why}. "
@@ -1383,11 +1392,13 @@ def main():
     # run is already selected, so it is single-process against a directory: no wrapped
     # model, no DDP lockstep to preserve.
     #
-    # Default OFF. The position-1 miner of tourn_e758aac2d861c378_20260824 publishes this
+    # Default ON since 882c0c5 (measured -0.0194 and -0.0052 on our own harness at the
+    # default rate; see dev_absorption.py); the env flag on the gate below turns it off
+    # and only ever fires after a successful train. The history:
+    # the position-1 miner of tourn_e758aac2d861c378_20260824 publishes this
     # mechanism and its own telemetry claims absorb=+0.0183, and our measured gap to that
-    # model on identical rows was 0.0225 — but +0.0183 is THEIR number on THEIR stack. It
-    # stays gated until an A/B on our own harness produces ours, per the same rule that
-    # governs every other unmeasured action in this repo.
+    # model on identical rows was 0.0225 — but +0.0183 was THEIR number on THEIR stack,
+    # so it stayed gated until the A/B on our own harness produced ours. It did.
     if train_success and os.getenv("DEV_ABSORPTION", "1") == "1":
         try:
             from dev_absorption import DEFAULT_MIN_LR_RATE, absorb_dev_split
