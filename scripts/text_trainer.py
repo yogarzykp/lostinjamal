@@ -417,6 +417,15 @@ def run_training(
                             "per_device_train_batch_size",
                             str(new_batch_size),
                         )
+                        # GRPO only (no-op elsewhere): the halved batch must still be
+                        # divisible by num_generations or TRL rejects the rung at parse
+                        # time, which is not an OOM and would repeat to exhaustion.
+                        try:
+                            import torch as _torch
+                            _ws = max(_torch.cuda.device_count(), 1)
+                        except Exception:
+                            _ws = 1
+                        train_cmd = fit_grpo_generations(train_cmd, new_batch_size, _ws)
                         # print(f"New train command: {train_cmd}", flush=True)
                     else:
                         print(f"batch size is 1, cannot reduce further", flush=True)
@@ -509,6 +518,53 @@ def patch_wandb_symlinks(base_dir: str):
                     print("Target not found, creating dummy")
                     pathlib.Path(full_path).touch()
 
+
+
+def fit_grpo_generations(cmd: str, new_batch: int, world_size: int) -> str:
+    """Keep a halved GRPO command parseable by TRL. Returns the (possibly rewritten) cmd.
+
+    TRL 0.18.0's GRPOConfig requires num_generations >= 2 and dividing
+    generation_batch_size = per_device_train_batch_size x num_processes x
+    gradient_accumulation_steps (grpo_config.py:517-545 in the pinned venv). The OOM
+    ladder halved only the batch, so a rung could land on b=1 / GA=4 / num_gen=8 —
+    ValueError at parse time, which get_error_type does not classify as OOM, so the
+    remaining attempts re-ran the identical crash to exhaustion and the run ended in
+    the noise fallback. Measured on a real planner shape (MiniCPM5-1B: batch 40,
+    num_gen 5, GA 1) crashing at the second rung, 2026-09-13.
+
+    num_generations is lowered to the largest valid divisor not above the current
+    one — never raised, the planner sized it — and when the effective batch is too
+    small for ANY num_generations, gradient_accumulation_steps is raised to make it 2.
+    Non-GRPO commands (no --num_generations) are returned untouched.
+    """
+    raw_ng = extract_value_from_cmd(cmd, "num_generations")
+    if raw_ng is None:
+        return cmd
+    try:
+        ng = int(raw_ng)
+        ga = int(extract_value_from_cmd(cmd, "gradient_accumulation_steps") or 1)
+    except (TypeError, ValueError):
+        return cmd
+    world_size = max(int(world_size or 1), 1)
+    new_batch = max(int(new_batch), 1)
+
+    gbs = new_batch * world_size * ga
+    if gbs < 2:
+        ga = -(-2 // (new_batch * world_size))  # ceil: the smallest GA that makes gbs >= 2
+        cmd = replace_args_in_cmd(cmd, "gradient_accumulation_steps", str(ga))
+        gbs = new_batch * world_size * ga
+        print(f"[ladder] GRPO effective batch was < 2 after halving; "
+              f"gradient_accumulation_steps raised to {ga}", flush=True)
+
+    valid = [d for d in range(2, gbs + 1) if gbs % d == 0]
+    if ng in valid:
+        return cmd
+    fitting = [d for d in valid if d <= ng]
+    new_ng = max(fitting) if fitting else min(valid)
+    print(f"[ladder] GRPO num_generations {ng} does not divide the effective batch "
+          f"{gbs} (batch {new_batch} x gpus {world_size} x accum {ga}); "
+          f"using {new_ng} so TRL accepts the rung", flush=True)
+    return replace_args_in_cmd(cmd, "num_generations", str(new_ng))
 
 def _finite_loss(run) -> float | None:
     """A run's current_loss as a finite float, or None when it has no usable one.
