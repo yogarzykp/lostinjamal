@@ -1,5 +1,7 @@
 from transformers import GenerationConfig
 import datetime
+import math
+import time
 from datetime import timezone
 from transformers import (
     TrainerCallback,
@@ -159,6 +161,16 @@ class CustomEvalSaveCallback(TrainerCallback):
         self.total_steps_all_epochs = total_steps_all_epochs
         self.checking_mode = checking_mode
         self.end_time = end_time
+        # Deadline lead, measured rather than assumed. The handler fires
+        # reason="end_time" when fewer than save_before_remaining_time minutes remain
+        # and THEN runs a full eval cycle — eval, checkpoint metric, telemetry, save,
+        # copy — with post-training still to come. Three GPU runs on 2026-09-13 put that
+        # tail at 358-465 s against a fixed 180 s lead: -180, -196 and -309 s past
+        # end_time, on a validator that kills ~173 s past it. The first periodic cycle
+        # is timed here (trigger -> end of on_save) and the lead widened to fit it.
+        self._cycle_t0 = None
+        self._cycle_reason = None
+        self._eval_cycle_secs = None
         # Phase 1 BUGFIX 2026-05-02: early-stop on plateau/regression.
         # Phase D refinement 2026-05-03: window-smoothed + adaptive patience.
         #
@@ -559,6 +571,8 @@ class CustomEvalSaveCallback(TrainerCallback):
         when_to_eval = self.function_when_to_evaluate(state.global_step)
         if when_to_eval["eval"]:
             print(f"Evaluating the model at step: {state.global_step} the reason: {when_to_eval['reason']}", flush=True)
+            self._cycle_t0 = time.monotonic()
+            self._cycle_reason = when_to_eval["reason"]
             if getattr(self, "_grpo_no_eval", False):
                 # GRPO STEP-500 RESHAPE FIX (2026-05-28): GRPO eval generation
                 # crashes at trl/grpo_trainer.py:1199 — rewards.view(-1, num_generations)
@@ -582,6 +596,17 @@ class CustomEvalSaveCallback(TrainerCallback):
                         print(f"No checkpoint found, just save the model at step: {state.global_step}", flush=True)
                         control.should_evaluate = False
                         self.save_only = True
+                    elif self._eval_cycle_secs is not None:
+                        # The lead was widened from a measured cycle, but a long step or a
+                        # late measurement can still leave less time than one cycle
+                        # takes. An eval that cannot finish before the kill is worse than
+                        # no eval: it also loses the save behind it.
+                        remaining = self._seconds_to_end_time()
+                        if remaining is not None and remaining < self._eval_cycle_secs:
+                            print(f"[deadline] {remaining:.0f}s remain but a full eval cycle takes "
+                                  f"{self._eval_cycle_secs:.0f}s — saving without the eval", flush=True)
+                            control.should_evaluate = False
+                            self.save_only = True
 
             if when_to_eval["reason"] == "end_time":
                 # BUGFIX 2026-08-10: actually stop at the deadline.
@@ -939,7 +964,50 @@ class CustomEvalSaveCallback(TrainerCallback):
 
 
 
+    def _seconds_to_end_time(self):
+        try:
+            end = datetime.datetime.strptime(self.end_time, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+            return (end - datetime.datetime.now(timezone.utc)).total_seconds()
+        except Exception:
+            return None
+
+    def _record_eval_cycle(self):
+        """Time a completed periodic/epoch cycle and widen the deadline lead to fit it.
+
+        Measured from the trigger in on_step_end to the end of on_save, so it includes
+        the eval, the checkpoint metric (two extra dev passes on KL tasks), the
+        telemetry pass when it is on, the save and the copy. The end_time cycle itself
+        is not representative (it may be save-only) and is not counted. The lead only
+        ever widens: 1.25x the longest cycle seen plus 45 s, at least the configured
+        floor, rounded up to whole minutes because that is the handler's unit.
+        """
+        if self._cycle_t0 is None:
+            return
+        secs = time.monotonic() - self._cycle_t0
+        reason = self._cycle_reason
+        self._cycle_t0 = None
+        self._cycle_reason = None
+        if reason == "end_time":
+            return
+        self._eval_cycle_secs = max(self._eval_cycle_secs or 0.0, secs)
+        handler = self.function_when_to_evaluate
+        current = getattr(handler, "save_before_remaining_time", None)
+        if not isinstance(current, (int, float)):
+            return
+        want = int(math.ceil((1.25 * self._eval_cycle_secs + 45.0) / 60.0))
+        if want > current:
+            handler.save_before_remaining_time = want
+            print(f"[deadline] eval cycle measured {secs:.0f}s (eval + metric + telemetry + save); "
+                  f"deadline lead widened {current} -> {want} min so the last cycle lands before end_time",
+                  flush=True)
+
     def on_save(self, args, state: TrainerState, control: TrainerControl, **kwargs):
+        try:
+            return self._on_save_body(args, state, control, **kwargs)
+        finally:
+            self._record_eval_cycle()
+
+    def _on_save_body(self, args, state: TrainerState, control: TrainerControl, **kwargs):
         
         if state.global_step == self.max_steps and self.max_steps != -1:
             print(f"Stop training because of max steps: {self.max_steps}", flush=True)
