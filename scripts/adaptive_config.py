@@ -2173,6 +2173,9 @@ def build_adaptive_run_config(
           f"({_step_time_source}) → max_steps_budget={_budget_max_steps}", flush=True)
 
     # Common run_config keys (matches legacy structure)
+    # Multi-GPU shape, decided together: ds implies checkpointing off, and grpo
+    # never takes ds. See resolve_distributed_shape for why this follows the boss.
+    _ds_shape = resolve_distributed_shape(task_type_lc, param_count, gpu_count)
     run_config = {
         "epoch_num": epochs,
         "batch_size": batch,
@@ -2200,8 +2203,11 @@ def build_adaptive_run_config(
         # Keyed on the condition that actually matters: a model too big for one card, and
         # more than one card to shard it across. Single-GPU behaviour is unchanged, so no
         # run we have ever made is affected.
-        "distributed": "ds" if param_count > 9e9 and gpu_count > 1 else "ddp",
-        "gradient_checkpointing": "True",
+        # See resolve_distributed_shape: ds implies gradient_checkpointing False, and
+        # grpo never routes to ds — the boss's shape, adopted because this path cannot
+        # be tested before the tournament that will exercise it.
+        "distributed": _ds_shape[0],
+        "gradient_checkpointing": _ds_shape[1],
         "gradient_accumulation_steps": grad_accum,
         "warmup_steps": warmup,
         "use_attn_implementation": _attn_impl_override,
@@ -2691,6 +2697,43 @@ def build_adaptive_run_config(
 # ---------------------------------------------------------------------------
 # Public API: drop-in replacement for *_config.py get_training_json
 # ---------------------------------------------------------------------------
+
+
+def resolve_distributed_shape(task_type_lc: str, param_count: float, gpu_count: int):
+    """(distributed, gradient_checkpointing) for the multi-GPU route — the boss's shape.
+
+    ZeRO-3 has never executed here: it needs >9e9 params AND >1 GPU, and no box we have
+    had is multi-GPU. It cannot be verified before the tournament, and the boss round
+    guarantees it fires. So the shape is taken from the one configuration with a real
+    tournament result behind it, on our exact pins — the retained boss of
+    tourn_2ba0f79237bffcf7, read from its published config:
+
+        DPO   9_12_b  ds / 4 GPU / LoRA / batch 32 / gradient_checkpointing False
+              12_14_b ds / 4 GPU / LoRA / batch 24 / False
+              14_15_b ds / 8 GPU / LoRA / batch 18 / False
+              15_40_b ds / 8 GPU / LoRA /            False
+        GRPO  distributed "ddp" on EVERY bucket, at every size — never ds
+
+    Checkpointing off whenever we emit ds is the point: with it off,
+    torch.utils.checkpoint is never called, so the CheckpointError that the
+    use_reentrant seam in train_*.py exists to prevent becomes impossible rather than
+    merely handled. That seam stays, and goes inert here — the right relationship for a
+    guard nobody can test before it matters.
+
+    GRPO never routing to ds also removes the second reference model TRL builds under
+    ZeRO-3 (grpo_trainer.py:557-558 precedes its is_peft_model branch) sitting beside
+    vLLM colocate on the same cards.
+
+    The cost is activation memory, which ZeRO-3 does not shard and which one GPU cannot
+    measure. The boss carries it at 9-40B with LoRA on 4-8 GPUs and kept the title; that
+    is the only evidence either option has.
+    """
+    use_ds = (
+        param_count > 9e9
+        and gpu_count > 1
+        and str(task_type_lc).lower() != "grpo"
+    )
+    return ("ds", "False") if use_ds else ("ddp", "True")
 
 def get_adaptive_training_json(task_type: str, train_info: dict) -> dict:
     """Drop-in replacement for instruct_config.get_training_json (et al).

@@ -33,27 +33,29 @@ def h200_count(h100_units: int) -> int:
     return math.ceil(h100_units * H100_VRAM_GB / H200_VRAM_GB)
 
 
-def _choice(param_count: float, gpu_count: int) -> str:
-    """Evaluate the shipped expression, read out of the source rather than re-typed.
+def _shape(param_count: float, gpu_count: int, task: str = "instruct"):
+    """Run the shipped decision function, exec'd out of the source rather than re-typed.
 
-    Re-typing it is how a test drifts into asserting what it wishes the code said.
+    Re-typing it is how a test drifts into asserting what it wishes the code said. This
+    used to eval the ternary at the "distributed" key; the decision now lives in
+    resolve_distributed_shape (it also settles gradient_checkpointing, which has to move
+    with it), so the function itself is what gets exec'd. It has no imports and no GPU
+    probe, so this still needs neither torch nor a live device.
     """
     with open(ADAPTIVE, "r", encoding="utf-8") as fh:
         tree = ast.parse(fh.read())
-    for node in ast.walk(tree):
-        if (
-            isinstance(node, ast.Dict)
-            and any(isinstance(k, ast.Constant) and k.value == "distributed" for k in node.keys)
-        ):
-            for key, value in zip(node.keys, node.values):
-                if isinstance(key, ast.Constant) and key.value == "distributed":
-                    expr = ast.Expression(body=value)
-                    ast.fix_missing_locations(expr)
-                    return eval(  # noqa: S307 - evaluating our own source, no input
-                        compile(expr, ADAPTIVE, "eval"),
-                        {"param_count": param_count, "gpu_count": gpu_count},
-                    )
-    pytest.fail("no 'distributed' key found in adaptive_config")
+    for node in tree.body:
+        if isinstance(node, ast.FunctionDef) and node.name == "resolve_distributed_shape":
+            mod = ast.Module(body=[node], type_ignores=[])
+            ast.fix_missing_locations(mod)
+            ns = {}
+            exec(compile(mod, ADAPTIVE, "exec"), ns)  # noqa: S102 - our own source
+            return ns["resolve_distributed_shape"](task, param_count, gpu_count)
+    pytest.fail("no resolve_distributed_shape found in adaptive_config")
+
+
+def _choice(param_count: float, gpu_count: int, task: str = "instruct") -> str:
+    return _shape(param_count, gpu_count, task)[0]
 
 
 # --- the band the boss round guarantees ---------------------------------------------
@@ -100,3 +102,43 @@ def test_the_boundary_is_the_param_threshold_not_the_gpu_count():
     """
     assert _choice(9.0e9, 3) == "ddp", "at or below 9B should not shard"
     assert _choice(9.1e9, 3) == "ds", "above 9B on multiple GPUs should shard"
+
+
+
+# --- the boss's shape, adopted because this path cannot be tested before it matters ---
+#
+# The retained boss of tourn_2ba0f79237bffcf7 (same transformers 4.51.3, same trl 0.18.0)
+# sets gradient_checkpointing False on EVERY ds bucket, and routes GRPO to "ddp" at every
+# size. Read from its published dpo_config.py (9_12_b / 12_14_b / 14_15_b / 15_40_b) and
+# grpo_config.py. We adopt both: with checkpointing off, torch.utils.checkpoint is never
+# called, so the CheckpointError the use_reentrant seam guards against becomes impossible
+# rather than merely handled — and that seam stays in place, inert, in case this ever
+# changes back.
+
+
+@pytest.mark.parametrize("params_b,gpus", [(35.0, 3), (45.0, 5), (14.0, 2)])
+def test_sharding_turns_gradient_checkpointing_off(params_b, gpus):
+    dist, ckpt = _shape(params_b * 1e9, gpus)
+    assert dist == "ds"
+    assert ckpt == "False", (
+        "ds with checkpointing ON is the only shape that can raise CheckpointError under "
+        "ZeRO-3, and it is the one shape no box we have can test"
+    )
+
+
+@pytest.mark.parametrize("params_b,gpus", [(35.0, 3), (71.0, 5), (14.0, 8)])
+def test_grpo_never_shards_at_any_size(params_b, gpus):
+    """Boss: distributed 'ddp' on every GRPO bucket. It also avoids the second reference
+    model TRL builds under ZeRO-3 sitting beside vLLM colocate on the same cards."""
+    dist, ckpt = _shape(params_b * 1e9, gpus, task="grpo")
+    assert (dist, ckpt) == ("ddp", "True")
+
+
+@pytest.mark.parametrize("params_b,gpus", [(0.135, 1), (3.0, 8), (32.0, 1), (8.0, 4)])
+def test_everything_below_the_gate_keeps_checkpointing_on(params_b, gpus):
+    """Every run this repo has ever made. None may lose checkpointing."""
+    assert _shape(params_b * 1e9, gpus) == ("ddp", "True")
+
+
+def test_dpo_shards_like_instruct():
+    assert _shape(14e9, 4, task="dpo") == ("ds", "False")
