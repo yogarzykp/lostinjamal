@@ -2176,12 +2176,24 @@ def build_adaptive_run_config(
     # Multi-GPU shape, decided together: ds implies checkpointing off, and grpo
     # never takes ds. See resolve_distributed_shape for why this follows the boss.
     _ds_shape = resolve_distributed_shape(task_type_lc, param_count, gpu_count)
+    try:
+        from model_utility import get_use_liger_for_path
+        _use_liger = get_use_liger_for_path(model_path)
+    except Exception as _liger_exc:
+        _use_liger = "False"
+        print(f"[adaptive] liger decision unavailable ({type(_liger_exc).__name__}) — off", flush=True)
+    print(f"[adaptive] use_liger={_use_liger} (model_type from config, liger dispatch map)", flush=True)
     run_config = {
         "epoch_num": epochs,
         "batch_size": batch,
         "learning_rate": init_lr,
         "min_lr_rate": instruct_hp["min_lr_rate"] if instruct_hp else 0.25,
-        "use_liger": False,  # arch-dependent, conservative default
+        # Decided by liger's own dispatch map, keyed on model_type — see
+        # model_utility.get_use_liger_for_path. This was a hardcoded False; with liger off
+        # there is no fused cross-entropy, so a 256k-vocab model materialises the full
+        # [B, T, V] logits and meets the ceiling the vocab-aware batch cap exists to
+        # relieve. The legacy configs and the boss both ask; only this path did not.
+        "use_liger": _use_liger,
         "optimizer": _select_optimizer(param_count),
         "use_lora": use_lora,
         "disable_fa": (

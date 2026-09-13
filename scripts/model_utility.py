@@ -36,6 +36,65 @@ def get_model_architecture(model_path: str) -> str:
         return "Unknown"
 
 
+# What liger-kernel 0.5.9 actually patches, read from its own dispatch map
+# (liger_kernel.transformers.monkey_patch.MODEL_TYPE_TO_APPLY_LIGER_FN) on the trainer
+# image, 2026-09-13. Mirrored here because liger is GPU-only and cannot be imported on a
+# CPU box; a test asserts this stays equal to the live map wherever liger IS installed, so
+# a version bump that changes it is caught in the image rather than in a tournament.
+#
+# Note what is NOT here: qwen3_5, gemma4, lfm2, lfm2_moe — four of the 2026 pool's model
+# types. And what IS: granite, the model_type of two of the three pool models our pinned
+# transformers can build at all.
+LIGER_MODEL_TYPES_PINNED = frozenset({
+    "gemma", "gemma2", "gemma3", "gemma3_text", "glm4", "granite", "llama", "llava",
+    "mistral", "mixtral", "mllama", "mllama_text_model", "olmo2", "paligemma", "phi3",
+    "qwen2", "qwen2_5_vl", "qwen2_vl", "qwen3",
+})
+
+
+def liger_supported_model_types() -> frozenset:
+    """Ask the installed liger; fall back to the pinned mirror when it cannot be imported."""
+    try:
+        from liger_kernel.transformers.monkey_patch import MODEL_TYPE_TO_APPLY_LIGER_FN as live
+        return frozenset(live)
+    except Exception:
+        return LIGER_MODEL_TYPES_PINNED
+
+
+def get_use_liger_for_path(model_path: str) -> str:
+    """"True"/"False" for --use_liger, decided by model_type and liger's own map.
+
+    The adaptive path used to hardcode False. With liger off there is no fused
+    cross-entropy, so the full [B, T, V] logits are materialised — a 256k-vocab model like
+    gemma-2-2b then hits the memory ceiling the vocab-aware batch cap exists to relieve.
+
+    Keyed on `model_type` rather than the architecture class name (which anonymised tasks
+    defeat) or detect_arch_family's coarse families (which cannot tell gemma2 from a
+    gemma3 variant). Reads the raw JSON, not AutoConfig, so a model_type our transformers
+    cannot build is still classified rather than raising — and `text_config` is consulted
+    for wrapper architectures that keep the decoder's fields one level down.
+
+    Fails CLOSED. liger patches the model in place; guessing True on an unreadable config
+    turns a config problem into a crash at the first forward.
+    """
+    import json as _json
+
+    path = os.path.join(model_path, "config.json") if os.path.isdir(model_path) else None
+    if not path or not os.path.isfile(path):
+        return "False"
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            raw = _json.load(fh)
+    except Exception:
+        return "False"
+    if not isinstance(raw, dict):
+        return "False"
+    model_type = raw.get("model_type") or (raw.get("text_config") or {}).get("model_type")
+    if not isinstance(model_type, str) or not model_type:
+        return "False"
+    return "True" if model_type.lower() in liger_supported_model_types() else "False"
+
+
 def get_use_liger(architecture: str) -> str:
     if architecture.lower() in [
         "qwen2forcausallm",
