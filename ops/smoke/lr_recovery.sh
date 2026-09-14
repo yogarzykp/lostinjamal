@@ -28,7 +28,7 @@ set -uo pipefail
 SMOKE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="${REPO_DIR:-$(cd "$SMOKE_DIR/../.." && pwd)}"
 WORK="${WORK:-$HOME/smoke}"
-TASK_ID="${TASK_ID:-6d8b2af6-9715-4a60-bc19-b7e8023b57a2}"
+TASK_ID="${TASK_ID:-dd558022-496c-4779-8fef-118689e7a227}"
 MODEL="${MODEL:-unsloth/Qwen2-1.5B-Instruct}"
 HOURS="${HOURS:-1.3}"
 RECOVERY_TOLERANCE="${RECOVERY_TOLERANCE:-2.0}"

@@ -21,7 +21,7 @@
 set -euo pipefail
 
 TASK_ID="${TASK_ID:-7c4e9b21-3a8d-4f65-9e02-5b7a1c3d8f40}"
-SOURCE_TASK_ID="${SOURCE_TASK_ID:-6d8b2af6-9715-4a60-bc19-b7e8023b57a2}"
+SOURCE_TASK_ID="${SOURCE_TASK_ID:-dd558022-496c-4779-8fef-118689e7a227}"
 MODEL="${MODEL:-unsloth/SmolLM-135M-Instruct}"
 HOURS="${HOURS:-0.25}"
 REPO_NAME="${REPO_NAME:-chat-smoke}"

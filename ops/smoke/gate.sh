@@ -25,7 +25,7 @@ REPO_DIR="${REPO_DIR:-$(cd "$SMOKE_DIR/../.." && pwd)}"
 WORK="${WORK:-$HOME/smoke}"
 LOGS="$WORK/logs"
 HOURS="${HOURS:-0.25}"
-INSTRUCT_TASK="${INSTRUCT_TASK:-6d8b2af6-9715-4a60-bc19-b7e8023b57a2}"
+INSTRUCT_TASK="${INSTRUCT_TASK:-dd558022-496c-4779-8fef-118689e7a227}"
 mkdir -p "$LOGS"
 
 PATHS=("$@"); [ ${#PATHS[@]} -eq 0 ] && PATHS=(instruct kl dpo grpo chat)
@@ -252,19 +252,26 @@ if [ "${SKIP_PREFLIGHT:-0}" != "1" ]; then
 fi
 
 # Every path derives its data from INSTRUCT_TASK, so one missing dataset takes the whole
-# gate down — and it does not take it down honestly. On 2026-09-14 the default task's
-# dataset was absent (its presigned URL had expired) and the run produced a full GATE
-# FAILED table: "submission is a noised base", "LR range test never ran", "no post-sweep
-# reload — training may have used sweep-damaged weights". Six rows that all read as code
+# gate down — and it does not take it down honestly. On 2026-09-14 the then-default task's
+# dataset was simply not on the box, and the run produced a full GATE FAILED table:
+# "submission is a noised base", "LR range test never ran", "no post-sweep reload —
+# training may have used sweep-damaged weights". Six rows that all read as code
 # regressions, for a missing file, three seconds in. A gate that cannot tell a missing
 # input from a broken trainer is worse than no gate on exactly the day it matters.
+#
+# Nothing in ops/smoke fetches a dataset — every runner reads a pre-placed file under
+# /cache/datasets. So the default is now the task whose data this box actually holds.
+# Whether the old default could still be re-fetched is UNVERIFIED: an earlier note here
+# blamed an expired presigned URL, which was an inference, not a measurement.
+# Not in dry mode: GATE_DRY_ROOT replays canned logs and never opens a dataset, so a
+# check for one there would abort the very tests that prove this table is honest.
 DATASET="/cache/datasets/${INSTRUCT_TASK}_train_data.json"
-if [ ! -s "$DATASET" ]; then
+if [ -z "${GATE_DRY_ROOT:-}" ] && [ ! -s "$DATASET" ]; then
   echo "gate aborted: no dataset for task $INSTRUCT_TASK"
   echo "  expected: $DATASET"
   echo "  This is a MISSING INPUT, not a code failure — do not read it as a regression."
-  echo "  Task datasets come from presigned URLs that expire and do not refresh on"
-  echo "  re-query. Cached datasets on this box:"
+  echo "  Nothing here downloads datasets; they are pre-placed under /cache/datasets."
+  echo "  Task ids this box actually holds:"
   ls -1 /cache/datasets/*_train_data.json 2>/dev/null \
     | sed 's#.*/##; s#_train_data.json##; s#^#    INSTRUCT_TASK=#' || echo "    (none)"
   exit 2

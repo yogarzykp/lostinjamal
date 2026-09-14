@@ -63,3 +63,22 @@ submission on `be81e18` was modified by a pass the armed guard would plausibly h
 That materially strengthens the case for buying one early affordable eval on short runs: it
 would restore checkpoint selection AND re-arm the absorption guard. Cost 259s of a 682s
 budget. NOT decided here.
+
+## Correction: the gate's default dataset was never here, not "expired"
+
+`ffdc3f9` says the default task's presigned URL had expired. That was an inference stated as
+a measurement, and it is not supported. What IS verified:
+
+* nothing under `ops/smoke/` fetches a dataset — every runner reads a pre-placed file under
+  `/cache/datasets` (`run_instruct_replay.sh:37`, `run_dpo_smoke.sh:78`, `run_chat_smoke.sh:43`,
+  `run_grpo_smoke.sh:56`, `ab.sh:43`);
+* this box was provisioned 2026-09-13 and holds `dd558022` (12:37) plus three others
+  (23:25–23:40). `6d8b2af6` was never copied here.
+
+So the file was **absent**, and whether it could still be re-fetched is UNVERIFIED. The default
+is now `dd558022`, the task whose data the box actually holds, in `gate.sh`, `ab.sh`,
+`lr_recovery.sh` and `run_chat_smoke.sh`.
+
+`tests/test_gate_assertions_have_producers.py` had `6d8b2af6` re-typed under the comment
+"gate.sh's INSTRUCT_TASK default". It now parses the value out of `gate.sh` instead: a constant
+labelled as another file's default, which is not that file's default, reads as checked and is not.

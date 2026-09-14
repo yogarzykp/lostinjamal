@@ -473,7 +473,23 @@ def test_smoke_keeps_per_example_telemetry_on():
 # Layer 2: dry-run gate.sh against canned logs
 # ---------------------------------------------------------------------------------
 
-INSTRUCT_TASK = "6d8b2af6-9715-4a60-bc19-b7e8023b57a2"  # gate.sh's INSTRUCT_TASK default
+def _gate_default_instruct_task() -> str:
+    """gate.sh's INSTRUCT_TASK default, READ from gate.sh rather than re-typed here.
+
+    It was re-typed, and on 2026-09-14 the default changed and this copy did not — a
+    constant labelled "gate.sh's default" that is not gate.sh's default is worse than no
+    constant, because it reads as though it were checked.
+    """
+    import re
+    gate = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                        "ops", "smoke", "gate.sh")
+    with open(gate, encoding="utf-8") as fh:
+        m = re.search(r'^INSTRUCT_TASK="\$\{INSTRUCT_TASK:-([0-9a-f-]{36})\}"', fh.read(), re.M)
+    assert m, "gate.sh no longer declares an INSTRUCT_TASK default in the expected shape"
+    return m.group(1)
+
+
+INSTRUCT_TASK = _gate_default_instruct_task()
 
 
 def _log_info(msg: str, event: str = "print") -> str:
