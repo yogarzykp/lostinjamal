@@ -178,8 +178,10 @@ class CustomEvalSaveCallback(TrainerCallback):
         # instruct stage of 2026-09-13 measured 261s at step 149 of 150 and finished 80s
         # past end_time. See _predicted_cycle_secs.
         self.dev_rows = int(dev_rows or 0)
-        self._step_secs = None
-        self._last_step_t = None
+        # Bytes of trainable+frozen parameters, filled in on_train_begin. The copy to
+        # the submission directory is the largest term in a cycle and scales with this,
+        # not with the dev split.
+        self._model_gib = None
         # Phase 1 BUGFIX 2026-05-02: early-stop on plateau/regression.
         # Phase D refinement 2026-05-03: window-smoothed + adaptive patience.
         #
@@ -440,12 +442,6 @@ class CustomEvalSaveCallback(TrainerCallback):
             return float("inf")
 
     def on_step_end(self, args, state: TrainerState, control: TrainerControl, **kwargs):
-        _now = time.monotonic()
-        if self._last_step_t is not None:
-            _d = _now - self._last_step_t
-            # Exponential mean: recent steps, not the cold first one, and no list to grow.
-            self._step_secs = _d if self._step_secs is None else (0.7 * self._step_secs + 0.3 * _d)
-        self._last_step_t = _now
         # Custom logic to decide whether to save or evaluate
         # print(f"************* on_step_end: {state.global_step}, check eval", flush=True)
         # TODO: implement the logic to save the model without evaluating if there is no check points --> avoid evaluating takes too much time
@@ -611,15 +607,19 @@ class CustomEvalSaveCallback(TrainerCallback):
                         print(f"No checkpoint found, just save the model at step: {state.global_step}", flush=True)
                         control.should_evaluate = False
                         self.save_only = True
-                    elif self._eval_cycle_secs is not None:
-                        # The lead was widened from a measured cycle, but a long step or a
-                        # late measurement can still leave less time than one cycle
+                    else:
+                        # The lead is sized to hold a cycle, but a long step or a cycle
+                        # dearer than its estimate can still leave less time than one
                         # takes. An eval that cannot finish before the kill is worse than
-                        # no eval: it also loses the save behind it.
+                        # no eval: it also loses the save behind it. This used to require
+                        # a MEASURED cycle, so on a run that never completed one it was
+                        # the fixed 3-minute lead against an unknown cost.
+                        cost = self._predicted_cycle_secs()
                         remaining = self._seconds_to_end_time()
-                        if remaining is not None and remaining < self._eval_cycle_secs:
+                        if cost is not None and remaining is not None and remaining < cost:
+                            _src = "measured" if self._eval_cycle_secs is not None else "estimated"
                             print(f"[deadline] {remaining:.0f}s remain but a full eval cycle takes "
-                                  f"{self._eval_cycle_secs:.0f}s — saving without the eval", flush=True)
+                                  f"{cost:.0f}s ({_src}) — saving without the eval", flush=True)
                             control.should_evaluate = False
                             self.save_only = True
 
@@ -627,13 +627,17 @@ class CustomEvalSaveCallback(TrainerCallback):
                 # is first discovered. Before any cycle has been measured the estimate
                 # comes from the dev size and recent step times; after one, the real
                 # number supersedes it.
-                if (when_to_eval["reason"] != "end_time" and control.should_evaluate
-                        and self.has_checkpoint):
-                    _cost = self._predicted_cycle_secs(args)
+                # The same question for a periodic or epoch eval. This is where the
+                # cost is normally first discovered, and on a short run it is the only
+                # cycle there is — step 149 of 150 on the instruct stage of 2026-09-14,
+                # entered with 203s left against a 259s cycle, which is the whole of that
+                # run's 75s overrun. Deliberately NOT conditioned on has_checkpoint: the
+                # first cycle is the one that has none, and skipping it still saves.
+                if when_to_eval["reason"] != "end_time" and control.should_evaluate:
+                    _cost = self._predicted_cycle_secs()
                     _left = self._seconds_to_end_time()
                     if _cost is not None and _left is not None and _left < _cost:
-                        _src = ("measured" if self._eval_cycle_secs
-                                else f"estimated from {self.dev_rows} dev rows")
+                        _src = "measured" if self._eval_cycle_secs is not None else "estimated"
                         _why = when_to_eval["reason"]
                         print(f"[deadline] {_left:.0f}s remain and a {_why} eval cycle needs "
                               f"about {_cost:.0f}s ({_src}) — saving without the eval", flush=True)
@@ -996,35 +1000,68 @@ class CustomEvalSaveCallback(TrainerCallback):
 
 
 
-    # Measured on the KL stage, 2026-09-13: dev 955 rows, 3.48 s/step at batch 4 x
-    # grad_accum 4 = 16 rows -> 955 * 3.48/16 = 208 s of raw forward work, against a
-    # measured cycle of 462 s (eval 116 s by the trainer's own eval_runtime, plus the KL
-    # metric's two extra dev passes, plus save and copy). 2.5 puts the prediction at
-    # 520 s — deliberately above the measurement, because over-estimating costs one eval
-    # we could have afforded while under-estimating costs the deadline AND the save
-    # behind it.
-    CYCLE_FACTOR = 2.5
+    # Cost model for one full eval cycle. Decomposed from two stages of the gate run of
+    # 2026-09-14, both on Qwen2-1.5B-Instruct (2.87 GiB) over a 955-row dev split:
+    #
+    #   instruct  cycle 259 s = eval  38 s (25.0 rows/s) + per-example  53 s (18.0 rows/s)
+    #                         + save   9 s + copy 159 s (2.87 GiB at ~55 s/GiB)
+    #   KL        cycle 462 s = eval 116 s ( 8.2 rows/s) + per-example 178 s ( 5.4 rows/s)
+    #                         + save   9 s + copy 159 s
+    #
+    # Two things the earlier estimate here got wrong. The copy is 35-61% of a cycle and
+    # scales with the MODEL, not the dev split — modelling the whole cycle as dev rows x
+    # train-step time predicted 702 s against a real 259 s. And a KL eval is 3x slower
+    # per row than a plain one, because every row is also run through the frozen base.
+    #
+    # Each rate below is set under its measurement and each cost above it, so the estimate
+    # runs long: it reproduces the two cycles at 299 s and 536 s, ~15% over both. That is
+    # the direction to err in. Over-estimating refuses an eval that would have fit, which
+    # costs one checkpoint candidate; under-estimating starts an eval that cannot finish,
+    # which costs the deadline and the save behind it.
+    EVAL_ROWS_PER_SEC = 20.0            # measured 25.0
+    KL_EVAL_ROWS_PER_SEC = 7.0          # measured 8.2 — each row also goes through the base
+    PER_EXAMPLE_ROWS_PER_SEC = 15.0     # measured 18.0
+    KL_PER_EXAMPLE_ROWS_PER_SEC = 4.5   # measured 5.4
+    COPY_SECS_PER_GIB = 60.0            # measured ~55
+    SAVE_SECS = 15.0                    # measured ~9
 
-    def _predicted_cycle_secs(self, args):
-        """Best estimate of a full eval cycle, or None when there is nothing to estimate from.
+    def _estimated_cycle_secs(self):
+        """Cost of a full eval cycle from the model and the dev split, before one has
+        ever been timed. None when either size is unknown — a guard that cannot cost a
+        cycle must stay out of the way rather than refuse on a guess."""
+        if not self.dev_rows or not self._model_gib:
+            return None
+        kl = self.kl_metric_fn is not None
+        secs = self.dev_rows / (self.KL_EVAL_ROWS_PER_SEC if kl else self.EVAL_ROWS_PER_SEC)
+        if self.per_example_eval_fn is not None:
+            secs += self.dev_rows / (self.KL_PER_EXAMPLE_ROWS_PER_SEC if kl
+                                     else self.PER_EXAMPLE_ROWS_PER_SEC)
+        return secs + self.SAVE_SECS + self._model_gib * self.COPY_SECS_PER_GIB
 
-        A real measurement always wins; this only covers the window before the first
-        cycle has ever completed.
-        """
+    def _predicted_cycle_secs(self):
+        """Best available cost of a cycle: a real measurement when there is one, else the
+        estimate. Used only to REFUSE an eval that cannot finish — never to widen the
+        lead, which is sized from measurements alone because stopping training early is
+        the expensive way to be wrong."""
         if self._eval_cycle_secs is not None:
             return self._eval_cycle_secs
-        if not self.dev_rows or not self._step_secs:
-            return None
+        return self._estimated_cycle_secs()
+
+    def on_train_begin(self, args, state: TrainerState, control: TrainerControl, model=None, **kwargs):
+        """Record the model size, which is the largest term in an eval cycle."""
         try:
-            rows_per_step = max(
-                1,
-                int(getattr(args, "per_device_train_batch_size", 1) or 1)
-                * int(getattr(args, "gradient_accumulation_steps", 1) or 1)
-                * int(getattr(args, "world_size", 1) or 1),
-            )
-        except Exception:
-            return None
-        return self.dev_rows * (self._step_secs / rows_per_step) * self.CYCLE_FACTOR
+            if model is not None:
+                _bytes = sum(p.numel() * p.element_size() for p in model.parameters())
+                self._model_gib = _bytes / float(1024 ** 3)
+        except Exception as _exc:
+            print(f"[deadline] model size unavailable ({type(_exc).__name__}: {_exc}) — "
+                  f"an eval cycle cannot be costed before the first one runs", flush=True)
+        est = self._estimated_cycle_secs()
+        if est is not None:
+            print(f"[deadline] a full eval cycle is estimated at {est:.0f}s "
+                  f"({self.dev_rows} dev rows, {self._model_gib:.2f} GiB to copy) — an eval "
+                  f"with less time than that left will be skipped in favour of the save",
+                  flush=True)
 
     def _seconds_to_end_time(self):
         try:

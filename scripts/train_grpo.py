@@ -516,7 +516,10 @@ def main():
                 train_request["submission_dir"],
                 training_args.output_dir,
                 train_request["model_name"],
-                max_steps
+                max_steps,
+                # Lets the callback cost an eval cycle BEFORE the first one runs — see
+                # customized_trainer._predicted_cycle_secs.
+                dev_rows=len(dev_ds),
             )
         ],
     )
