@@ -1,0 +1,37 @@
+=== preflight ===
+  [32mOK[0m    python on PATH (Python 3.11.10)
+  OK    torch==2.6.0+cu124
+  OK    transformers==4.51.3
+  OK    trl==0.18.0
+[2026-09-14 05:07:13,645] [INFO] [real_accelerator.py:219:get_accelerator] Setting ds_accelerator to cuda (auto detect)
+df: /root/.triton/autotune: No such file or directory
+/usr/local/lib/python3.11/dist-packages/pydantic/_internal/_fields.py:132: UserWarning: Field "model_name" in PromptModelConfig has conflict with protected namespace "model_".
+
+You may be able to resolve this warning by setting `model_config['protected_namespaces'] = ()`.
+  warnings.warn(
+  OK    peft==0.15.1
+  OK    datasets==3.5.0
+  [32mOK[0m    tokenisation stack: axolotl + jinja2>=3.1
+  [32mOK[0m    redis responding
+  [32mOK[0m    GPU has 81007 MiB free
+OK 1 0:9.0
+  [32mOK[0m    torch sees CUDA (1 device(s))
+  [32mOK[0m    disk has 904G free
+  [32mOK[0m    /cache/datasets exists
+  [32mOK[0m    /cache/models exists
+  [32mOK[0m    /app/checkpoints exists
+
+preflight PASSED
+
+=== running dpo ===
+  (reclaimed; 903G free)
+
+════════════════ GATE RESULT ════════════════
+STATUS PATH      DETAIL
+PASS   dpo       training completed
+PASS   dpo       no noise fallback
+PASS   dpo       no tracebacks
+PASS   dpo       model artefact written
+PASS   dpo       architectures present (or LoRA-only)
+═════════════════════════════════════════════
+ALL GATES PASSED — safe to submit this commit
