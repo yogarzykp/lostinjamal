@@ -1525,6 +1525,21 @@ class CustomEvalSaveCallback(TrainerCallback):
 
     def on_train_end(self, args, state, control, **kwargs):
         """End of training — trigger WSM merge if eligible."""
+        # The one number a batch plan can be checked against. Every batch ceiling in
+        # adaptive_config is fitted to OOM messages, which only say what did NOT fit;
+        # this says what a run that fitted actually used, so the next fit has a floor
+        # as well as a ceiling. Diagnostic only — never raises.
+        try:
+            import torch as _torch
+            if _torch.cuda.is_available() and is_main_process(LOCAL_RANK):
+                _peak = _torch.cuda.max_memory_allocated() / float(1024 ** 3)
+                _resv = _torch.cuda.max_memory_reserved() / float(1024 ** 3)
+                _tot = _torch.cuda.get_device_properties(0).total_memory / float(1024 ** 3)
+                print(f"[vram] peak allocated {_peak:.2f} GiB, peak reserved {_resv:.2f} GiB, "
+                      f"of {_tot:.2f} GiB, at per_device_train_batch_size="
+                      f"{getattr(args, 'per_device_train_batch_size', '?')}", flush=True)
+        except Exception:
+            pass
         if (self._wsm_enabled
                 and self.checking_mode == "none"
                 and is_main_process(LOCAL_RANK)

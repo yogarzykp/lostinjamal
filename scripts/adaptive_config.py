@@ -187,6 +187,112 @@ def _select_grpo_max_completion(seq_len_p95: int) -> int:
 # length bug go unnoticed in the first place.
 BUCKET_REFERENCE_LEN = 1024
 
+# ---------------------------------------------------------------------------
+# DPO: a per-device batch ceiling from the MEASURED memory peak of one step.
+# ---------------------------------------------------------------------------
+# 2026-09-14, the DPO smoke stage (SmolLM-135M, vocab 49152, 1xH100) planned batch 70 and
+# OOMed twice before the ladder found 17. Both OOMs were one fp32 [2B, L, V] tensor:
+#
+#     batch 70 -> "Tried to allocate 52.50 GiB"   = 2 * 70 * 2048 * 49152 * 4
+#     batch 35 -> "Tried to allocate 26.25 GiB"   = 2 * 35 * 2048 * 49152 * 4
+#
+# Three defects produced it. The bucket's length scaling read the planner's max_length
+# (1024) while DPO trains at its own min(max_position_embeddings, 4096) = 2048. Nothing
+# accounted for TRL concatenating chosen+rejected into one [2B, ...] forward, though the
+# bucket comment describes that doubling in words. And the GQA boost lifted 64 -> 70 after
+# the bucket had said 64 — a boost applied on top of a safety ceiling.
+#
+# The tensor is not the model's logits: transformers 4.51.3 Llama emits them in bf16, and
+# the 4 bytes is accelerate's bf16 mixed-precision wrapper calling .float() on them (the
+# exact frame in the first traceback). And the forward is not the peak. One DPOTrainer step
+# on the pinned stack, profiled with torch.profiler's memory timeline at three (B, L),
+# peaks in BACKWARD at 3.02 F above baseline, F = 2*B*L*V*4: the saved fp32 logits, the
+# gather's full-size grad, and 2B per-row logsumexp grads that UnbindBackward holds at
+# once. That model reconciles both OOM snapshots within 0.6 GiB — 36.66 GiB allocated at
+# the batch-70 .float(), 57.97 GiB at batch 35's third full-size tensor in backward.
+#
+#     per pair  = 24 * L * V                three fp32 [2, L, V]
+#               + 4 * L * H * n_layers      checkpointed bf16 hidden states, both halves
+#     resident  = 8 * N                     full FT: policy + deep-copied reference + grads
+#                                           in bf16, plus 8-bit AdamW
+#               = 2 * N + DPO_LORA_STATE    LoRA: TRL sets ref_model=None on a PeftModel
+#     ceiling   = (free_vram - resident) * DPO_VRAM_SAFETY  //  per pair
+#
+# L is what a batch is actually padded to. TRL pads to the longest pair in the batch and
+# truncates to max_length, so L = min(DPO's max_length, the longest pair in the data). The
+# second term is what keeps a short-row dataset on a long-context model from being cut for
+# a length it never reaches — the blind lowering a length-only rule commits (Llama-2-7B,
+# 4096 context, ~1100-token rows: bucket 8 -> 2 where the physics allows ~40).
+# full_seq_max is sampled over the first 500 rows (dynamics_utils.measure_dataset), so it
+# is an estimate of the longest pair rather than a bound; the safety factor and the OOM
+# ladder cover the difference.
+#
+# On the run above: L = 2048, per pair = 2.38 GiB, resident = 1.10 GiB, 78.66 GiB free
+# -> ceiling 24. Predicted peak at 24: 58.3 GiB of 79.11, with the 15.6 GiB the log showed
+# reserved-but-unallocated still fitting. The ladder had found 17.
+#
+# Single-GPU only: the validator provisions DPO by params x3, so every DPO model above
+# ~1.3B lands on 2x/4x H100 and never reaches the 1-GPU bucket. This ceiling therefore
+# binds on small models — exactly where the vocab term is the whole story.
+DPO_VRAM_SAFETY = 0.75
+DPO_LORA_STATE_BYTES = 1 * 1024 ** 3
+
+
+def dpo_batch_ceiling(
+    *,
+    vocab_size,
+    hidden_size,
+    num_hidden_layers,
+    param_count,
+    use_lora,
+    dpo_max_length,
+    longest_pair=None,
+    vram_available_gb,
+    safety=DPO_VRAM_SAFETY,
+):
+    """Largest per-device DPO batch whose measured step peak fits in the free VRAM.
+
+    None when any input needed to cost a step is missing — a cap that cannot be costed
+    stays out of the way rather than clamping on a guess.
+    """
+    try:
+        V = int(vocab_size or 0)
+        H = int(hidden_size or 0)
+        n = int(num_hidden_layers or 0)
+        N = float(param_count or 0)
+        L = int(dpo_max_length or 0)
+        free = float(vram_available_gb or 0) * 1024 ** 3
+    except (TypeError, ValueError):
+        return None
+    if not (V > 0 and H > 0 and n > 0 and N > 0 and L > 0 and free > 0):
+        return None
+    if longest_pair:
+        try:
+            L = min(L, max(1, int(longest_pair)))
+        except (TypeError, ValueError):
+            pass
+    per_pair = 24.0 * L * V + 4.0 * L * H * n
+    resident = (2.0 * N + DPO_LORA_STATE_BYTES) if use_lora else 8.0 * N
+    budget = (free - resident) * float(safety)
+    if budget <= per_pair:
+        return 1
+    return max(1, int(budget // per_pair))
+
+
+def dpo_effective_length(model_max_position, longest_pair=None):
+    """The length a DPO batch is padded to: train_dpo's min(max_position_embeddings, 4096),
+    then no longer than the longest pair the data actually holds."""
+    try:
+        L = min(int(model_max_position or 4096), 4096)
+    except (TypeError, ValueError):
+        L = 4096
+    if longest_pair:
+        try:
+            L = min(L, max(1, int(longest_pair)))
+        except (TypeError, ValueError):
+            pass
+    return max(1, L)
+
 
 def _grpo_vanilla_batch_cap(param_count: int) -> int:
     """Vanilla bucket batch ceilings from scripts/grpo_config.py:GRPO_CONFIG.
@@ -1414,16 +1520,28 @@ def build_adaptive_run_config(
         # shrinks the bucket, a shorter one never inflates it — because the
         # buckets are safety limits and relaxing an empirical limit on a guess is
         # not something a measurement supports.
+        # On DPO the length that matters is not the planner's max_length: train_dpo.py
+        # trains at min(max_position_embeddings, 4096), and TRL pads each batch to its
+        # longest pair. The scaling below read 1024 on a run that trained at 2048 and
+        # left the bucket untouched — see dpo_batch_ceiling for the run that found it.
+        _bucket_len = max_length
+        if _is_dpo:
+            _bucket_len = dpo_effective_length(
+                model_max_position, getattr(ds_metrics, "full_seq_max", None))
+            if _bucket_len != max_length:
+                print(f"[adaptive] DPO pads to {_bucket_len} tokens (planner max_length "
+                      f"{max_length}); the bucket scales with the padded length", flush=True)
         _bucket_scaled = _bucket
-        if max_length > BUCKET_REFERENCE_LEN:
-            _bucket_scaled = max(1, int(_bucket * BUCKET_REFERENCE_LEN / max_length))
+        if _bucket_len > BUCKET_REFERENCE_LEN:
+            _bucket_scaled = max(1, int(_bucket * BUCKET_REFERENCE_LEN / _bucket_len))
             print(
                 f"[adaptive] batch bucket scaled for length: {_bucket} -> {_bucket_scaled} "
-                f"(max_length={max_length} vs reference {BUCKET_REFERENCE_LEN})",
+                f"(max_length={_bucket_len} vs reference {BUCKET_REFERENCE_LEN})",
                 flush=True,
             )
         batch = min(batch, _bucket_scaled)
         print(f"[adaptive] 1-GPU empirical bucket: batch={batch} (target={_bucket_scaled} for param={param_count/1e9:.2f}B)", flush=True)
+    _batch_overridden = False
     env_batch = os.getenv("INSTRUCT_BATCH_OVERRIDE")
     if env_batch:
         try:
@@ -1436,6 +1554,7 @@ def build_adaptive_run_config(
             # own tooling rather than on a tournament path.
             if _override > 0:
                 batch = _override
+                _batch_overridden = True
                 print(f"[adaptive] batch overridden via env: {batch}", flush=True)
             else:
                 print(
@@ -1532,6 +1651,34 @@ def build_adaptive_run_config(
             flush=True,
         )
         batch = _kl_batch
+
+    # DPO on one GPU: the measured-peak ceiling. Sits after the GQA boost on purpose —
+    # the boost lifted 64 -> 70 above a bucket that had already said 64, and 35, the
+    # boosted value of the correctly-scaled bucket, is the exact rung that OOMed in
+    # backward. An operator's INSTRUCT_BATCH_OVERRIDE is the bisect knob this ceiling
+    # was itself calibrated with, so it is left alone.
+    if gpu_count == 1 and task_type_lc == "dpo":
+        _dpo_len = dpo_effective_length(model_max_position, getattr(ds_metrics, "full_seq_max", None))
+        _dpo_cap = dpo_batch_ceiling(
+            vocab_size=vocab_size, hidden_size=hidden_size, num_hidden_layers=num_hidden_layers,
+            param_count=param_count, use_lora=use_lora, dpo_max_length=_dpo_len,
+            vram_available_gb=getattr(gpu, "vram_available_gb", None),
+        )
+        if _dpo_cap is None:
+            print("[adaptive] DPO batch ceiling not costed (a model or GPU field is missing) — "
+                  "leaving the bucket's batch as planned", flush=True)
+        elif _batch_overridden:
+            print(f"[adaptive] DPO batch ceiling {_dpo_cap} not applied: INSTRUCT_BATCH_OVERRIDE "
+                  f"set batch={batch}", flush=True)
+        elif batch > _dpo_cap:
+            print(f"[adaptive] DPO measured-peak ceiling: batch {batch}→{_dpo_cap} "
+                  f"(L={_dpo_len}, vocab={vocab_size}, {'lora' if use_lora else 'full'}, "
+                  f"free={getattr(gpu, 'vram_available_gb', 0):.1f} GiB; one step peaks at "
+                  f"3 fp32 [2B,L,V] in backward)", flush=True)
+            batch = _dpo_cap
+        else:
+            print(f"[adaptive] DPO measured-peak ceiling {_dpo_cap} ≥ planned batch {batch} — "
+                  f"no change", flush=True)
 
     # Init LR — heuristic from arch+param (LRRT can refine in Phase 2)
     # Range: log-scale based on param_count (smaller = higher LR for non-Instruct path).
