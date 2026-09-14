@@ -262,3 +262,6 @@ trainer/**/__pycache__/
 docs/research/local_*.md
 # CPU venv with the trainer's exact pins (see memory: cpu-tests-must-run-on-the-pinned-stack)
 .venv-cpu-pinned/
+
+# Tournament datasets fetched by ops/smoke/fetch_task_dataset.sh — tens of MB each, not ours to publish
+ops/smoke/datasets_bank/
