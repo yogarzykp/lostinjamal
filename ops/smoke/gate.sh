@@ -251,6 +251,25 @@ if [ "${SKIP_PREFLIGHT:-0}" != "1" ]; then
   echo
 fi
 
+# Every path derives its data from INSTRUCT_TASK, so one missing dataset takes the whole
+# gate down — and it does not take it down honestly. On 2026-09-14 the default task's
+# dataset was absent (its presigned URL had expired) and the run produced a full GATE
+# FAILED table: "submission is a noised base", "LR range test never ran", "no post-sweep
+# reload — training may have used sweep-damaged weights". Six rows that all read as code
+# regressions, for a missing file, three seconds in. A gate that cannot tell a missing
+# input from a broken trainer is worse than no gate on exactly the day it matters.
+DATASET="/cache/datasets/${INSTRUCT_TASK}_train_data.json"
+if [ ! -s "$DATASET" ]; then
+  echo "gate aborted: no dataset for task $INSTRUCT_TASK"
+  echo "  expected: $DATASET"
+  echo "  This is a MISSING INPUT, not a code failure — do not read it as a regression."
+  echo "  Task datasets come from presigned URLs that expire and do not refresh on"
+  echo "  re-query. Cached datasets on this box:"
+  ls -1 /cache/datasets/*_train_data.json 2>/dev/null \
+    | sed 's#.*/##; s#_train_data.json##; s#^#    INSTRUCT_TASK=#' || echo "    (none)"
+  exit 2
+fi
+
 for p in "${PATHS[@]}"; do
   echo "=== running $p ==="
   case "$p" in
