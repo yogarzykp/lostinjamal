@@ -82,3 +82,58 @@ is now `dd558022`, the task whose data the box actually holds, in `gate.sh`, `ab
 `tests/test_gate_assertions_have_producers.py` had `6d8b2af6` re-typed under the comment
 "gate.sh's INSTRUCT_TASK default". It now parses the value out of `gate.sh` instead: a constant
 labelled as another file's default, which is not that file's default, reads as checked and is not.
+
+## The cost model was recalibrated (2fc2028) — the gate-box decomposition did not transfer
+
+The decomposition recorded above ("copy 159s at ~55 s/GiB") is wrong, and was wrong when
+written. Reconstructing the real tournament cycle from the `ts` fields of
+`loki_59469903.txt` around step 500 (gemma-2-2b, 4.86 GiB, 965 dev rows):
+
+    eval           109.2s    ('eval_runtime': 109.1995, 8.837 samples/s)
+    per-example    349.7s    ts 1788793941159686455 minus the eval-end record
+    save             5.71s   Updating... -> Copy...
+    copy             5.21s   Copy... -> next record
+    ------------------------
+    cycle          469.8s
+
+Three corrections fall out:
+
+1. **The eval rate does not transfer.** 8.84 rows/s on the tournament box against 25.0 on the
+   gate box — the shipped `EVAL_ROWS_PER_SEC = 20.0` was 2.3x optimistic, the dangerous way.
+2. **The copy is nearly free.** 5.21s for 4.86 GiB is ~1.1 s/GiB, against a shipped 60.
+3. **The "159s copy" was never a copy.** It is `259 - 38 - 53 - 9`, a residual absorbing the
+   checkpoint metric, telemetry, the redis persist and the WSM pool copy. The real cycle's
+   dominant term is the per-example pass — 74% of it — which the model priced at 64s.
+
+Net effect of 1 and 2 on the gate box: they cancel, so every reading there looked healthy.
+Applied to the real run the same model predicts **419s against a measured 470s** — it would
+have started an eval it could not finish.
+
+Replaced by an explicit envelope with no per-term claims:
+
+    cycle ~ (dev_rows / world_size) * model_GiB * K + 20s      K = 0.13, 0.18 with KL
+
+| case | rows | GiB | measured | envelope | ratio |
+|---|---|---|---|---|---|
+| gate instruct | 955 | 2.88 | 259s | 378s | 1.46x |
+| gate KL | 955 | 3.43 | 463s | 610s | 1.32x |
+| gate DPO | 200 | 0.25 | 15s | 27s | 1.77x |
+| gate chat | 104 | 0.25 | 14s | 23s | 1.67x |
+| REAL tournament | 965 | 4.86 | 470s | 630s | 1.34x |
+
+Coverage of all five is a parametrized test. The `world_size` divisor is reasoned, not
+measured — every cycle here is single-GPU.
+
+## Not implemented: the early-eval scheduling
+
+Three independent designs (last-affordable-moment, adaptive periodic interval, cheapen the
+cycle) were each rejected 3/3 by an adversarial panel. The decisive objections:
+
+* widening the lead from the estimate makes the affordability guard **unfalsifiable** —
+  the lead is `ceil((1.25*est+45)/60)`, so `remaining > cost` holds by construction and the
+  guard that produced +83s becomes dead code;
+* a wider lead fires end_time BEFORE the first checkpoint exists, where `has_checkpoint` is
+  False and the eval is refused unconditionally — the same `proxy=no_eval` outcome, minus
+  ~56 training steps;
+* the `checking_mode == "none"` precondition one design relied on is false for every run that
+  has ever produced a submission in this repo, including the real tournament run.
