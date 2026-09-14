@@ -37,8 +37,29 @@ Both stages, same model, same 955-row dev split:
    estimate and the end_time trigger let a 250s eval run on 178s of budget.
 3. `be81e18` — a cycle that did not evaluate is not recorded. Clean.
 
-## Open
+## Open — and the dev absorption is NOT straightforwardly a win
 
 On a run that ends before `periodic_save_steps` (500) is reached, nothing is ever evaluated:
 `loss.txt` holds `156,proxy=no_eval` and there is no eval-selected checkpoint. Unreachable on
-a real multi-hour task. Buying one early eval would cost 259s of a 682s budget — not decided.
+a real multi-hour task.
+
+Two consequences follow, and the second was nearly reported as a success:
+
+1. no eval-selected checkpoint — the submission is the last save, not the best one;
+2. **dev absorption ran with its safety guard UNARMED.** The guard refuses a pass that ran
+   hotter than the checkpoint's own dev loss, and it reads that number from `loss.txt`. A
+   `proxy=` value is a TRAIN loss, not comparable to a dev pass, so `_prior_dev_loss`
+   correctly returns nothing and the run logs `[dev-absorb] guard unarmed`.
+
+Compare the same stage with an eval present:
+
+    with eval (baseline)  pass loss 0.8268 > checkpoint dev loss 0.7964 -> REFUSED, untouched
+    no eval  (be81e18)    pass loss 0.8247, nothing to compare -> ABSORBED, submission updated
+
+So "dev absorption finally ran" is not evidence of an improvement. On the one run where the
+comparison was possible, a pass of almost exactly this size was **refused as too hot**. The
+submission on `be81e18` was modified by a pass the armed guard would plausibly have rejected.
+
+That materially strengthens the case for buying one early affordable eval on short runs: it
+would restore checkpoint selection AND re-arm the absorption guard. Cost 259s of a 682s
+budget. NOT decided here.
