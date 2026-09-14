@@ -538,7 +538,10 @@ def main():
             checking_step=checking_step,
             total_steps_all_epochs=total_steps_all_epochs,
             end_time=train_request["end_time"],
-            checking_mode=train_request.get("checking_mode", "none")
+            checking_mode=train_request.get("checking_mode", "none"),
+            # Lets the callback predict what an eval cycle costs BEFORE the first one
+            # runs — see customized_trainer._predicted_cycle_secs.
+            dev_rows=len(dev_ds),
         )
     ]
     # Held by name, not by index: the list is appended to below, so [-1] would

@@ -115,6 +115,7 @@ class CustomEvalSaveCallback(TrainerCallback):
         end_time: str = "",
         checking_mode: str = "none",
         probe_eval_fn: Callable = None,
+        dev_rows: int = 0,
     ):
         # probe_eval_fn: optional () -> float returning held-out loss. When set,
         # LR-probe runs are scored on it instead of the training loss. See
@@ -171,6 +172,14 @@ class CustomEvalSaveCallback(TrainerCallback):
         self._cycle_t0 = None
         self._cycle_reason = None
         self._eval_cycle_secs = None
+        # Rows in the dev split, so the cost of the FIRST eval can be predicted rather
+        # than discovered. Without it the lead can only widen after a cycle completes,
+        # and on a run whose first cycle is also nearly its last that is too late — the
+        # instruct stage of 2026-09-13 measured 261s at step 149 of 150 and finished 80s
+        # past end_time. See _predicted_cycle_secs.
+        self.dev_rows = int(dev_rows or 0)
+        self._step_secs = None
+        self._last_step_t = None
         # Phase 1 BUGFIX 2026-05-02: early-stop on plateau/regression.
         # Phase D refinement 2026-05-03: window-smoothed + adaptive patience.
         #
@@ -431,6 +440,12 @@ class CustomEvalSaveCallback(TrainerCallback):
             return float("inf")
 
     def on_step_end(self, args, state: TrainerState, control: TrainerControl, **kwargs):
+        _now = time.monotonic()
+        if self._last_step_t is not None:
+            _d = _now - self._last_step_t
+            # Exponential mean: recent steps, not the cold first one, and no list to grow.
+            self._step_secs = _d if self._step_secs is None else (0.7 * self._step_secs + 0.3 * _d)
+        self._last_step_t = _now
         # Custom logic to decide whether to save or evaluate
         # print(f"************* on_step_end: {state.global_step}, check eval", flush=True)
         # TODO: implement the logic to save the model without evaluating if there is no check points --> avoid evaluating takes too much time
@@ -607,6 +622,23 @@ class CustomEvalSaveCallback(TrainerCallback):
                                   f"{self._eval_cycle_secs:.0f}s — saving without the eval", flush=True)
                             control.should_evaluate = False
                             self.save_only = True
+
+                # The same question for a periodic or epoch eval, which is where the cost
+                # is first discovered. Before any cycle has been measured the estimate
+                # comes from the dev size and recent step times; after one, the real
+                # number supersedes it.
+                if (when_to_eval["reason"] != "end_time" and control.should_evaluate
+                        and self.has_checkpoint):
+                    _cost = self._predicted_cycle_secs(args)
+                    _left = self._seconds_to_end_time()
+                    if _cost is not None and _left is not None and _left < _cost:
+                        _src = ("measured" if self._eval_cycle_secs
+                                else f"estimated from {self.dev_rows} dev rows")
+                        _why = when_to_eval["reason"]
+                        print(f"[deadline] {_left:.0f}s remain and a {_why} eval cycle needs "
+                              f"about {_cost:.0f}s ({_src}) — saving without the eval", flush=True)
+                        control.should_evaluate = False
+                        self.save_only = True
 
             if when_to_eval["reason"] == "end_time":
                 # BUGFIX 2026-08-10: actually stop at the deadline.
@@ -963,6 +995,36 @@ class CustomEvalSaveCallback(TrainerCallback):
 
 
 
+
+    # Measured on the KL stage, 2026-09-13: dev 955 rows, 3.48 s/step at batch 4 x
+    # grad_accum 4 = 16 rows -> 955 * 3.48/16 = 208 s of raw forward work, against a
+    # measured cycle of 462 s (eval 116 s by the trainer's own eval_runtime, plus the KL
+    # metric's two extra dev passes, plus save and copy). 2.5 puts the prediction at
+    # 520 s — deliberately above the measurement, because over-estimating costs one eval
+    # we could have afforded while under-estimating costs the deadline AND the save
+    # behind it.
+    CYCLE_FACTOR = 2.5
+
+    def _predicted_cycle_secs(self, args):
+        """Best estimate of a full eval cycle, or None when there is nothing to estimate from.
+
+        A real measurement always wins; this only covers the window before the first
+        cycle has ever completed.
+        """
+        if self._eval_cycle_secs is not None:
+            return self._eval_cycle_secs
+        if not self.dev_rows or not self._step_secs:
+            return None
+        try:
+            rows_per_step = max(
+                1,
+                int(getattr(args, "per_device_train_batch_size", 1) or 1)
+                * int(getattr(args, "gradient_accumulation_steps", 1) or 1)
+                * int(getattr(args, "world_size", 1) or 1),
+            )
+        except Exception:
+            return None
+        return self.dev_rows * (self._step_secs / rows_per_step) * self.CYCLE_FACTOR
 
     def _seconds_to_end_time(self):
         try:
