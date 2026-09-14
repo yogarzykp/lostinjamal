@@ -112,6 +112,14 @@ def load_lora_model(training_args: TrainingArguments, model_path: str, lora_args
     if training_args.use_liger:
         from liger_kernel.transformers import AutoLigerKernelForCausalLM
         model_class = AutoLigerKernelForCausalLM
+        # Say it on this path too. load_model prints the same decision; this one used to
+        # print nothing, and it is the path most tournament tasks take — adaptive_config
+        # forces LoRA above 5e9 and for every KL-flagged task. The only evidence liger had
+        # been applied was liger's own third-party INFO line, which we do not control and
+        # do not assert on. gate.sh reads logs, and fused cross-entropy changes what
+        # outputs.logits contains — the very thing that makes liger and the KL objective
+        # mutually exclusive. A decision that size leaves a line we own.
+        log_info("---------------using LIGER (load_lora_model)------------")
     else:
         model_class = transformers.AutoModelForCausalLM
 
