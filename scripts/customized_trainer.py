@@ -171,6 +171,11 @@ class CustomEvalSaveCallback(TrainerCallback):
         # is timed here (trigger -> end of on_save) and the lead widened to fit it.
         self._cycle_t0 = None
         self._cycle_reason = None
+        # Whether an eval actually ran in the cycle being timed. A cycle the deadline
+        # guard turned into a bare save is far cheaper than a real one, and recording it
+        # as the measured cost makes the next guard believe a cycle is affordable when
+        # it is not. See _record_eval_cycle.
+        self._cycle_evaluated = False
         self._eval_cycle_secs = None
         # Rows in the dev split, so the cost of the FIRST eval can be predicted rather
         # than discovered. Without it the lead can only widen after a cycle completes,
@@ -639,10 +644,14 @@ class CustomEvalSaveCallback(TrainerCallback):
                     if _cost is not None and _left is not None and _left < _cost:
                         _src = "measured" if self._eval_cycle_secs is not None else "estimated"
                         _why = when_to_eval["reason"]
-                        print(f"[deadline] {_left:.0f}s remain and a {_why} eval cycle needs "
+                        _article = "an" if _why[:1] in "aeiou" else "a"
+                        print(f"[deadline] {_left:.0f}s remain and {_article} {_why} eval cycle needs "
                               f"about {_cost:.0f}s ({_src}) — saving without the eval", flush=True)
                         control.should_evaluate = False
                         self.save_only = True
+
+            # Whatever the branches above decided, that is what this cycle will cost.
+            self._cycle_evaluated = bool(control.should_evaluate)
 
             if when_to_eval["reason"] == "end_time":
                 # BUGFIX 2026-08-10: actually stop at the deadline.
@@ -1051,7 +1060,14 @@ class CustomEvalSaveCallback(TrainerCallback):
         """Record the model size, which is the largest term in an eval cycle."""
         try:
             if model is not None:
-                _bytes = sum(p.numel() * p.element_size() for p in model.parameters())
+                _bytes = 0
+                for _p in model.parameters():
+                    # Under DS ZeRO-3 the weights are initialised empty and numel() is 0;
+                    # ds_numel carries the real count. Same read as train_instruct.py:89.
+                    _n = _p.numel()
+                    if _n == 0 and hasattr(_p, "ds_numel"):
+                        _n = _p.ds_numel
+                    _bytes += _n * _p.element_size()
                 self._model_gib = _bytes / float(1024 ** 3)
         except Exception as _exc:
             print(f"[deadline] model size unavailable ({type(_exc).__name__}: {_exc}) — "
@@ -1075,20 +1091,35 @@ class CustomEvalSaveCallback(TrainerCallback):
 
         Measured from the trigger in on_step_end to the end of on_save, so it includes
         the eval, the checkpoint metric (two extra dev passes on KL tasks), the
-        telemetry pass when it is on, the save and the copy. The end_time cycle itself
-        is not representative (it may be save-only) and is not counted. The lead only
-        ever widens: 1.25x the longest cycle seen plus 45 s, at least the configured
-        floor, rounded up to whole minutes because that is the handler's unit.
+        telemetry pass when it is on, the save and the copy. The lead only ever widens:
+        1.25x the longest cycle seen plus 45 s, at least the configured floor, rounded
+        up to whole minutes because that is the handler's unit.
+
+        A cycle that did not EVALUATE is not a cycle. It used to be enough to exclude
+        reason == "end_time", because that was the only trigger the deadline guard could
+        turn into a bare save; now the guard can do that to a periodic or epoch trigger
+        too. On the instruct stage of 2026-09-14 the skipped epoch cycle at step 149 was
+        recorded as a 6 s measurement, that measurement outranked the 299 s estimate at
+        the end_time trigger, and the full eval it should have refused ran anyway — 178 s
+        of budget against 250 s of work, for -94 s where the unfixed run had been -75 s.
         """
         if self._cycle_t0 is None:
             return
         secs = time.monotonic() - self._cycle_t0
         reason = self._cycle_reason
+        evaluated = self._cycle_evaluated
         self._cycle_t0 = None
         self._cycle_reason = None
+        self._cycle_evaluated = False
         if reason == "end_time":
             return
+        if not evaluated:
+            print(f"[deadline] the {reason} cycle at this step saved without evaluating "
+                  f"({secs:.0f}s) — not counted as the cost of a full cycle", flush=True)
+            return
         self._eval_cycle_secs = max(self._eval_cycle_secs or 0.0, secs)
+        print(f"[deadline] eval cycle measured {secs:.0f}s "
+              f"(eval + metric + telemetry + save + copy)", flush=True)
         handler = self.function_when_to_evaluate
         current = getattr(handler, "save_before_remaining_time", None)
         if not isinstance(current, (int, float)):

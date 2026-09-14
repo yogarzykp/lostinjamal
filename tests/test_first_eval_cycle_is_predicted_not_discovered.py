@@ -224,3 +224,54 @@ def test_the_entry_points_pass_the_dev_row_count(entry):
     i = src.index("EvalSaveCallback(")
     assert "dev_rows=" in src[i:i + 1200], (
         f"{entry} builds a callback that cannot cost a cycle it has no dev size for")
+
+
+# ------------------------------------------- a skipped cycle is not a measured cycle
+
+def _run_cycle(cb, step, remaining, elapsed, monkeypatch):
+    """Trigger a cycle at `step`, let `elapsed` seconds pass, then close it in on_save."""
+    clock = [1000.0]
+    monkeypatch.setattr(ct.time, "monotonic", lambda: clock[0])
+    c = _step(cb, step, remaining=remaining)
+    clock[0] += elapsed
+    cb.has_checkpoint = True
+    cb._record_eval_cycle()
+    return c
+
+
+def test_a_skipped_cycle_is_not_recorded_as_a_measured_one(tmp_path, monkeypatch):
+    """THE SECOND REGRESSION, and the one that made the first fix worse than no fix.
+
+    The trigger stamps _cycle_t0 BEFORE the guard decides. When the guard turns an epoch
+    trigger into a bare save, that cheap save was timed and stored as the cost of a full
+    cycle — and a measurement outranks the estimate. On the box the save-only at step 149
+    measured 6s, so 178s of budget was judged sufficient at the end_time trigger for work
+    that takes 250s. -94s, against -75s with no fix at all.
+    """
+    cb, _ = _cb(tmp_path, end_in=9999, steps_per_epoch=149, has_checkpoint=False)
+    c = _run_cycle(cb, 149, remaining=205, elapsed=6.0, monkeypatch=monkeypatch)
+    assert c.should_evaluate is False, "precondition: the guard skipped this eval"
+    assert cb._eval_cycle_secs is None, (
+        f"a save-only cycle was recorded as a {cb._eval_cycle_secs}s eval cycle")
+    assert cb._predicted_cycle_secs() > MEASURED_INSTRUCT_CYCLE, (
+        "the estimate must still stand — nothing has been measured")
+
+
+def test_a_real_cycle_is_still_recorded(tmp_path, monkeypatch):
+    """The exclusion must not swallow the measurement it exists to protect."""
+    cb, _ = _cb(tmp_path, end_in=9999, steps_per_epoch=149, has_checkpoint=False)
+    c = _run_cycle(cb, 149, remaining=3600, elapsed=259.0, monkeypatch=monkeypatch)
+    assert c.should_evaluate is True, "precondition: this eval was affordable"
+    assert cb._eval_cycle_secs == pytest.approx(259.0)
+    assert cb._predicted_cycle_secs() == pytest.approx(259.0), "a measurement outranks the estimate"
+
+
+def test_the_end_time_trigger_refuses_after_a_skipped_epoch_cycle(tmp_path, monkeypatch):
+    """End to end over the box's exact numbers: skip at 149, then refuse at end_time."""
+    cb, _ = _cb(tmp_path, end_in=9999, steps_per_epoch=149, has_checkpoint=False)
+    _run_cycle(cb, 149, remaining=205, elapsed=6.0, monkeypatch=monkeypatch)
+    cb.save_only = False
+    c = _step(cb, 156, remaining=178)          # the end_time trigger, 2:58 left
+    assert c.should_evaluate is False, "ran a 250s eval with 178s of budget"
+    assert c.should_save is True
+    assert cb.save_only is True
