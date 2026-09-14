@@ -111,35 +111,71 @@ def _step(cb, step, remaining=None):
 
 
 # ---------------------------------------------------------------- the cost model
+#
+# The estimate is an EMPIRICAL ENVELOPE, so the test for it is coverage of every cycle
+# ever measured — including the one from the real tournament box, which the model shipped
+# in be81e18 under-predicted by 51s. A cost model that sits below a known measurement
+# starts an eval that cannot finish, and loses the save behind it.
 
-def test_the_estimate_reproduces_the_measured_instruct_cycle(tmp_path):
-    cb, _ = _cb(tmp_path, end_in=9999)
+# name, dev rows, model GiB, MEASURED cycle seconds, kl
+MEASURED_CYCLES = [
+    ("gate instruct", 955, 2.88, 259.0, False),
+    ("gate KL", 955, 3.43, 463.0, True),
+    ("gate DPO", 200, 0.25, 15.0, False),
+    ("gate chat", 104, 0.25, 14.0, False),
+    # task 59469903, gemma-2-2b, reconstructed from the loki record ts fields around step
+    # 500: eval 109.2s + per-example 349.7s + save 5.71s + copy 5.21s.
+    ("REAL tournament", 965, 4.86, 469.8, False),
+]
+
+
+@pytest.mark.parametrize("name,rows,gib,measured,kl",
+                         MEASURED_CYCLES, ids=[c[0] for c in MEASURED_CYCLES])
+def test_the_envelope_covers_every_measured_cycle(tmp_path, name, rows, gib, measured, kl):
+    cb, _ = _cb(tmp_path, end_in=9999, dev_rows=rows, model_gib=gib, kl=kl)
     est = cb._estimated_cycle_secs()
-    assert est > MEASURED_INSTRUCT_CYCLE, (
-        f"estimate {est:.0f}s is UNDER the measured {MEASURED_INSTRUCT_CYCLE}s — an eval "
-        f"that cannot finish would be started")
-    assert est < MEASURED_INSTRUCT_CYCLE * 1.6, f"estimate {est:.0f}s refuses evals that fit"
+    assert est > measured, (
+        f"{name}: estimate {est:.0f}s is UNDER the measured {measured:.0f}s — this is the "
+        f"error direction that starts an eval it cannot finish")
+    assert est < measured * 2.5, (
+        f"{name}: estimate {est:.0f}s against {measured:.0f}s refuses evals that would fit")
 
 
-def test_the_estimate_reproduces_the_measured_kl_cycle(tmp_path):
-    cb, _ = _cb(tmp_path, end_in=9999, kl=True)
-    est = cb._estimated_cycle_secs()
-    assert est > MEASURED_KL_CYCLE, f"estimate {est:.0f}s is UNDER the measured {MEASURED_KL_CYCLE}s"
-    assert est < MEASURED_KL_CYCLE * 1.6, f"estimate {est:.0f}s refuses evals that fit"
+def test_the_model_that_shipped_in_be81e18_would_fail_this(tmp_path):
+    """The regression this file exists for, stated as arithmetic.
+
+    be81e18 costed a cycle as dev_rows/20 + dev_rows/15 + 15 + GiB*60, calibrated on the
+    gate box. On the real tournament cycle that is 419s against a measured 470s.
+    """
+    rows, gib = 965, 4.86
+    shipped = rows / 20.0 + rows / 15.0 + 15.0 + gib * 60.0
+    assert shipped < 469.8, "the premise of this test no longer holds"
+    cb, _ = _cb(tmp_path, end_in=9999, dev_rows=rows, model_gib=gib)
+    assert cb._estimated_cycle_secs() > 469.8, "the replacement repeats the same defect"
 
 
 def test_a_kl_cycle_costs_more_than_a_plain_one(tmp_path):
-    """8.2 rows/s against 25.0: every KL row also goes through the frozen base."""
+    """Measured: 0.141 s per row-GiB against 0.100, because KL evaluates against the base."""
     plain, _ = _cb(tmp_path, end_in=9999, kl=False)
     withkl, _ = _cb(tmp_path, end_in=9999, kl=True)
-    assert withkl._estimated_cycle_secs() > plain._estimated_cycle_secs() * 1.5
+    assert withkl._estimated_cycle_secs() > plain._estimated_cycle_secs()
 
 
-def test_the_copy_scales_with_the_model_not_the_dev_split(tmp_path):
-    """The copy was 61% of the instruct cycle; a 10x model must dominate the estimate."""
+def test_the_estimate_scales_with_the_model(tmp_path):
+    """A bigger model makes every dev pass dearer; the boss round's 35-71B must not cost
+    the same as a 1.5B."""
     small, _ = _cb(tmp_path, end_in=9999, model_gib=GIB_1B5)
     large, _ = _cb(tmp_path, end_in=9999, model_gib=GIB_1B5 * 10)
     assert large._estimated_cycle_secs() > small._estimated_cycle_secs() * 4
+
+
+def test_the_dev_split_is_shared_across_ranks(tmp_path):
+    """Eval is data-parallel, so 8 ranks each walk an eighth of the split. Without this the
+    boss round's model size would refuse every eval on a task where they are affordable."""
+    one, _ = _cb(tmp_path, end_in=9999)
+    eight, _ = _cb(tmp_path, end_in=9999)
+    eight._world_size = 8
+    assert eight._estimated_cycle_secs() < one._estimated_cycle_secs()
 
 
 # ------------------------------------------------------- the guard that did not fire

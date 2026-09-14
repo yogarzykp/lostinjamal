@@ -187,6 +187,8 @@ class CustomEvalSaveCallback(TrainerCallback):
         # the submission directory is the largest term in a cycle and scales with this,
         # not with the dev split.
         self._model_gib = None
+        # Ranks sharing the dev split at eval time, read in on_train_begin.
+        self._world_size = 1
         # Phase 1 BUGFIX 2026-05-02: early-stop on plateau/regression.
         # Phase D refinement 2026-05-03: window-smoothed + adaptive patience.
         #
@@ -1009,43 +1011,62 @@ class CustomEvalSaveCallback(TrainerCallback):
 
 
 
-    # Cost model for one full eval cycle. Decomposed from two stages of the gate run of
-    # 2026-09-14, both on Qwen2-1.5B-Instruct (2.87 GiB) over a 955-row dev split:
+    # Cost of one full eval cycle, as an EMPIRICAL ENVELOPE over every cycle ever measured
+    # here — not a physical decomposition. The previous model in this place claimed one and
+    # was wrong about it, which is the whole reason this is written the way it is.
     #
-    #   instruct  cycle 259 s = eval  38 s (25.0 rows/s) + per-example  53 s (18.0 rows/s)
-    #                         + save   9 s + copy 159 s (2.87 GiB at ~55 s/GiB)
-    #   KL        cycle 462 s = eval 116 s ( 8.2 rows/s) + per-example 178 s ( 5.4 rows/s)
-    #                         + save   9 s + copy 159 s
+    # Every measured cycle (trigger in on_step_end -> end of on_save):
     #
-    # Two things the earlier estimate here got wrong. The copy is 35-61% of a cycle and
-    # scales with the MODEL, not the dev split — modelling the whole cycle as dev rows x
-    # train-step time predicted 702 s against a real 259 s. And a KL eval is 3x slower
-    # per row than a plain one, because every row is also run through the frozen base.
+    #   case           dev rows   model GiB   cycle     eval    per-example   save   copy
+    #   gate instruct       955        2.88    259 s     38 s         53 s      9 s    ~5 s
+    #   gate KL             955        3.43    463 s    116 s        178 s      9 s    ~5 s
+    #   gate DPO            200        0.25     15 s       -            -        -       -
+    #   gate chat           104        0.25     14 s       -            -        -       -
+    #   REAL tournament     965        4.86    470 s    109 s        350 s   5.71 s  5.21 s
+    #     (task 59469903, gemma-2-2b; recon/tourn_2ba0f79237bffcf7_20260907/loki_59469903.txt,
+    #      reconstructed from the record ts fields around step 500)
     #
-    # Each rate below is set under its measurement and each cost above it, so the estimate
-    # runs long: it reproduces the two cycles at 299 s and 536 s, ~15% over both. That is
-    # the direction to err in. Over-estimating refuses an eval that would have fit, which
-    # costs one checkpoint candidate; under-estimating starts an eval that cannot finish,
-    # which costs the deadline and the save behind it.
-    EVAL_ROWS_PER_SEC = 20.0            # measured 25.0
-    KL_EVAL_ROWS_PER_SEC = 7.0          # measured 8.2 — each row also goes through the base
-    PER_EXAMPLE_ROWS_PER_SEC = 15.0     # measured 18.0
-    KL_PER_EXAMPLE_ROWS_PER_SEC = 4.5   # measured 5.4
-    COPY_SECS_PER_GIB = 60.0            # measured ~55
-    SAVE_SECS = 15.0                    # measured ~9
+    # What the real box overturned. The gate-box numbers were previously read as "eval at
+    # 25 rows/s, copy 159 s at 55 s/GiB". On the tournament box the eval runs at 8.84 rows/s
+    # — 2.3x SLOWER than the constant that was shipped — and the copy is 5.21 s for 4.86 GiB,
+    # i.e. ~1.1 s/GiB, 56x FASTER. The "159 s copy" was never a copy at all: it was the
+    # residual 259 - 38 - 53 - 9, absorbing the checkpoint metric, telemetry, the redis
+    # persist and the WSM pool copy. Naming a residual after one of its parts made it scale
+    # with the wrong quantity, and the two errors cancelled on the box they were fitted to.
+    # Applied to the real cycle above, that model predicts 419 s against a measured 470 s —
+    # it UNDER-predicts, which is the direction that starts an eval it cannot finish.
+    #
+    # So: no per-term physics, just the one product that orders all five cases, fitted to sit
+    # above every one of them. Each constant is a ceiling over the observed ratios, not a fit
+    # through them. test_first_eval_cycle_is_predicted_not_discovered.py asserts the envelope
+    # still covers all five, so a future edit cannot quietly drop below a known measurement.
+    #
+    #   cycle_secs ~ dev_rows_per_rank * model_GiB * K + FIXED
+    #
+    # observed cycle/(rows*GiB): instruct 0.094, real 0.100, KL 0.141 (KL evaluates against
+    # the frozen base, so it gets its own ceiling). FIXED carries the small cases, where a
+    # per-row term cannot reach the floor cost of a save: DPO 15 s and chat 14 s at
+    # rows*GiB of 50 and 26.
+    CYCLE_SECS_PER_ROW_GIB = 0.13       # ceiling over 0.094 / 0.100
+    KL_CYCLE_SECS_PER_ROW_GIB = 0.18    # ceiling over 0.141
+    CYCLE_FIXED_SECS = 20.0             # floor cost, over the 14-15 s small cases
 
     def _estimated_cycle_secs(self):
-        """Cost of a full eval cycle from the model and the dev split, before one has
-        ever been timed. None when either size is unknown — a guard that cannot cost a
-        cycle must stay out of the way rather than refuse on a guess."""
+        """Envelope cost of a full eval cycle, before one has ever been timed.
+
+        None when the dev size or the model size is unknown — a guard that cannot cost a
+        cycle must stay out of the way rather than refuse on a guess.
+        """
         if not self.dev_rows or not self._model_gib:
             return None
-        kl = self.kl_metric_fn is not None
-        secs = self.dev_rows / (self.KL_EVAL_ROWS_PER_SEC if kl else self.EVAL_ROWS_PER_SEC)
-        if self.per_example_eval_fn is not None:
-            secs += self.dev_rows / (self.KL_PER_EXAMPLE_ROWS_PER_SEC if kl
-                                     else self.PER_EXAMPLE_ROWS_PER_SEC)
-        return secs + self.SAVE_SECS + self._model_gib * self.COPY_SECS_PER_GIB
+        # Eval is data-parallel: each rank walks its own shard of the dev split, so the rows
+        # that cost THIS process time are dev_rows/world_size. REASONED, NOT MEASURED — every
+        # cycle in the table above is single-GPU. On multi-GPU the first measured cycle
+        # supersedes this anyway.
+        rows = self.dev_rows / float(self._world_size or 1)
+        k = (self.KL_CYCLE_SECS_PER_ROW_GIB if self.kl_metric_fn is not None
+             else self.CYCLE_SECS_PER_ROW_GIB)
+        return rows * self._model_gib * k + self.CYCLE_FIXED_SECS
 
     def _predicted_cycle_secs(self):
         """Best available cost of a cycle: a real measurement when there is one, else the
@@ -1072,10 +1093,16 @@ class CustomEvalSaveCallback(TrainerCallback):
         except Exception as _exc:
             print(f"[deadline] model size unavailable ({type(_exc).__name__}: {_exc}) — "
                   f"an eval cycle cannot be costed before the first one runs", flush=True)
+        try:
+            self._world_size = max(1, int(getattr(args, "world_size", 1) or 1))
+        except Exception:
+            self._world_size = 1
         est = self._estimated_cycle_secs()
         if est is not None:
+            _shard = ("" if self._world_size == 1
+                      else f" over {self._world_size} ranks")
             print(f"[deadline] a full eval cycle is estimated at {est:.0f}s "
-                  f"({self.dev_rows} dev rows, {self._model_gib:.2f} GiB to copy) — an eval "
+                  f"({self.dev_rows} dev rows{_shard}, {self._model_gib:.2f} GiB) — an eval "
                   f"with less time than that left will be skipped in favour of the save",
                   flush=True)
 
@@ -1118,18 +1145,21 @@ class CustomEvalSaveCallback(TrainerCallback):
                   f"({secs:.0f}s) — not counted as the cost of a full cycle", flush=True)
             return
         self._eval_cycle_secs = max(self._eval_cycle_secs or 0.0, secs)
-        print(f"[deadline] eval cycle measured {secs:.0f}s "
-              f"(eval + metric + telemetry + save + copy)", flush=True)
         handler = self.function_when_to_evaluate
         current = getattr(handler, "save_before_remaining_time", None)
-        if not isinstance(current, (int, float)):
-            return
-        want = int(math.ceil((1.25 * self._eval_cycle_secs + 45.0) / 60.0))
-        if want > current:
-            handler.save_before_remaining_time = want
-            print(f"[deadline] eval cycle measured {secs:.0f}s (eval + metric + telemetry + save); "
-                  f"deadline lead widened {current} -> {want} min so the last cycle lands before end_time",
-                  flush=True)
+        want = None
+        if isinstance(current, (int, float)):
+            want = int(math.ceil((1.25 * self._eval_cycle_secs + 45.0) / 60.0))
+            if want > current:
+                handler.save_before_remaining_time = want
+            else:
+                want = None
+        # One line per cycle, whether or not it moved the lead. The number used to be
+        # printed only when it widened, so a cheap cycle recorded itself in silence — which
+        # is how a 6s save passed for a full cycle and cost 94s past end_time.
+        _widen = "" if want is None else f"; deadline lead widened {current} -> {want} min"
+        print(f"[deadline] eval cycle measured {secs:.0f}s "
+              f"(eval + metric + telemetry + save + copy){_widen}", flush=True)
 
     def on_save(self, args, state: TrainerState, control: TrainerControl, **kwargs):
         try:
