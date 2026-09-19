@@ -1,0 +1,41 @@
+{
+ "task_id": "5d21390a-867a-42e8-aa7f-3d2d22305484",
+ "model": "zerofata/L3.3-GeneticLemonade-Final-70B",
+ "type": "InstructTextTask",
+ "hours": 2.25,
+ "status": "success",
+ "augmented": {
+  "status": "UNAVAILABLE",
+  "reason": "no submission repos to compare \u2014 pass them explicitly, or the task has no hotkey_details yet"
+ },
+ "rows": [
+  {
+   "hotkey": "5CkYizfLyb5hLmcK4WtBGG13WKTQrynHBEV6qC23748g17zC",
+   "ours": false,
+   "rank": 1,
+   "test_loss": 0.0,
+   "reason": null,
+   "submitted": false,
+   "hf": {
+    "UNAVAILABLE": "no hf record (no repo or fetch failed)"
+   },
+   "loki": {
+    "UNAVAILABLE": "Loki stream empty for this hotkey/task"
+   }
+  },
+  {
+   "hotkey": "5GU4Xkd3dCGTU3s8VLcHGc5wsD5M8XyxDca5yDQhYm1mVXFu",
+   "ours": false,
+   "rank": 1,
+   "test_loss": 0.0,
+   "reason": null,
+   "submitted": false,
+   "hf": {
+    "UNAVAILABLE": "no hf record (no repo or fetch failed)"
+   },
+   "loki": {
+    "UNAVAILABLE": "Loki stream empty for this hotkey/task"
+   }
+  }
+ ]
+}

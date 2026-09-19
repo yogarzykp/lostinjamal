@@ -1,0 +1,121 @@
+{
+ "task_id": "35c9e96d-3948-4e40-8272-8bc19b13dd43",
+ "model": "unsloth/codegemma-2b",
+ "type": "DpoTask",
+ "hours": 1.0,
+ "status": "success",
+ "augmented": {
+  "provenance": {
+   "endpoint": "derived from repo names",
+   "query": {
+    "task_id": "35c9e96d-3948-4e40-8272-8bc19b13dd43"
+   },
+   "fetched_at": "2026-09-19T05:04:23Z"
+  },
+  "task_id": "35c9e96d-3948-4e40-8272-8bc19b13dd43",
+  "verdicts": [
+   {
+    "repo": "gradients-io-tournaments/tournament-tourn_5c64e784a087074a_20260914-69994e1c-f07f-4a17-acc7-e4b3af7d8f98-5CkYizfL",
+    "repo_uuid": "69994e1c-f07f-4a17-acc7-e4b3af7d8f98",
+    "verdict": "AUGMENTED"
+   },
+   {
+    "repo": "gradients-io-tournaments/tournament-tourn_5c64e784a087074a_20260914-69994e1c-f07f-4a17-acc7-e4b3af7d8f98-5GU4Xkd3",
+    "repo_uuid": "69994e1c-f07f-4a17-acc7-e4b3af7d8f98",
+    "verdict": "AUGMENTED"
+   }
+  ],
+  "consensus": "AUGMENTED",
+  "next_step": "to name the augmented repo itself, read base_model_name_or_path from any LoRA participant's adapter_config.json via `hf`"
+ },
+ "rows": [
+  {
+   "hotkey": "5CkYizfLyb5hLmcK4WtBGG13WKTQrynHBEV6qC23748g17zC",
+   "ours": false,
+   "rank": 1,
+   "test_loss": 2.2409844398498535,
+   "reason": "Lost to winner 5GU4Xkd3dCGTU3s8VLcHGc5wsD5M8XyxDca5yDQhYm1mVXFu at per-example win rate (Challenger win rate 49.3% (bound 45.3%) below required 55.0% of 864 decided examples)",
+   "submitted": true,
+   "hf": {
+    "method": "full fine-tune",
+    "file_count": 6,
+    "base": null,
+    "hdr_rank": [],
+    "dtype": "BF16",
+    "tensors": 164,
+    "has_training_args": false,
+    "has_loss_txt": false,
+    "weights_bytes": 5012363856
+   },
+   "loki": {
+    "lines": 1643,
+    "capped": false,
+    "lr_max": {
+     "UNAVAILABLE": "no learning_rate lines"
+    },
+    "lr_first": null,
+    "log_steps": 0,
+    "evals": 0,
+    "eval_losses": [],
+    "epoch_max": null,
+    "tracebacks": 24,
+    "oom": 0,
+    "ladder_rungs": [],
+    "fallback": false,
+    "batch": null,
+    "ga": null,
+    "epochs": null,
+    "lora_r": null,
+    "maxlen": null,
+    "kl_mentions": 0,
+    "finished": false,
+    "first_ts": null,
+    "last_ts": null
+   }
+  },
+  {
+   "hotkey": "5GU4Xkd3dCGTU3s8VLcHGc5wsD5M8XyxDca5yDQhYm1mVXFu",
+   "ours": false,
+   "rank": 2,
+   "test_loss": 2.4458539485931396,
+   "reason": "Winner at per-example win rate (Challenger win rate 49.3% (bound 45.3%) below required 55.0% of 864 decided examples)",
+   "submitted": true,
+   "hf": {
+    "method": "full fine-tune",
+    "file_count": 10,
+    "base": null,
+    "hdr_rank": [],
+    "dtype": "BF16",
+    "tensors": 160,
+    "has_training_args": false,
+    "has_loss_txt": false,
+    "weights_bytes": 5012363872
+   },
+   "loki": {
+    "lines": 2341,
+    "capped": false,
+    "lr_max": {
+     "UNAVAILABLE": "no learning_rate lines"
+    },
+    "lr_first": null,
+    "log_steps": 0,
+    "evals": 0,
+    "eval_losses": [],
+    "epoch_max": null,
+    "tracebacks": 32,
+    "oom": 0,
+    "ladder_rungs": [],
+    "fallback": false,
+    "batch": null,
+    "ga": null,
+    "epochs": null,
+    "lora_r": null,
+    "maxlen": null,
+    "kl_mentions": 0,
+    "finished": false,
+    "first_ts": null,
+    "last_ts": null
+   }
+  }
+ ]
+}

@@ -1,0 +1,149 @@
+{
+ "provenance": {
+  "endpoint": "https://huggingface.co/api/models/gradients-io-tournaments/tournament-tourn_5c64e784a087074a_20260914-90d361cb-0b97-464a-9fda-36eb34c99261-5HBgDWKx/tree/main?recursive=1",
+  "query": {
+   "repo": "gradients-io-tournaments/tournament-tourn_5c64e784a087074a_20260914-90d361cb-0b97-464a-9fda-36eb34c99261-5HBgDWKx"
+  },
+  "fetched_at": "2026-09-19T05:12:54Z"
+ },
+ "repo": "gradients-io-tournaments/tournament-tourn_5c64e784a087074a_20260914-90d361cb-0b97-464a-9fda-36eb34c99261-5HBgDWKx",
+ "method": "full fine-tune",
+ "file_count": 11,
+ "tree": [
+  {
+   "path": ".gitattributes",
+   "size": 1570
+  },
+  {
+   "path": "LICENSE",
+   "size": 10574
+  },
+  {
+   "path": "README.md",
+   "size": 18332
+  },
+  {
+   "path": "chat_template.jinja",
+   "size": 5443
+  },
+  {
+   "path": "config.json",
+   "size": 1466
+  },
+  {
+   "path": "generation_config.json",
+   "size": 327
+  },
+  {
+   "path": "model-00001-of-00002.safetensors",
+   "size": 5329406264
+  },
+  {
+   "path": "model-00002-of-00002.safetensors",
+   "size": 65021192
+  },
+  {
+   "path": "model.safetensors.index.json",
+   "size": 21425
+  },
+  {
+   "path": "tokenizer.json",
+   "size": 17905598
+  },
+  {
+   "path": "tokenizer_config.json",
+   "size": 363
+  }
+ ],
+ "config_yaml": {
+  "status": "UNAVAILABLE",
+  "reason": "not published by this miner"
+ },
+ "safetensors_header": {
+  "metadata": {
+   "format": "pt"
+  },
+  "tensor_count": 257,
+  "lora_rank": [],
+  "dtype": "BF16",
+  "target_modules": []
+ },
+ "base_model_name_or_path": null,
+ "files": {
+  "config.json": {
+   "architectures": [
+    "Lfm2ForCausalLM"
+   ],
+   "block_auto_adjust_ff_dim": false,
+   "block_dim": 2048,
+   "block_ffn_dim_multiplier": 1.0,
+   "block_mlp_init_scale": 1.0,
+   "block_multiple_of": 256,
+   "block_norm_eps": 1e-05,
+   "block_out_init_scale": 1.0,
+   "block_use_swiglu": true,
+   "block_use_xavier_init": true,
+   "bos_token_id": 124894,
+   "conv_L_cache": 3,
+   "conv_bias": false,
+   "conv_dim": 2048,
+   "conv_use_xavier_init": true,
+   "dtype": "bfloat16",
+   "eos_token_id": 124900,
+   "hidden_size": 2048,
+   "initializer_range": 0.02,
+   "intermediate_size": 10752,
+   "layer_types": [
+    "conv",
+    "conv",
+    "full_attention",
+    "conv",
+    "conv",
+    "full_attention",
+    "conv",
+    "conv",
+    "conv",
+    "full_attention",
+    "conv",
+    "conv",
+    "conv",
+    "full_attention",
+    "conv",
+    "conv",
+    "conv",
+    "full_attention",
+    "conv",
+    "conv",
+    "conv",
+    "full_attention",
+    "conv",
+    "conv",
+    "full_attention",
+    "conv",
+    "conv",
+    "full_attention",
+    "conv",
+    "conv"
+   ],
+   "max_position_embeddings": 131072,
+   "model_type": "lfm2",
+   "norm_eps": 1e-05,
+   "num_attention_heads": 32,
+   "num_heads": 32,
+   "num_hidden_layers": 30,
+   "num_key_value_heads": 8,
+   "pad_token_id": 124893,
+   "rope_parameters": {
+    "rope_theta": 10000000.0,
+    "rope_type": "default"
+   },
+   "tie_word_embeddings": true,
+   "transformers_version": "5.2.0",
+   "use_cache": true,
+   "use_pos_enc": true,
+   "vocab_size": 128000
+  },
+  "README.md": "---\nlibrary_name: transformers\nlicense: other\nlicense_name: lfm1.0\nlicense_link: LICENSE\nlanguage:\n- ar\n- zh\n- en\n- fr\n- de\n- hi\n- id\n- it\n- ja\n- ko\n- pl\n- pt\n- ru\n- es\n- th\n- vi\npipeline_tag: text-generation\ntags:\n- liquid\n- lfm2.5\n- edge\nbase_model: LiquidAI/LFM2.5-2.6B\n---\n\n<div align=\"center\">\n  <img \n    src=\"https://cdn-uploads.huggingface.co/production/uploads/61b8e2ba285851687028d395/2b08LKpev0DNEk6DlnWkY.png\" \n    alt=\"Liquid AI\" \n    style=\"width: 100%; max-width: 100%; height: auto; display: inline-block; margin-bottom: 0.5em; margin-top: 0.5em;\"\n  />\n  <div style=\"display: flex; justify-content: center; gap: 0.5em; margin-bottom: 1em;\">\n    <a href=\"https://playground.liquid.ai/\"><strong>Try LFM</strong></a> \u2022 \n    <a href=\"https://docs.liquid.ai/lfm/getting-started/welcome\"><strong>Docs</strong></a> \u2022 \n    <a href=\"https://leap.liquid.ai/\"><strong>LEAP</strong></a> \u2022 \n    <a href=\"https://discord.com/invite/liquid-ai\"><strong>Discord</strong></a>\n  </div>\n</div>\n\n# LFM2.5-2.6B\n\nLFM2.5-2.6B is part of LFM2.5, a family of hybrid models designed for **on-device deployment**. It builds on the LFM2 architecture with a 128K context window and agentic post-training.\n\n- **Best-in-class agent**: Competitive with models 4x larger on tool use, instruction following, and multi-step agentic tasks.\n- **Agentic reinforcement learning**: Trained inside the most popular agentic harnesses to improve compatibility.\n- **Efficient inference**: 220 tok/s on an Apple M5 Max and 113 tok/s on an AMD Ryzen CPU, in under 2.5 GB of memory.\n\nFind more information about LFM2.5-2.6B in our [blog post](https://www.liquid.ai/blog/lfm2-5-2-6b).\n\n![](https://cdn-uploads.huggingface.co/production/uploads/644249b08443bce4c9890a0f/NAfUL2725b6KDUGf1KOd9.png)\n\n> [!NOTE]\n> \ud83d\udcbb **Demos**: Try LFM2.5-2.6B's agentic capabilities in a Hugging Face space without any setup:\n> **[Research Agent in your browser](https://huggingface.co/spaces/LiquidAI/LFM2.5-2.6B-WebGPU)**: helps you research a specific question and generates a summary\n\n## \ud83d\uddd2\ufe0f Model Details\n\n| Model                                                                | Parameters | Description                            |\n| -------------------------------------------------------------------- | ---------- | -------------------------------------- |\n| [LFM2.5-2.6B-Base](https://huggingface.co/LiquidAI/LFM2.5-2.6B-Base) | 2.6B       | Pre-trained base model for fine-tuning |\n| **[LFM2.5-2.6B](https://huggingface.co/LiquidAI/LFM2.5-2.6B)**       | 2.6B       | Post-trained for agentic workloads     |\n\nLFM2.5-2.6B is a general-purpose text-only model with the following features:\n\n- **Total parameters**: 2.69B\n- **Number of layers**: 30 (22 double-gated short convolution blocks + 8 GQA)\n- **Training budget**: 34 trillion tokens\n- **Vocabulary size**: 128,000\n- **Context length**: 131,072 tokens\n- **Languages**: English, Arabic, Chinese, French, German, Italian, Japanese, Korean, Portuguese, Spanish, Vietnamese, Thai, Indonesian, Hindi, Russian, Polish \n- **Generation parameters**:\n  - `temperature: 0.1`\n  - `top_k: 50`\n  - `repetition_penalty: 1.1`\n\n| Model                                                                    | Description                                                                                                                                  |\n| ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |\n| **[LFM2.5-2.6B](https://huggingface.co/LiquidAI/LFM2.5-2.6B)**           | Original model checkpoint in native format. Best for fine-tuning or inference with Transformers, vLLM, and SGLang.                           |\n| **[LFM2.5-2.6B-GGUF](https://huggingface.co/LiquidAI/LFM2.5-2.6B-GGUF)** | Quantized format for llama.cpp and compatible tools. Optimized for CPU inference and local deployment with reduced memory usage.             |\n| **[LFM2.5-2.6B-ONNX](https://huggingface.co/LiquidAI/LFM2.5-2.6B-ONNX)** | ONNX Runtime format for cross-platform deployment. Enables hardware-accelerated inference across diverse environments (cloud, edge, mobile). |\n| **[LFM2.5-2.6B-MLX](https://huggingface.co/LiquidAI/LFM2.5-2.6B-MLX)**   | MLX format for Apple Silicon. Optimized for fast inference on Mac devices using the MLX framework.                                           |\n| **[LFM2.5-2.6B-DSpark](https://huggingface.co/LiquidAI/LFM2.5-2.6B-DSpark)** | Speculative decoding drafter (328M). Pair it with this model for ~2.6x faster decoding with identical outputs.                                |\n\nWe recommend using it for agentic workloads, tool use, data extraction, RAG, and long-context workflows. It is not recommended for agentic coding and knowledge-heavy tasks.\n\n### Chat Template\n\nLFM2.5 uses a ChatML-like format. See the [Chat Template documentation](https://docs.liquid.ai/lfm/key-concepts/chat-template) for details. Example:\n\n```\n<|startoftext|><|im_start|>system\nYou are a helpful assistant trained by Liquid AI.<|im_end|>\n<|im_start|>user\nWhat is C. elegans?<|im_end|>\n<|im_start|>assistant\n```\n\nYou can use [`tokenizer.apply_chat_template()`](https://huggingface.co/docs/transformers/en/chat_templating#using-applychattemplate) to format your messages automatically.\n\n> [!TIP]\n> \ud83d\udca1 **Note**: LFM2.5-2.6B is a pure reasoning model that always thinks before it answers. It adds a `<think>` tag directly in the [chat template](https://huggingface.co/LiquidAI/LFM2.5-2.6B/blob/main/chat_template.jinja#L124) when starting an assistant answer.\n\n### Tool Use\n\nLFM2.5 supports function calling in four steps:\n\n1. **Function definition**: Provide the list of tools as a JSON object in the system prompt, or use [`tokenizer.apply_chat_template()`](https://huggingface.co/docs/transformers/en/chat_extras#passing-tools) with `tools=...`.\n2. **Function call**: By default, LFM2.5 writes Pythonic function calls (a Python list between `<|tool_call_start|>` and `<|tool_call_end|>` special tokens), as the assistant answer. You can override this behavior by asking the model to output JSON function calls in the system prompt.\n3. **Function execution**: Execute the call and return the result with the `tool` role.\n4. **Final answer**: LFM2.5 interprets the tool output and returns a plain-text answer addressing the original prompt.\n\nSee the [Tool Use documentation](https://docs.liquid.ai/lfm/key-concepts/tool-use) for the full guide. Example:\n\n```\n<|startoftext|><|im_start|>system\nList of tools: [{\"name\": \"get_candidate_status\", \"description\": \"Retrieves the current status of a candidate in the recruitment process\", \"parameters\": {\"type\": \"object\", \"properties\": {\"candidate_id\": {\"type\": \"string\", \"description\": \"Unique identifier for the candidate\"}}, \"required\": [\"candidate_id\"]}}]<|im_end|>\n<|im_start|>user\nWhat is the current status of candidate ID 12345?<|im_end|>\n<|im_start|>assistant\n<|tool_call_start|>[get_candidate_status(candidate_id=\"12345\")]<|tool_call_end|>Checking the current status of candidate ID 12345.<|im_end|>\n<|im_start|>tool\n[{\"candidate_id\": \"12345\", \"status\": \"Interview Scheduled\", \"position\": \"Clinical Research Associate\", \"date\": \"2023-11-20\"}]<|im_end|>\n<|im_start|>assistant\nThe candidate with ID 12345 is currently in the \"Interview Scheduled\" stage for the position of Clinical Research Associate, with an interview date set for 2023-11-20.<|im_end|>\n```\n\n### Training\n\nLFM2.5-2.6B is pre-trained on ~34T tokens, with a mid-training phase that extends the context window to 128K. Post-training then turns the base model into an agent in four stages: supervised fine-tuning (two rounds), per-domain teacher specialization, multi-domain on-policy distillation, and agentic reinforcement learning.\n\n![](https://cdn-uploads.huggingface.co/production/uploads/61b8e2ba285851687028d395/hCmGKgTRihAR9NfJlCVNN.png)\n\nIn particular, agentic reinforcement learning allows us to directly train"
+ },
+ "not_found": {}
+}

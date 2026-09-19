@@ -1,0 +1,904 @@
+{
+ "task_id": "067761fe-b567-44d7-8863-4cd41cc12261",
+ "model": "unsloth/Llama-3.2-1B-Instruct",
+ "type": "InstructTextTask",
+ "hours": 1.0,
+ "status": "success",
+ "augmented": {
+  "provenance": {
+   "endpoint": "derived from repo names",
+   "query": {
+    "task_id": "067761fe-b567-44d7-8863-4cd41cc12261"
+   },
+   "fetched_at": "2026-09-19T04:59:47Z"
+  },
+  "task_id": "067761fe-b567-44d7-8863-4cd41cc12261",
+  "verdicts": [
+   {
+    "repo": "gradients-io-tournaments/tournament-tourn_5c64e784a087074a_20260914-12a8c324-8bae-4f43-b01f-14b0fa6dbf62-5FtF14uZ",
+    "repo_uuid": "12a8c324-8bae-4f43-b01f-14b0fa6dbf62",
+    "verdict": "AUGMENTED"
+   },
+   {
+    "repo": "gradients-io-tournaments/tournament-tourn_5c64e784a087074a_20260914-12a8c324-8bae-4f43-b01f-14b0fa6dbf62-5DDVSRDL",
+    "repo_uuid": "12a8c324-8bae-4f43-b01f-14b0fa6dbf62",
+    "verdict": "AUGMENTED"
+   },
+   {
+    "repo": "gradients-io-tournaments/tournament-tourn_5c64e784a087074a_20260914-12a8c324-8bae-4f43-b01f-14b0fa6dbf62-5CkYizfL",
+    "repo_uuid": "12a8c324-8bae-4f43-b01f-14b0fa6dbf62",
+    "verdict": "AUGMENTED"
+   },
+   {
+    "repo": "gradients-io-tournaments/tournament-tourn_5c64e784a087074a_20260914-12a8c324-8bae-4f43-b01f-14b0fa6dbf62-5E2fNjMW",
+    "repo_uuid": "12a8c324-8bae-4f43-b01f-14b0fa6dbf62",
+    "verdict": "AUGMENTED"
+   },
+   {
+    "repo": "gradients-io-tournaments/tournament-tourn_5c64e784a087074a_20260914-12a8c324-8bae-4f43-b01f-14b0fa6dbf62-5EhyCWPu",
+    "repo_uuid": "12a8c324-8bae-4f43-b01f-14b0fa6dbf62",
+    "verdict": "AUGMENTED"
+   },
+   {
+    "repo": "gradients-io-tournaments/tournament-tourn_5c64e784a087074a_20260914-12a8c324-8bae-4f43-b01f-14b0fa6dbf62-5DXVNvDm",
+    "repo_uuid": "12a8c324-8bae-4f43-b01f-14b0fa6dbf62",
+    "verdict": "AUGMENTED"
+   },
+   {
+    "repo": "gradients-io-tournaments/tournament-tourn_5c64e784a087074a_20260914-12a8c324-8bae-4f43-b01f-14b0fa6dbf62-5DLy32QP",
+    "repo_uuid": "12a8c324-8bae-4f43-b01f-14b0fa6dbf62",
+    "verdict": "AUGMENTED"
+   },
+   {
+    "repo": "gradients-io-tournaments/tournament-tourn_5c64e784a087074a_20260914-12a8c324-8bae-4f43-b01f-14b0fa6dbf62-5GcAxvH7",
+    "repo_uuid": "12a8c324-8bae-4f43-b01f-14b0fa6dbf62",
+    "verdict": "AUGMENTED"
+   },
+   {
+    "repo": "gradients-io-tournaments/tournament-tourn_5c64e784a087074a_20260914-12a8c324-8bae-4f43-b01f-14b0fa6dbf62-5HBgDWKx",
+    "repo_uuid": "12a8c324-8bae-4f43-b01f-14b0fa6dbf62",
+    "verdict": "AUGMENTED"
+   },
+   {
+    "repo": "gradients-io-tournaments/tournament-tourn_5c64e784a087074a_20260914-12a8c324-8bae-4f43-b01f-14b0fa6dbf62-5EcZmz41",
+    "repo_uuid": "12a8c324-8bae-4f43-b01f-14b0fa6dbf62",
+    "verdict": "AUGMENTED"
+   },
+   {
+    "repo": "gradients-io-tournaments/tournament-tourn_5c64e784a087074a_20260914-12a8c324-8bae-4f43-b01f-14b0fa6dbf62-5EeEWvKf",
+    "repo_uuid": "12a8c324-8bae-4f43-b01f-14b0fa6dbf62",
+    "verdict": "AUGMENTED"
+   },
+   {
+    "repo": "gradients-io-tournaments/tournament-tourn_5c64e784a087074a_20260914-12a8c324-8bae-4f43-b01f-14b0fa6dbf62-5FW2EqiC",
+    "repo_uuid": "12a8c324-8bae-4f43-b01f-14b0fa6dbf62",
+    "verdict": "AUGMENTED"
+   },
+   {
+    "repo": "gradients-io-tournaments/tournament-tourn_5c64e784a087074a_20260914-12a8c324-8bae-4f43-b01f-14b0fa6dbf62-5DU5Qyae",
+    "repo_uuid": "12a8c324-8bae-4f43-b01f-14b0fa6dbf62",
+    "verdict": "AUGMENTED"
+   },
+   {
+    "repo": "gradients-io-tournaments/tournament-tourn_5c64e784a087074a_20260914-12a8c324-8bae-4f43-b01f-14b0fa6dbf62-5EUHojrM",
+    "repo_uuid": "12a8c324-8bae-4f43-b01f-14b0fa6dbf62",
+    "verdict": "AUGMENTED"
+   },
+   {
+    "repo": "gradients-io-tournaments/tournament-tourn_5c64e784a087074a_20260914-12a8c324-8bae-4f43-b01f-14b0fa6dbf62-5HLA2QWY",
+    "repo_uuid": "12a8c324-8bae-4f43-b01f-14b0fa6dbf62",
+    "verdict": "AUGMENTED"
+   },
+   {
+    "repo": "gradients-io-tournaments/tournament-tourn_5c64e784a087074a_20260914-12a8c324-8bae-4f43-b01f-14b0fa6dbf62-5E6p1x3e",
+    "repo_uuid": "12a8c324-8bae-4f43-b01f-14b0fa6dbf62",
+    "verdict": "AUGMENTED"
+   }
+  ],
+  "consensus": "AUGMENTED",
+  "next_step": "to name the augmented repo itself, read base_model_name_or_path from any LoRA participant's adapter_config.json via `hf`"
+ },
+ "rows": [
+  {
+   "hotkey": "5FtF14uZ1mACHivSorX8nTn8gx3AdTATAhV7CZShGTtHsb3u",
+   "ours": false,
+   "rank": 1,
+   "test_loss": 1.054498314857483,
+   "reason": "Ranked 1st by test_loss",
+   "submitted": true,
+   "hf": {
+    "method": "full fine-tune",
+    "file_count": 9,
+    "base": null,
+    "hdr_rank": [],
+    "dtype": "BF16",
+    "tensors": 146,
+    "has_training_args": false,
+    "has_loss_txt": true,
+    "weights_bytes": 2471645608
+   },
+   "loki": {
+    "lines": 1267,
+    "capped": false,
+    "lr_max": {
+     "UNAVAILABLE": "no learning_rate lines"
+    },
+    "lr_first": null,
+    "log_steps": 0,
+    "evals": 0,
+    "eval_losses": [],
+    "epoch_max": null,
+    "tracebacks": 0,
+    "oom": 0,
+    "ladder_rungs": [],
+    "fallback": false,
+    "batch": null,
+    "ga": null,
+    "epochs": null,
+    "lora_r": null,
+    "maxlen": null,
+    "kl_mentions": 0,
+    "finished": false,
+    "first_ts": "2026-09-15 09:53:30",
+    "last_ts": "2026-09-15 09:53:30"
+   }
+  },
+  {
+   "hotkey": "5DDVSRDLbcd57ZHnzFNjHdvcffekjiRdRJeBfWUHeSkWFprv",
+   "ours": false,
+   "rank": 2,
+   "test_loss": 1.0552974939346313,
+   "reason": "Ranked below top 1 by test_loss",
+   "submitted": true,
+   "hf": {
+    "method": "full fine-tune",
+    "file_count": 9,
+    "base": null,
+    "hdr_rank": [],
+    "dtype": "BF16",
+    "tensors": 146,
+    "has_training_args": false,
+    "has_loss_txt": true,
+    "weights_bytes": 2471645608
+   },
+   "loki": {
+    "lines": 1267,
+    "capped": false,
+    "lr_max": {
+     "UNAVAILABLE": "no learning_rate lines"
+    },
+    "lr_first": null,
+    "log_steps": 0,
+    "evals": 0,
+    "eval_losses": [],
+    "epoch_max": null,
+    "tracebacks": 0,
+    "oom": 0,
+    "ladder_rungs": [],
+    "fallback": false,
+    "batch": null,
+    "ga": null,
+    "epochs": null,
+    "lora_r": null,
+    "maxlen": null,
+    "kl_mentions": 0,
+    "finished": false,
+    "first_ts": "2026-09-15 11:40:37",
+    "last_ts": "2026-09-15 11:40:37"
+   }
+  },
+  {
+   "hotkey": "5CkYizfLyb5hLmcK4WtBGG13WKTQrynHBEV6qC23748g17zC",
+   "ours": false,
+   "rank": 3,
+   "test_loss": 1.0556514263153076,
+   "reason": "Ranked below top 1 by test_loss",
+   "submitted": true,
+   "hf": {
+    "method": "full fine-tune",
+    "file_count": 9,
+    "base": null,
+    "hdr_rank": [],
+    "dtype": "BF16",
+    "tensors": 146,
+    "has_training_args": false,
+    "has_loss_txt": true,
+    "weights_bytes": 2471645608
+   },
+   "loki": {
+    "lines": 1267,
+    "capped": false,
+    "lr_max": {
+     "UNAVAILABLE": "no learning_rate lines"
+    },
+    "lr_first": null,
+    "log_steps": 0,
+    "evals": 0,
+    "eval_losses": [],
+    "epoch_max": null,
+    "tracebacks": 0,
+    "oom": 0,
+    "ladder_rungs": [],
+    "fallback": false,
+    "batch": null,
+    "ga": null,
+    "epochs": null,
+    "lora_r": null,
+    "maxlen": null,
+    "kl_mentions": 0,
+    "finished": false,
+    "first_ts": "2026-09-15 10:47:09",
+    "last_ts": "2026-09-15 10:47:09"
+   }
+  },
+  {
+   "hotkey": "5E2fNjMWkC7NhjFsobwdDT1ym9R8ws7iDMnaZtE1RcnAsfZf",
+   "ours": false,
+   "rank": 4,
+   "test_loss": 1.0829545259475708,
+   "reason": "Ranked below top 1 by test_loss",
+   "submitted": true,
+   "hf": {
+    "method": "full fine-tune",
+    "file_count": 8,
+    "base": null,
+    "hdr_rank": [],
+    "dtype": "BF16",
+    "tensors": 146,
+    "has_training_args": false,
+    "has_loss_txt": true,
+    "weights_bytes": 2471645608
+   },
+   "loki": {
+    "lines": 1534,
+    "capped": false,
+    "lr_max": {
+     "UNAVAILABLE": "no learning_rate lines"
+    },
+    "lr_first": null,
+    "log_steps": 0,
+    "evals": 0,
+    "eval_losses": [],
+    "epoch_max": null,
+    "tracebacks": 0,
+    "oom": 0,
+    "ladder_rungs": [],
+    "fallback": false,
+    "batch": null,
+    "ga": null,
+    "epochs": null,
+    "lora_r": null,
+    "maxlen": null,
+    "kl_mentions": 0,
+    "finished": false,
+    "first_ts": null,
+    "last_ts": null
+   }
+  },
+  {
+   "hotkey": "5EhyCWPuyYUDD5RMQ8FM5jknMqfTtSQZ3a3PDARRhjSdCAYb",
+   "ours": false,
+   "rank": 5,
+   "test_loss": 1.0834568738937378,
+   "reason": "Ranked below top 1 by test_loss",
+   "submitted": true,
+   "hf": {
+    "method": "full fine-tune",
+    "file_count": 8,
+    "base": null,
+    "hdr_rank": [],
+    "dtype": "BF16",
+    "tensors": 146,
+    "has_training_args": false,
+    "has_loss_txt": true,
+    "weights_bytes": 2471645608
+   },
+   "loki": {
+    "lines": 1441,
+    "capped": false,
+    "lr_max": {
+     "UNAVAILABLE": "no learning_rate lines"
+    },
+    "lr_first": null,
+    "log_steps": 0,
+    "evals": 0,
+    "eval_losses": [],
+    "epoch_max": null,
+    "tracebacks": 0,
+    "oom": 0,
+    "ladder_rungs": [],
+    "fallback": false,
+    "batch": null,
+    "ga": null,
+    "epochs": null,
+    "lora_r": null,
+    "maxlen": null,
+    "kl_mentions": 0,
+    "finished": false,
+    "first_ts": null,
+    "last_ts": null
+   }
+  },
+  {
+   "hotkey": "5DXVNvDmGZqdXbqRzsJZdJVoAgbLdhdFrrrmtAAfsh4QkGUU",
+   "ours": false,
+   "rank": 6,
+   "test_loss": 1.0909156799316406,
+   "reason": "Ranked below top 1 by test_loss",
+   "submitted": true,
+   "hf": {
+    "method": "full fine-tune",
+    "file_count": 8,
+    "base": null,
+    "hdr_rank": [],
+    "dtype": "BF16",
+    "tensors": 146,
+    "has_training_args": false,
+    "has_loss_txt": true,
+    "weights_bytes": 2471645608
+   },
+   "loki": {
+    "lines": 1765,
+    "capped": false,
+    "lr_max": {
+     "UNAVAILABLE": "no learning_rate lines"
+    },
+    "lr_first": null,
+    "log_steps": 0,
+    "evals": 0,
+    "eval_losses": [],
+    "epoch_max": null,
+    "tracebacks": 0,
+    "oom": 0,
+    "ladder_rungs": [],
+    "fallback": false,
+    "batch": null,
+    "ga": null,
+    "epochs": null,
+    "lora_r": null,
+    "maxlen": null,
+    "kl_mentions": 0,
+    "finished": false,
+    "first_ts": null,
+    "last_ts": null
+   }
+  },
+  {
+   "hotkey": "5DLy32QP39w7Y5xJSggknW6KH8mDnRpQ2PPXETtVuC6637Ev",
+   "ours": false,
+   "rank": 7,
+   "test_loss": 1.1070506572723389,
+   "reason": "Ranked below top 1 by test_loss",
+   "submitted": true,
+   "hf": {
+    "method": "full fine-tune",
+    "file_count": 8,
+    "base": null,
+    "hdr_rank": [],
+    "dtype": "BF16",
+    "tensors": 146,
+    "has_training_args": false,
+    "has_loss_txt": true,
+    "weights_bytes": 2471645608
+   },
+   "loki": {
+    "lines": 1897,
+    "capped": false,
+    "lr_max": {
+     "UNAVAILABLE": "no learning_rate lines"
+    },
+    "lr_first": null,
+    "log_steps": 0,
+    "evals": 0,
+    "eval_losses": [],
+    "epoch_max": null,
+    "tracebacks": 0,
+    "oom": 0,
+    "ladder_rungs": [],
+    "fallback": false,
+    "batch": null,
+    "ga": null,
+    "epochs": null,
+    "lora_r": null,
+    "maxlen": null,
+    "kl_mentions": 0,
+    "finished": false,
+    "first_ts": null,
+    "last_ts": null
+   }
+  },
+  {
+   "hotkey": "5GcAxvH7oAr9hT2bauAU8y2B8GUiZbvmwrrnj1B4op9toCnY",
+   "ours": false,
+   "rank": 8,
+   "test_loss": 1.1189626455307007,
+   "reason": "Ranked below top 1 by test_loss",
+   "submitted": true,
+   "hf": {
+    "method": "full fine-tune",
+    "file_count": 8,
+    "base": null,
+    "hdr_rank": [],
+    "dtype": "BF16",
+    "tensors": 146,
+    "has_training_args": false,
+    "has_loss_txt": true,
+    "weights_bytes": 2471645608
+   },
+   "loki": {
+    "lines": 351,
+    "capped": false,
+    "lr_max": {
+     "UNAVAILABLE": "no learning_rate lines"
+    },
+    "lr_first": null,
+    "log_steps": 0,
+    "evals": 0,
+    "eval_losses": [],
+    "epoch_max": null,
+    "tracebacks": 0,
+    "oom": 0,
+    "ladder_rungs": [],
+    "fallback": false,
+    "batch": null,
+    "ga": null,
+    "epochs": null,
+    "lora_r": null,
+    "maxlen": null,
+    "kl_mentions": 0,
+    "finished": false,
+    "first_ts": null,
+    "last_ts": null
+   }
+  },
+  {
+   "hotkey": "5HBgDWKxNX3333Yit3qMokkYY4Guz1r8Qfons2UJTSU5oqjV",
+   "ours": true,
+   "rank": 9,
+   "test_loss": 1.1401609182357788,
+   "reason": "Ranked below top 1 by test_loss",
+   "submitted": true,
+   "hf": {
+    "method": "full fine-tune",
+    "file_count": 8,
+    "base": null,
+    "hdr_rank": [],
+    "dtype": "BF16",
+    "tensors": 146,
+    "has_training_args": false,
+    "has_loss_txt": true,
+    "weights_bytes": 2471645608
+   },
+   "loki": {
+    "lines": 5000,
+    "capped": true,
+    "lr_max": 9.171327691486076e-05,
+    "lr_first": 4.289401381371581e-07,
+    "log_steps": 68,
+    "evals": 0,
+    "eval_losses": [],
+    "epoch_max": 1.97,
+    "tracebacks": 0,
+    "oom": 0,
+    "ladder_rungs": [],
+    "fallback": false,
+    "batch": [
+     "16",
+     "4"
+    ],
+    "ga": null,
+    "epochs": [
+     "2"
+    ],
+    "lora_r": null,
+    "maxlen": [
+     "1433"
+    ],
+    "kl_mentions": 0,
+    "finished": true,
+    "first_ts": "2026-09-15 10:47:33",
+    "last_ts": "2026-09-15 11:06:38"
+   }
+  },
+  {
+   "hotkey": "5EcZmz41oFGaJVte8DEzuGd8QyBBxjhTobhrK4A5y4b1Q24Y",
+   "ours": false,
+   "rank": 10,
+   "test_loss": 1.1915689706802368,
+   "reason": "Ranked below top 1 by test_loss",
+   "submitted": true,
+   "hf": {
+    "method": "LoRA",
+    "file_count": 8,
+    "base": "gradients-io-tournaments/augmented-8a3f84c4cc4a7528",
+    "lora_r": 128,
+    "lora_alpha": 512,
+    "targets": [
+     "up_proj",
+     "down_proj",
+     "q_proj",
+     "v_proj",
+     "gate_proj",
+     "k_proj",
+     "o_proj"
+    ],
+    "dropout": 0.1,
+    "use_rslora": false,
+    "use_dora": false,
+    "init": true,
+    "hdr_rank": [
+     128
+    ],
+    "dtype": "F32",
+    "tensors": 224,
+    "has_training_args": false,
+    "has_loss_txt": false,
+    "weights_bytes": 360740440
+   },
+   "loki": {
+    "lines": 377,
+    "capped": false,
+    "lr_max": {
+     "UNAVAILABLE": "no learning_rate lines"
+    },
+    "lr_first": null,
+    "log_steps": 0,
+    "evals": 0,
+    "eval_losses": [],
+    "epoch_max": null,
+    "tracebacks": 0,
+    "oom": 0,
+    "ladder_rungs": [],
+    "fallback": false,
+    "batch": [
+     "50"
+    ],
+    "ga": [
+     "1"
+    ],
+    "epochs": [
+     "3",
+     "4"
+    ],
+    "lora_r": [
+     "128"
+    ],
+    "maxlen": [
+     "4096"
+    ],
+    "kl_mentions": 3,
+    "finished": false,
+    "first_ts": null,
+    "last_ts": null
+   }
+  },
+  {
+   "hotkey": "5EeEWvKfXj84kWKid9tAmFSiXTUGJT87oi9AjRYdW1rx2KYA",
+   "ours": false,
+   "rank": 11,
+   "test_loss": 1.1939637660980225,
+   "reason": "Ranked below top 1 by test_loss",
+   "submitted": true,
+   "hf": {
+    "method": "full fine-tune",
+    "file_count": 8,
+    "base": null,
+    "hdr_rank": [],
+    "dtype": "BF16",
+    "tensors": 146,
+    "has_training_args": false,
+    "has_loss_txt": true,
+    "weights_bytes": 2471645608
+   },
+   "loki": {
+    "lines": 1438,
+    "capped": false,
+    "lr_max": {
+     "UNAVAILABLE": "no learning_rate lines"
+    },
+    "lr_first": null,
+    "log_steps": 0,
+    "evals": 0,
+    "eval_losses": [],
+    "epoch_max": null,
+    "tracebacks": 0,
+    "oom": 0,
+    "ladder_rungs": [],
+    "fallback": false,
+    "batch": null,
+    "ga": null,
+    "epochs": null,
+    "lora_r": null,
+    "maxlen": null,
+    "kl_mentions": 0,
+    "finished": false,
+    "first_ts": null,
+    "last_ts": null
+   }
+  },
+  {
+   "hotkey": "5FW2EqiCeLknueng7Bp9rj4JrPNv5F6nxNg7yUtART6U1odT",
+   "ours": false,
+   "rank": 12,
+   "test_loss": 1.2041772603988647,
+   "reason": "Ranked below top 1 by test_loss",
+   "submitted": true,
+   "hf": {
+    "method": "full fine-tune",
+    "file_count": 8,
+    "base": null,
+    "hdr_rank": [],
+    "dtype": "BF16",
+    "tensors": 146,
+    "has_training_args": false,
+    "has_loss_txt": true,
+    "weights_bytes": 2471645608
+   },
+   "loki": {
+    "lines": 1783,
+    "capped": false,
+    "lr_max": {
+     "UNAVAILABLE": "no learning_rate lines"
+    },
+    "lr_first": null,
+    "log_steps": 0,
+    "evals": 0,
+    "eval_losses": [],
+    "epoch_max": null,
+    "tracebacks": 0,
+    "oom": 0,
+    "ladder_rungs": [],
+    "fallback": false,
+    "batch": null,
+    "ga": null,
+    "epochs": null,
+    "lora_r": null,
+    "maxlen": null,
+    "kl_mentions": 0,
+    "finished": false,
+    "first_ts": null,
+    "last_ts": null
+   }
+  },
+  {
+   "hotkey": "5DU5Qyae6n5c3PCDY7EBidC8FaZZCb1ykTMAF2JCXm63oQcf",
+   "ours": false,
+   "rank": 13,
+   "test_loss": 1.231438159942627,
+   "reason": "Bottom 25% ranked by test_loss",
+   "submitted": true,
+   "hf": {
+    "method": "full fine-tune",
+    "file_count": 7,
+    "base": null,
+    "hdr_rank": [],
+    "dtype": "BF16",
+    "tensors": 146,
+    "has_training_args": false,
+    "has_loss_txt": false,
+    "weights_bytes": 2471645608
+   },
+   "loki": {
+    "lines": 2000,
+    "capped": false,
+    "lr_max": 4.759933806448394e-05,
+    "lr_first": 4.759933806448394e-05,
+    "log_steps": 41,
+    "evals": 14,
+    "eval_losses": [
+     2.022145417322463,
+     1.8226945197870918,
+     2.0094923303877295,
+     1.8279655571744797,
+     1.6952188291305674,
+     1.6035339261038644,
+     1.5884376393078128,
+     1.4972235184943088,
+     1.4349711634965274,
+     1.3602243839745825,
+     1.4855340539951385,
+     1.415170583646571
+    ],
+    "epoch_max": 3.0,
+    "tracebacks": 0,
+    "oom": 2,
+    "ladder_rungs": [],
+    "fallback": false,
+    "batch": null,
+    "ga": null,
+    "epochs": null,
+    "lora_r": null,
+    "maxlen": null,
+    "kl_mentions": 0,
+    "finished": false,
+    "first_ts": "2026-09-15 10:19:54",
+    "last_ts": "2026-09-15 10:24:36"
+   }
+  },
+  {
+   "hotkey": "5EUHojrMhLPHWFpgZDS6oHyYgWSe6haqnfKE2mdy4U7bEEnQ",
+   "ours": false,
+   "rank": 14,
+   "test_loss": 1.2457467317581177,
+   "reason": "Bottom 25% ranked by test_loss",
+   "submitted": true,
+   "hf": {
+    "method": "full fine-tune",
+    "file_count": 8,
+    "base": null,
+    "hdr_rank": [],
+    "dtype": "BF16",
+    "tensors": 146,
+    "has_training_args": false,
+    "has_loss_txt": true,
+    "weights_bytes": 2471645608
+   },
+   "loki": {
+    "lines": 1307,
+    "capped": false,
+    "lr_max": {
+     "UNAVAILABLE": "no learning_rate lines"
+    },
+    "lr_first": null,
+    "log_steps": 0,
+    "evals": 0,
+    "eval_losses": [],
+    "epoch_max": null,
+    "tracebacks": 0,
+    "oom": 0,
+    "ladder_rungs": [],
+    "fallback": false,
+    "batch": null,
+    "ga": null,
+    "epochs": null,
+    "lora_r": null,
+    "maxlen": null,
+    "kl_mentions": 0,
+    "finished": false,
+    "first_ts": null,
+    "last_ts": null
+   }
+  },
+  {
+   "hotkey": "5HLA2QWYy3GpNwCiBCwMMhGw5hpPosSeZ41my8B3nuFDQHNF",
+   "ours": false,
+   "rank": 15,
+   "test_loss": 1.275439977645874,
+   "reason": "Bottom 25% ranked by test_loss",
+   "submitted": true,
+   "hf": {
+    "method": "LoRA",
+    "file_count": 10,
+    "base": "gradients-io-tournaments/augmented-8a3f84c4cc4a7528",
+    "lora_r": 32,
+    "lora_alpha": 64,
+    "targets": [
+     "down_proj",
+     "up_proj",
+     "v_proj",
+     "o_proj",
+     "q_proj",
+     "gate_proj",
+     "k_proj"
+    ],
+    "dropout": 0.0,
+    "use_rslora": false,
+    "use_dora": false,
+    "init": true,
+    "hdr_rank": [
+     32
+    ],
+    "dtype": "BF16",
+    "tensors": 224,
+    "has_training_args": false,
+    "has_loss_txt": false,
+    "weights_bytes": 45118648
+   },
+   "loki": {
+    "lines": 763,
+    "capped": false,
+    "lr_max": {
+     "UNAVAILABLE": "no learning_rate lines"
+    },
+    "lr_first": null,
+    "log_steps": 0,
+    "evals": 0,
+    "eval_losses": [],
+    "epoch_max": null,
+    "tracebacks": 0,
+    "oom": 0,
+    "ladder_rungs": [],
+    "fallback": false,
+    "batch": null,
+    "ga": null,
+    "epochs": null,
+    "lora_r": null,
+    "maxlen": null,
+    "kl_mentions": 0,
+    "finished": false,
+    "first_ts": null,
+    "last_ts": null
+   }
+  },
+  {
+   "hotkey": "5E6p1x3eCugTn634Dc2GrwyTjwb6j6hgzEGzZgQ8Xuyr5fXW",
+   "ours": false,
+   "rank": 16,
+   "test_loss": 1.5161439180374146,
+   "reason": "Bottom 25% ranked by test_loss",
+   "submitted": true,
+   "hf": {
+    "method": "full fine-tune",
+    "file_count": 8,
+    "base": null,
+    "hdr_rank": [],
+    "dtype": "BF16",
+    "tensors": 146,
+    "has_training_args": false,
+    "has_loss_txt": true,
+    "weights_bytes": 2471645608
+   },
+   "loki": {
+    "lines": 1588,
+    "capped": false,
+    "lr_max": {
+     "UNAVAILABLE": "no learning_rate lines"
+    },
+    "lr_first": null,
+    "log_steps": 0,
+    "evals": 0,
+    "eval_losses": [],
+    "epoch_max": null,
+    "tracebacks": 0,
+    "oom": 0,
+    "ladder_rungs": [],
+    "fallback": false,
+    "batch": null,
+    "ga": null,
+    "epochs": null,
+    "lora_r": null,
+    "maxlen": null,
+    "kl_mentions": 0,
+    "finished": false,
+    "first_ts": "2026-09-15 11:12:07",
+    "last_ts": "2026-09-15 11:12:07"
+   }
+  },
+  {
+   "hotkey": "5EvaWzGbtasB2yh6fev3fhdYF6vXzviPPijnh3SLRm2KDP8F",
+   "ours": false,
+   "rank": 17,
+   "test_loss": 0.0,
+   "reason": null,
+   "submitted": false,
+   "hf": {
+    "UNAVAILABLE": "no hf record (no repo or fetch failed)"
+   },
+   "loki": {
+    "lines": 250,
+    "capped": false,
+    "lr_max": {
+     "UNAVAILABLE": "no learning_rate lines"
+    },
+    "lr_first": null,
+    "log_steps": 0,
+    "evals": 0,
+    "eval_losses": [],
+    "epoch_max": null,
+    "tracebacks": 2,
+    "oom": 0,
+    "ladder_rungs": [],
+    "fallback": false,
+    "batch": null,
+    "ga": null,
+    "epochs": null,
+    "lora_r": null,
+    "maxlen": null,
+    "kl_mentions": 0,
+    "finished": false,
+    "first_ts": null,
+    "last_ts": null
+   }
+  }
+ ]
+}

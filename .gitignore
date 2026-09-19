@@ -265,3 +265,6 @@ docs/research/local_*.md
 
 # Tournament datasets fetched by ops/smoke/fetch_task_dataset.sh — tens of MB each, not ours to publish
 ops/smoke/datasets_bank/
+
+# Champion trees are public and permanent on github.com/gradients-opensource; clone, do not vendor
+recon/champions/

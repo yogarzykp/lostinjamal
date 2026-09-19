@@ -1,0 +1,119 @@
+{
+ "provenance": {
+  "endpoint": "https://huggingface.co/api/models/gradients-io-tournaments/tournament-tourn_5c64e784a087074a_20260914-46398aa9-4bab-4185-91e9-a65d581aca9d-5GU4Xkd3/tree/main?recursive=1",
+  "query": {
+   "repo": "gradients-io-tournaments/tournament-tourn_5c64e784a087074a_20260914-46398aa9-4bab-4185-91e9-a65d581aca9d-5GU4Xkd3"
+  },
+  "fetched_at": "2026-09-19T05:03:12Z"
+ },
+ "repo": "gradients-io-tournaments/tournament-tourn_5c64e784a087074a_20260914-46398aa9-4bab-4185-91e9-a65d581aca9d-5GU4Xkd3",
+ "method": "full fine-tune",
+ "file_count": 12,
+ "tree": [
+  {
+   "path": ".gitattributes",
+   "size": 1570
+  },
+  {
+   "path": "config.json",
+   "size": 875
+  },
+  {
+   "path": "generation_config.json",
+   "size": 184
+  },
+  {
+   "path": "loss.txt",
+   "size": 22
+  },
+  {
+   "path": "model-00001-of-00004.safetensors",
+   "size": 4976698672
+  },
+  {
+   "path": "model-00002-of-00004.safetensors",
+   "size": 4999802720
+  },
+  {
+   "path": "model-00003-of-00004.safetensors",
+   "size": 4915916176
+  },
+  {
+   "path": "model-00004-of-00004.safetensors",
+   "size": 1168138808
+  },
+  {
+   "path": "model.safetensors.index.json",
+   "size": 23950
+  },
+  {
+   "path": "special_tokens_map.json",
+   "size": 454
+  },
+  {
+   "path": "tokenizer.json",
+   "size": 17209920
+  },
+  {
+   "path": "tokenizer_config.json",
+   "size": 51102
+  }
+ ],
+ "config_yaml": {
+  "status": "UNAVAILABLE",
+  "reason": "not published by this miner"
+ },
+ "safetensors_header": {
+  "metadata": {
+   "format": "pt"
+  },
+  "tensor_count": 104,
+  "lora_rank": [],
+  "dtype": "BF16",
+  "target_modules": []
+ },
+ "base_model_name_or_path": null,
+ "files": {
+  "config.json": {
+   "architectures": [
+    "LlamaForCausalLM"
+   ],
+   "attention_bias": false,
+   "attention_dropout": 0.0,
+   "bos_token_id": 128000,
+   "eos_token_id": [
+    128001,
+    128008,
+    128009
+   ],
+   "head_dim": 128,
+   "hidden_act": "silu",
+   "hidden_size": 4096,
+   "initializer_range": 0.02,
+   "intermediate_size": 14336,
+   "max_position_embeddings": 131072,
+   "mlp_bias": false,
+   "model_type": "llama",
+   "num_attention_heads": 32,
+   "num_hidden_layers": 32,
+   "num_key_value_heads": 8,
+   "pretraining_tp": 1,
+   "rms_norm_eps": 1e-05,
+   "rope_scaling": {
+    "factor": 8.0,
+    "high_freq_factor": 4.0,
+    "low_freq_factor": 1.0,
+    "original_max_position_embeddings": 8192,
+    "rope_type": "llama3"
+   },
+   "rope_theta": 500000.0,
+   "tie_word_embeddings": false,
+   "torch_dtype": "bfloat16",
+   "transformers_version": "4.51.3",
+   "use_cache": false,
+   "vocab_size": 128256
+  },
+  "loss.txt": "208,0.4759683609008789"
+ },
+ "not_found": {}
+}

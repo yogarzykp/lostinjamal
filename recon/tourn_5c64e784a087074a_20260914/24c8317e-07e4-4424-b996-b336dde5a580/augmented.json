@@ -1,0 +1,24 @@
+{
+ "provenance": {
+  "endpoint": "derived from repo names",
+  "query": {
+   "task_id": "24c8317e-07e4-4424-b996-b336dde5a580"
+  },
+  "fetched_at": "2026-09-19T05:03:25Z"
+ },
+ "task_id": "24c8317e-07e4-4424-b996-b336dde5a580",
+ "verdicts": [
+  {
+   "repo": "gradients-io-tournaments/tournament-tourn_5c64e784a087074a_20260914-24c8317e-07e4-4424-b996-b336dde5a580-5CkYizfL",
+   "repo_uuid": "24c8317e-07e4-4424-b996-b336dde5a580",
+   "verdict": "CLEAN"
+  },
+  {
+   "repo": "gradients-io-tournaments/tournament-tourn_5c64e784a087074a_20260914-24c8317e-07e4-4424-b996-b336dde5a580-5DDVSRDL",
+   "repo_uuid": "24c8317e-07e4-4424-b996-b336dde5a580",
+   "verdict": "CLEAN"
+  }
+ ],
+ "consensus": "CLEAN",
+ "next_step": "to name the augmented repo itself, read base_model_name_or_path from any LoRA participant's adapter_config.json via `hf`"
+}

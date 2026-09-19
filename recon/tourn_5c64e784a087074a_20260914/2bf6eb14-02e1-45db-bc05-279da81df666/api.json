@@ -1,0 +1,55 @@
+{
+ "provenance": {
+  "endpoint": "https://api.gradients.io/auditing/tasks/2bf6eb14-02e1-45db-bc05-279da81df666",
+  "query": {
+   "task_id": "2bf6eb14-02e1-45db-bc05-279da81df666"
+  },
+  "fetched_at": "2026-09-19T05:03:56Z"
+ },
+ "task_id": "2bf6eb14-02e1-45db-bc05-279da81df666",
+ "status": "success",
+ "task_type": "GrpoTask",
+ "model_id": "tiiuae/falcon-rw-1b",
+ "model_type": {
+  "status": "UNAVAILABLE",
+  "reason": "'model_type' not present in this task's auditing API response"
+ },
+ "ds": "pingzhili/uspto-50k",
+ "trigger_word": {
+  "status": "UNAVAILABLE",
+  "reason": "'trigger_word' not present in this task's auditing API response"
+ },
+ "is_organic": false,
+ "trained_model_repository": "gradients-io-tournaments/tournament-tourn_5c64e784a087074a_20260914-2915c8d4-85ae-4806-842f-7dd5e385bdf2-5GU4Xkd3",
+ "hours_to_complete": 1.5,
+ "image_text_pair_count": {
+  "status": "UNAVAILABLE",
+  "reason": "'image_text_pairs' not present in this task's auditing API response"
+ },
+ "dataset_url_expires_at": "2026-09-22T17:45:58Z",
+ "hotkey_details": [
+  {
+   "hotkey": "5GU4Xkd3dCGTU3s8VLcHGc5wsD5M8XyxDca5yDQhYm1mVXFu",
+   "submission_id": "fa34fdd0-f4fe-4243-896c-bc3313d902cd",
+   "quality_score": 3.0,
+   "test_loss": 0.43603366951380657,
+   "synth_loss": 0.43603366951380657,
+   "repo": "gradients-io-tournaments/tournament-tourn_5c64e784a087074a_20260914-2915c8d4-85ae-4806-842f-7dd5e385bdf2-5GU4Xkd3",
+   "rank": 1,
+   "score_reason": "Winner at 1.0% boss-round win margin",
+   "offer_response": null
+  },
+  {
+   "hotkey": "5CkYizfLyb5hLmcK4WtBGG13WKTQrynHBEV6qC23748g17zC",
+   "submission_id": "4b5ca205-72e9-40dc-8903-4aeb353159b7",
+   "quality_score": 0.0,
+   "test_loss": 0.3477890843924433,
+   "synth_loss": 0.3477890843924433,
+   "repo": "gradients-io-tournaments/tournament-tourn_5c64e784a087074a_20260914-2915c8d4-85ae-4806-842f-7dd5e385bdf2-5CkYizfL",
+   "rank": 2,
+   "score_reason": "Lost to winner 5GU4Xkd3dCGTU3s8VLcHGc5wsD5M8XyxDca5yDQhYm1mVXFu at 1.0% boss-round win margin",
+   "offer_response": null
+  }
+ ],
+ "kl_note": "use_kl and kl_coef are always False/None here even for KL tasks \u2014 the config is not persisted once a task finishes. See references/kl-and-augmentation.md"
+}

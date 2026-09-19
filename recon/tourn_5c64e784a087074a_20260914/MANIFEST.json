@@ -1,0 +1,1100 @@
+{
+ "tourn_id": "tourn_5c64e784a087074a_20260914",
+ "entries": {
+  "059bf721-cca5-4d02-9832-a794cf37074b/api": {
+   "status": "ok",
+   "at": "2026-09-19T04:59:25+00:00"
+  },
+  "059bf721-cca5-4d02-9832-a794cf37074b/augmented": {
+   "status": "ok",
+   "at": "2026-09-19T04:59:25+00:00"
+  },
+  "059bf721-cca5-4d02-9832-a794cf37074b/wandb-find": {
+   "status": "ok",
+   "at": "2026-09-19T04:59:26+00:00"
+  },
+  "059bf721-cca5-4d02-9832-a794cf37074b/loki/5CkYizfLyb5hLmcK4WtBGG13WKTQrynHBEV6qC23748g17zC": {
+   "status": "ok",
+   "at": "2026-09-19T04:59:30+00:00",
+   "lines": 2653,
+   "cap": false
+  },
+  "059bf721-cca5-4d02-9832-a794cf37074b/hf/5CkYizfLyb5hLmcK4WtBGG13WKTQrynHBEV6qC23748g17zC": {
+   "status": "ok",
+   "at": "2026-09-19T04:59:37+00:00"
+  },
+  "059bf721-cca5-4d02-9832-a794cf37074b/wandb/5CkYizfLyb5hLmcK4WtBGG13WKTQrynHBEV6qC23748g17zC": {
+   "status": "UNAVAILABLE",
+   "at": "2026-09-19T04:59:37+00:00",
+   "reason": "no run in the public project matches this task id. The miners for this task never synced, or the task predates public syncing \u2014 not a query failure."
+  },
+  "059bf721-cca5-4d02-9832-a794cf37074b/loki/5GU4Xkd3dCGTU3s8VLcHGc5wsD5M8XyxDca5yDQhYm1mVXFu": {
+   "status": "ok",
+   "at": "2026-09-19T04:59:41+00:00",
+   "lines": 2631,
+   "cap": false
+  },
+  "059bf721-cca5-4d02-9832-a794cf37074b/hf/5GU4Xkd3dCGTU3s8VLcHGc5wsD5M8XyxDca5yDQhYm1mVXFu": {
+   "status": "ok",
+   "at": "2026-09-19T04:59:46+00:00"
+  },
+  "059bf721-cca5-4d02-9832-a794cf37074b/wandb/5GU4Xkd3dCGTU3s8VLcHGc5wsD5M8XyxDca5yDQhYm1mVXFu": {
+   "status": "UNAVAILABLE",
+   "at": "2026-09-19T04:59:46+00:00",
+   "reason": "no run in the public project matches this task id. The miners for this task never synced, or the task predates public syncing \u2014 not a query failure."
+  },
+  "067761fe-b567-44d7-8863-4cd41cc12261/api": {
+   "status": "ok",
+   "at": "2026-09-19T04:59:47+00:00"
+  },
+  "067761fe-b567-44d7-8863-4cd41cc12261/augmented": {
+   "status": "ok",
+   "at": "2026-09-19T04:59:47+00:00"
+  },
+  "067761fe-b567-44d7-8863-4cd41cc12261/wandb-find": {
+   "status": "ok",
+   "at": "2026-09-19T04:59:48+00:00"
+  },
+  "067761fe-b567-44d7-8863-4cd41cc12261/loki/5FtF14uZ1mACHivSorX8nTn8gx3AdTATAhV7CZShGTtHsb3u": {
+   "status": "ok",
+   "at": "2026-09-19T04:59:52+00:00",
+   "lines": 1267,
+   "cap": false
+  },
+  "067761fe-b567-44d7-8863-4cd41cc12261/hf/5FtF14uZ1mACHivSorX8nTn8gx3AdTATAhV7CZShGTtHsb3u": {
+   "status": "ok",
+   "at": "2026-09-19T04:59:58+00:00"
+  },
+  "067761fe-b567-44d7-8863-4cd41cc12261/wandb/5FtF14uZ1mACHivSorX8nTn8gx3AdTATAhV7CZShGTtHsb3u": {
+   "status": "UNAVAILABLE",
+   "at": "2026-09-19T04:59:58+00:00",
+   "reason": "no run in the public project matches this task id. The miners for this task never synced, or the task predates public syncing \u2014 not a query failure."
+  },
+  "067761fe-b567-44d7-8863-4cd41cc12261/loki/5DDVSRDLbcd57ZHnzFNjHdvcffekjiRdRJeBfWUHeSkWFprv": {
+   "status": "ok",
+   "at": "2026-09-19T05:00:02+00:00",
+   "lines": 1267,
+   "cap": false
+  },
+  "067761fe-b567-44d7-8863-4cd41cc12261/hf/5DDVSRDLbcd57ZHnzFNjHdvcffekjiRdRJeBfWUHeSkWFprv": {
+   "status": "ok",
+   "at": "2026-09-19T05:00:07+00:00"
+  },
+  "067761fe-b567-44d7-8863-4cd41cc12261/wandb/5DDVSRDLbcd57ZHnzFNjHdvcffekjiRdRJeBfWUHeSkWFprv": {
+   "status": "UNAVAILABLE",
+   "at": "2026-09-19T05:00:07+00:00",
+   "reason": "no run in the public project matches this task id. The miners for this task never synced, or the task predates public syncing \u2014 not a query failure."
+  },
+  "067761fe-b567-44d7-8863-4cd41cc12261/loki/5CkYizfLyb5hLmcK4WtBGG13WKTQrynHBEV6qC23748g17zC": {
+   "status": "ok",
+   "at": "2026-09-19T05:00:11+00:00",
+   "lines": 1267,
+   "cap": false
+  },
+  "067761fe-b567-44d7-8863-4cd41cc12261/hf/5CkYizfLyb5hLmcK4WtBGG13WKTQrynHBEV6qC23748g17zC": {
+   "status": "ok",
+   "at": "2026-09-19T05:00:15+00:00"
+  },
+  "067761fe-b567-44d7-8863-4cd41cc12261/wandb/5CkYizfLyb5hLmcK4WtBGG13WKTQrynHBEV6qC23748g17zC": {
+   "status": "UNAVAILABLE",
+   "at": "2026-09-19T05:00:15+00:00",
+   "reason": "no run in the public project matches this task id. The miners for this task never synced, or the task predates public syncing \u2014 not a query failure."
+  },
+  "067761fe-b567-44d7-8863-4cd41cc12261/loki/5E2fNjMWkC7NhjFsobwdDT1ym9R8ws7iDMnaZtE1RcnAsfZf": {
+   "status": "ok",
+   "at": "2026-09-19T05:00:19+00:00",
+   "lines": 1534,
+   "cap": false
+  },
+  "067761fe-b567-44d7-8863-4cd41cc12261/hf/5E2fNjMWkC7NhjFsobwdDT1ym9R8ws7iDMnaZtE1RcnAsfZf": {
+   "status": "ok",
+   "at": "2026-09-19T05:00:24+00:00"
+  },
+  "067761fe-b567-44d7-8863-4cd41cc12261/wandb/5E2fNjMWkC7NhjFsobwdDT1ym9R8ws7iDMnaZtE1RcnAsfZf": {
+   "status": "UNAVAILABLE",
+   "at": "2026-09-19T05:00:24+00:00",
+   "reason": "no run in the public project matches this task id. The miners for this task never synced, or the task predates public syncing \u2014 not a query failure."
+  },
+  "067761fe-b567-44d7-8863-4cd41cc12261/loki/5EhyCWPuyYUDD5RMQ8FM5jknMqfTtSQZ3a3PDARRhjSdCAYb": {
+   "status": "ok",
+   "at": "2026-09-19T05:00:28+00:00",
+   "lines": 1441,
+   "cap": false
+  },
+  "067761fe-b567-44d7-8863-4cd41cc12261/hf/5EhyCWPuyYUDD5RMQ8FM5jknMqfTtSQZ3a3PDARRhjSdCAYb": {
+   "status": "ok",
+   "at": "2026-09-19T05:00:33+00:00"
+  },
+  "067761fe-b567-44d7-8863-4cd41cc12261/wandb/5EhyCWPuyYUDD5RMQ8FM5jknMqfTtSQZ3a3PDARRhjSdCAYb": {
+   "status": "UNAVAILABLE",
+   "at": "2026-09-19T05:00:33+00:00",
+   "reason": "no run in the public project matches this task id. The miners for this task never synced, or the task predates public syncing \u2014 not a query failure."
+  },
+  "067761fe-b567-44d7-8863-4cd41cc12261/loki/5DXVNvDmGZqdXbqRzsJZdJVoAgbLdhdFrrrmtAAfsh4QkGUU": {
+   "status": "ok",
+   "at": "2026-09-19T05:00:37+00:00",
+   "lines": 1765,
+   "cap": false
+  },
+  "067761fe-b567-44d7-8863-4cd41cc12261/hf/5DXVNvDmGZqdXbqRzsJZdJVoAgbLdhdFrrrmtAAfsh4QkGUU": {
+   "status": "ok",
+   "at": "2026-09-19T05:00:41+00:00"
+  },
+  "067761fe-b567-44d7-8863-4cd41cc12261/wandb/5DXVNvDmGZqdXbqRzsJZdJVoAgbLdhdFrrrmtAAfsh4QkGUU": {
+   "status": "UNAVAILABLE",
+   "at": "2026-09-19T05:00:41+00:00",
+   "reason": "no run in the public project matches this task id. The miners for this task never synced, or the task predates public syncing \u2014 not a query failure."
+  },
+  "067761fe-b567-44d7-8863-4cd41cc12261/loki/5DLy32QP39w7Y5xJSggknW6KH8mDnRpQ2PPXETtVuC6637Ev": {
+   "status": "ok",
+   "at": "2026-09-19T05:00:46+00:00",
+   "lines": 1897,
+   "cap": false
+  },
+  "067761fe-b567-44d7-8863-4cd41cc12261/hf/5DLy32QP39w7Y5xJSggknW6KH8mDnRpQ2PPXETtVuC6637Ev": {
+   "status": "ok",
+   "at": "2026-09-19T05:00:53+00:00"
+  },
+  "067761fe-b567-44d7-8863-4cd41cc12261/wandb/5DLy32QP39w7Y5xJSggknW6KH8mDnRpQ2PPXETtVuC6637Ev": {
+   "status": "UNAVAILABLE",
+   "at": "2026-09-19T05:00:53+00:00",
+   "reason": "no run in the public project matches this task id. The miners for this task never synced, or the task predates public syncing \u2014 not a query failure."
+  },
+  "067761fe-b567-44d7-8863-4cd41cc12261/loki/5GcAxvH7oAr9hT2bauAU8y2B8GUiZbvmwrrnj1B4op9toCnY": {
+   "status": "ok",
+   "at": "2026-09-19T05:00:57+00:00",
+   "lines": 351,
+   "cap": false
+  },
+  "067761fe-b567-44d7-8863-4cd41cc12261/hf/5GcAxvH7oAr9hT2bauAU8y2B8GUiZbvmwrrnj1B4op9toCnY": {
+   "status": "ok",
+   "at": "2026-09-19T05:01:13+00:00"
+  },
+  "067761fe-b567-44d7-8863-4cd41cc12261/wandb/5GcAxvH7oAr9hT2bauAU8y2B8GUiZbvmwrrnj1B4op9toCnY": {
+   "status": "UNAVAILABLE",
+   "at": "2026-09-19T05:01:13+00:00",
+   "reason": "no run in the public project matches this task id. The miners for this task never synced, or the task predates public syncing \u2014 not a query failure."
+  },
+  "067761fe-b567-44d7-8863-4cd41cc12261/loki/5HBgDWKxNX3333Yit3qMokkYY4Guz1r8Qfons2UJTSU5oqjV": {
+   "status": "ok",
+   "at": "2026-09-19T05:01:20+00:00",
+   "lines": 5000,
+   "cap": true
+  },
+  "067761fe-b567-44d7-8863-4cd41cc12261/hf/5HBgDWKxNX3333Yit3qMokkYY4Guz1r8Qfons2UJTSU5oqjV": {
+   "status": "ok",
+   "at": "2026-09-19T05:01:26+00:00"
+  },
+  "067761fe-b567-44d7-8863-4cd41cc12261/wandb/5HBgDWKxNX3333Yit3qMokkYY4Guz1r8Qfons2UJTSU5oqjV": {
+   "status": "UNAVAILABLE",
+   "at": "2026-09-19T05:01:26+00:00",
+   "reason": "no run in the public project matches this task id. The miners for this task never synced, or the task predates public syncing \u2014 not a query failure."
+  },
+  "067761fe-b567-44d7-8863-4cd41cc12261/loki/5EcZmz41oFGaJVte8DEzuGd8QyBBxjhTobhrK4A5y4b1Q24Y": {
+   "status": "ok",
+   "at": "2026-09-19T05:01:30+00:00",
+   "lines": 377,
+   "cap": false
+  },
+  "067761fe-b567-44d7-8863-4cd41cc12261/hf/5EcZmz41oFGaJVte8DEzuGd8QyBBxjhTobhrK4A5y4b1Q24Y": {
+   "status": "ok",
+   "at": "2026-09-19T05:01:38+00:00"
+  },
+  "067761fe-b567-44d7-8863-4cd41cc12261/wandb/5EcZmz41oFGaJVte8DEzuGd8QyBBxjhTobhrK4A5y4b1Q24Y": {
+   "status": "UNAVAILABLE",
+   "at": "2026-09-19T05:01:38+00:00",
+   "reason": "no run in the public project matches this task id. The miners for this task never synced, or the task predates public syncing \u2014 not a query failure."
+  },
+  "067761fe-b567-44d7-8863-4cd41cc12261/loki/5EeEWvKfXj84kWKid9tAmFSiXTUGJT87oi9AjRYdW1rx2KYA": {
+   "status": "ok",
+   "at": "2026-09-19T05:01:42+00:00",
+   "lines": 1438,
+   "cap": false
+  },
+  "067761fe-b567-44d7-8863-4cd41cc12261/hf/5EeEWvKfXj84kWKid9tAmFSiXTUGJT87oi9AjRYdW1rx2KYA": {
+   "status": "ok",
+   "at": "2026-09-19T05:01:52+00:00"
+  },
+  "067761fe-b567-44d7-8863-4cd41cc12261/wandb/5EeEWvKfXj84kWKid9tAmFSiXTUGJT87oi9AjRYdW1rx2KYA": {
+   "status": "UNAVAILABLE",
+   "at": "2026-09-19T05:01:52+00:00",
+   "reason": "no run in the public project matches this task id. The miners for this task never synced, or the task predates public syncing \u2014 not a query failure."
+  },
+  "067761fe-b567-44d7-8863-4cd41cc12261/loki/5FW2EqiCeLknueng7Bp9rj4JrPNv5F6nxNg7yUtART6U1odT": {
+   "status": "ok",
+   "at": "2026-09-19T05:01:56+00:00",
+   "lines": 1783,
+   "cap": false
+  },
+  "067761fe-b567-44d7-8863-4cd41cc12261/hf/5FW2EqiCeLknueng7Bp9rj4JrPNv5F6nxNg7yUtART6U1odT": {
+   "status": "ok",
+   "at": "2026-09-19T05:02:06+00:00"
+  },
+  "067761fe-b567-44d7-8863-4cd41cc12261/wandb/5FW2EqiCeLknueng7Bp9rj4JrPNv5F6nxNg7yUtART6U1odT": {
+   "status": "UNAVAILABLE",
+   "at": "2026-09-19T05:02:06+00:00",
+   "reason": "no run in the public project matches this task id. The miners for this task never synced, or the task predates public syncing \u2014 not a query failure."
+  },
+  "067761fe-b567-44d7-8863-4cd41cc12261/loki/5DU5Qyae6n5c3PCDY7EBidC8FaZZCb1ykTMAF2JCXm63oQcf": {
+   "status": "ok",
+   "at": "2026-09-19T05:02:11+00:00",
+   "lines": 2000,
+   "cap": false
+  },
+  "067761fe-b567-44d7-8863-4cd41cc12261/hf/5DU5Qyae6n5c3PCDY7EBidC8FaZZCb1ykTMAF2JCXm63oQcf": {
+   "status": "ok",
+   "at": "2026-09-19T05:02:19+00:00"
+  },
+  "067761fe-b567-44d7-8863-4cd41cc12261/wandb/5DU5Qyae6n5c3PCDY7EBidC8FaZZCb1ykTMAF2JCXm63oQcf": {
+   "status": "UNAVAILABLE",
+   "at": "2026-09-19T05:02:19+00:00",
+   "reason": "no run in the public project matches this task id. The miners for this task never synced, or the task predates public syncing \u2014 not a query failure."
+  },
+  "067761fe-b567-44d7-8863-4cd41cc12261/loki/5EUHojrMhLPHWFpgZDS6oHyYgWSe6haqnfKE2mdy4U7bEEnQ": {
+   "status": "ok",
+   "at": "2026-09-19T05:02:23+00:00",
+   "lines": 1307,
+   "cap": false
+  },
+  "067761fe-b567-44d7-8863-4cd41cc12261/hf/5EUHojrMhLPHWFpgZDS6oHyYgWSe6haqnfKE2mdy4U7bEEnQ": {
+   "status": "ok",
+   "at": "2026-09-19T05:02:30+00:00"
+  },
+  "067761fe-b567-44d7-8863-4cd41cc12261/wandb/5EUHojrMhLPHWFpgZDS6oHyYgWSe6haqnfKE2mdy4U7bEEnQ": {
+   "status": "UNAVAILABLE",
+   "at": "2026-09-19T05:02:30+00:00",
+   "reason": "no run in the public project matches this task id. The miners for this task never synced, or the task predates public syncing \u2014 not a query failure."
+  },
+  "067761fe-b567-44d7-8863-4cd41cc12261/loki/5HLA2QWYy3GpNwCiBCwMMhGw5hpPosSeZ41my8B3nuFDQHNF": {
+   "status": "ok",
+   "at": "2026-09-19T05:02:34+00:00",
+   "lines": 763,
+   "cap": false
+  },
+  "067761fe-b567-44d7-8863-4cd41cc12261/hf/5HLA2QWYy3GpNwCiBCwMMhGw5hpPosSeZ41my8B3nuFDQHNF": {
+   "status": "ok",
+   "at": "2026-09-19T05:02:41+00:00"
+  },
+  "067761fe-b567-44d7-8863-4cd41cc12261/wandb/5HLA2QWYy3GpNwCiBCwMMhGw5hpPosSeZ41my8B3nuFDQHNF": {
+   "status": "UNAVAILABLE",
+   "at": "2026-09-19T05:02:41+00:00",
+   "reason": "no run in the public project matches this task id. The miners for this task never synced, or the task predates public syncing \u2014 not a query failure."
+  },
+  "067761fe-b567-44d7-8863-4cd41cc12261/loki/5E6p1x3eCugTn634Dc2GrwyTjwb6j6hgzEGzZgQ8Xuyr5fXW": {
+   "status": "ok",
+   "at": "2026-09-19T05:02:45+00:00",
+   "lines": 1588,
+   "cap": false
+  },
+  "067761fe-b567-44d7-8863-4cd41cc12261/hf/5E6p1x3eCugTn634Dc2GrwyTjwb6j6hgzEGzZgQ8Xuyr5fXW": {
+   "status": "ok",
+   "at": "2026-09-19T05:02:53+00:00"
+  },
+  "067761fe-b567-44d7-8863-4cd41cc12261/wandb/5E6p1x3eCugTn634Dc2GrwyTjwb6j6hgzEGzZgQ8Xuyr5fXW": {
+   "status": "UNAVAILABLE",
+   "at": "2026-09-19T05:02:53+00:00",
+   "reason": "no run in the public project matches this task id. The miners for this task never synced, or the task predates public syncing \u2014 not a query failure."
+  },
+  "067761fe-b567-44d7-8863-4cd41cc12261/loki/5EvaWzGbtasB2yh6fev3fhdYF6vXzviPPijnh3SLRm2KDP8F": {
+   "status": "ok",
+   "at": "2026-09-19T05:02:57+00:00",
+   "lines": 250,
+   "cap": false
+  },
+  "067761fe-b567-44d7-8863-4cd41cc12261/hf/5EvaWzGbtasB2yh6fev3fhdYF6vXzviPPijnh3SLRm2KDP8F": {
+   "status": "NO_REPO",
+   "at": "2026-09-19T05:02:57+00:00"
+  },
+  "067761fe-b567-44d7-8863-4cd41cc12261/wandb/5EvaWzGbtasB2yh6fev3fhdYF6vXzviPPijnh3SLRm2KDP8F": {
+   "status": "UNAVAILABLE",
+   "at": "2026-09-19T05:02:57+00:00",
+   "reason": "no run in the public project matches this task id. The miners for this task never synced, or the task predates public syncing \u2014 not a query failure."
+  },
+  "22c5aeee-9805-43c5-98a6-90ac35037b46/api": {
+   "status": "ok",
+   "at": "2026-09-19T05:02:59+00:00"
+  },
+  "22c5aeee-9805-43c5-98a6-90ac35037b46/augmented": {
+   "status": "ok",
+   "at": "2026-09-19T05:02:59+00:00"
+  },
+  "22c5aeee-9805-43c5-98a6-90ac35037b46/wandb-find": {
+   "status": "ok",
+   "at": "2026-09-19T05:03:00+00:00"
+  },
+  "22c5aeee-9805-43c5-98a6-90ac35037b46/loki/5GU4Xkd3dCGTU3s8VLcHGc5wsD5M8XyxDca5yDQhYm1mVXFu": {
+   "status": "ok",
+   "at": "2026-09-19T05:03:05+00:00",
+   "lines": 3885,
+   "cap": false
+  },
+  "22c5aeee-9805-43c5-98a6-90ac35037b46/hf/5GU4Xkd3dCGTU3s8VLcHGc5wsD5M8XyxDca5yDQhYm1mVXFu": {
+   "status": "ok",
+   "at": "2026-09-19T05:03:12+00:00"
+  },
+  "22c5aeee-9805-43c5-98a6-90ac35037b46/wandb/5GU4Xkd3dCGTU3s8VLcHGc5wsD5M8XyxDca5yDQhYm1mVXFu": {
+   "status": "UNAVAILABLE",
+   "at": "2026-09-19T05:03:12+00:00",
+   "reason": "no run in the public project matches this task id. The miners for this task never synced, or the task predates public syncing \u2014 not a query failure."
+  },
+  "22c5aeee-9805-43c5-98a6-90ac35037b46/loki/5CkYizfLyb5hLmcK4WtBGG13WKTQrynHBEV6qC23748g17zC": {
+   "status": "ok",
+   "at": "2026-09-19T05:03:17+00:00",
+   "lines": 4415,
+   "cap": false
+  },
+  "22c5aeee-9805-43c5-98a6-90ac35037b46/hf/5CkYizfLyb5hLmcK4WtBGG13WKTQrynHBEV6qC23748g17zC": {
+   "status": "ok",
+   "at": "2026-09-19T05:03:23+00:00"
+  },
+  "22c5aeee-9805-43c5-98a6-90ac35037b46/wandb/5CkYizfLyb5hLmcK4WtBGG13WKTQrynHBEV6qC23748g17zC": {
+   "status": "UNAVAILABLE",
+   "at": "2026-09-19T05:03:23+00:00",
+   "reason": "no run in the public project matches this task id. The miners for this task never synced, or the task predates public syncing \u2014 not a query failure."
+  },
+  "24c8317e-07e4-4424-b996-b336dde5a580/api": {
+   "status": "ok",
+   "at": "2026-09-19T05:03:25+00:00"
+  },
+  "24c8317e-07e4-4424-b996-b336dde5a580/augmented": {
+   "status": "ok",
+   "at": "2026-09-19T05:03:25+00:00"
+  },
+  "24c8317e-07e4-4424-b996-b336dde5a580/wandb-find": {
+   "status": "ok",
+   "at": "2026-09-19T05:03:27+00:00"
+  },
+  "24c8317e-07e4-4424-b996-b336dde5a580/loki/5CkYizfLyb5hLmcK4WtBGG13WKTQrynHBEV6qC23748g17zC": {
+   "status": "ok",
+   "at": "2026-09-19T05:03:31+00:00",
+   "lines": 1321,
+   "cap": false
+  },
+  "24c8317e-07e4-4424-b996-b336dde5a580/hf/5CkYizfLyb5hLmcK4WtBGG13WKTQrynHBEV6qC23748g17zC": {
+   "status": "ok",
+   "at": "2026-09-19T05:03:41+00:00"
+  },
+  "24c8317e-07e4-4424-b996-b336dde5a580/wandb/5CkYizfLyb5hLmcK4WtBGG13WKTQrynHBEV6qC23748g17zC": {
+   "status": "UNAVAILABLE",
+   "at": "2026-09-19T05:03:41+00:00",
+   "reason": "no run in the public project matches this task id. The miners for this task never synced, or the task predates public syncing \u2014 not a query failure."
+  },
+  "24c8317e-07e4-4424-b996-b336dde5a580/loki/5DDVSRDLbcd57ZHnzFNjHdvcffekjiRdRJeBfWUHeSkWFprv": {
+   "status": "ok",
+   "at": "2026-09-19T05:03:45+00:00",
+   "lines": 1308,
+   "cap": false
+  },
+  "24c8317e-07e4-4424-b996-b336dde5a580/hf/5DDVSRDLbcd57ZHnzFNjHdvcffekjiRdRJeBfWUHeSkWFprv": {
+   "status": "ok",
+   "at": "2026-09-19T05:03:55+00:00"
+  },
+  "24c8317e-07e4-4424-b996-b336dde5a580/wandb/5DDVSRDLbcd57ZHnzFNjHdvcffekjiRdRJeBfWUHeSkWFprv": {
+   "status": "UNAVAILABLE",
+   "at": "2026-09-19T05:03:55+00:00",
+   "reason": "no run in the public project matches this task id. The miners for this task never synced, or the task predates public syncing \u2014 not a query failure."
+  },
+  "2bf6eb14-02e1-45db-bc05-279da81df666/api": {
+   "status": "ok",
+   "at": "2026-09-19T05:03:56+00:00"
+  },
+  "2bf6eb14-02e1-45db-bc05-279da81df666/augmented": {
+   "status": "ok",
+   "at": "2026-09-19T05:03:56+00:00"
+  },
+  "2bf6eb14-02e1-45db-bc05-279da81df666/wandb-find": {
+   "status": "ok",
+   "at": "2026-09-19T05:03:57+00:00"
+  },
+  "2bf6eb14-02e1-45db-bc05-279da81df666/loki/5GU4Xkd3dCGTU3s8VLcHGc5wsD5M8XyxDca5yDQhYm1mVXFu": {
+   "status": "ok",
+   "at": "2026-09-19T05:04:02+00:00",
+   "lines": 3805,
+   "cap": false
+  },
+  "2bf6eb14-02e1-45db-bc05-279da81df666/hf/5GU4Xkd3dCGTU3s8VLcHGc5wsD5M8XyxDca5yDQhYm1mVXFu": {
+   "status": "ok",
+   "at": "2026-09-19T05:04:08+00:00"
+  },
+  "2bf6eb14-02e1-45db-bc05-279da81df666/wandb/5GU4Xkd3dCGTU3s8VLcHGc5wsD5M8XyxDca5yDQhYm1mVXFu": {
+   "status": "UNAVAILABLE",
+   "at": "2026-09-19T05:04:08+00:00",
+   "reason": "no run in the public project matches this task id. The miners for this task never synced, or the task predates public syncing \u2014 not a query failure."
+  },
+  "2bf6eb14-02e1-45db-bc05-279da81df666/loki/5CkYizfLyb5hLmcK4WtBGG13WKTQrynHBEV6qC23748g17zC": {
+   "status": "ok",
+   "at": "2026-09-19T05:04:13+00:00",
+   "lines": 1603,
+   "cap": false
+  },
+  "2bf6eb14-02e1-45db-bc05-279da81df666/hf/5CkYizfLyb5hLmcK4WtBGG13WKTQrynHBEV6qC23748g17zC": {
+   "status": "ok",
+   "at": "2026-09-19T05:04:22+00:00"
+  },
+  "2bf6eb14-02e1-45db-bc05-279da81df666/wandb/5CkYizfLyb5hLmcK4WtBGG13WKTQrynHBEV6qC23748g17zC": {
+   "status": "UNAVAILABLE",
+   "at": "2026-09-19T05:04:22+00:00",
+   "reason": "no run in the public project matches this task id. The miners for this task never synced, or the task predates public syncing \u2014 not a query failure."
+  },
+  "35c9e96d-3948-4e40-8272-8bc19b13dd43/api": {
+   "status": "ok",
+   "at": "2026-09-19T05:04:23+00:00"
+  },
+  "35c9e96d-3948-4e40-8272-8bc19b13dd43/augmented": {
+   "status": "ok",
+   "at": "2026-09-19T05:04:23+00:00"
+  },
+  "35c9e96d-3948-4e40-8272-8bc19b13dd43/wandb-find": {
+   "status": "ok",
+   "at": "2026-09-19T05:04:24+00:00"
+  },
+  "35c9e96d-3948-4e40-8272-8bc19b13dd43/loki/5CkYizfLyb5hLmcK4WtBGG13WKTQrynHBEV6qC23748g17zC": {
+   "status": "ok",
+   "at": "2026-09-19T05:04:28+00:00",
+   "lines": 1643,
+   "cap": false
+  },
+  "35c9e96d-3948-4e40-8272-8bc19b13dd43/hf/5CkYizfLyb5hLmcK4WtBGG13WKTQrynHBEV6qC23748g17zC": {
+   "status": "ok",
+   "at": "2026-09-19T05:04:35+00:00"
+  },
+  "35c9e96d-3948-4e40-8272-8bc19b13dd43/wandb/5CkYizfLyb5hLmcK4WtBGG13WKTQrynHBEV6qC23748g17zC": {
+   "status": "UNAVAILABLE",
+   "at": "2026-09-19T05:04:35+00:00",
+   "reason": "no run in the public project matches this task id. The miners for this task never synced, or the task predates public syncing \u2014 not a query failure."
+  },
+  "35c9e96d-3948-4e40-8272-8bc19b13dd43/loki/5GU4Xkd3dCGTU3s8VLcHGc5wsD5M8XyxDca5yDQhYm1mVXFu": {
+   "status": "ok",
+   "at": "2026-09-19T05:04:39+00:00",
+   "lines": 2341,
+   "cap": false
+  },
+  "35c9e96d-3948-4e40-8272-8bc19b13dd43/hf/5GU4Xkd3dCGTU3s8VLcHGc5wsD5M8XyxDca5yDQhYm1mVXFu": {
+   "status": "ok",
+   "at": "2026-09-19T05:04:49+00:00"
+  },
+  "35c9e96d-3948-4e40-8272-8bc19b13dd43/wandb/5GU4Xkd3dCGTU3s8VLcHGc5wsD5M8XyxDca5yDQhYm1mVXFu": {
+   "status": "UNAVAILABLE",
+   "at": "2026-09-19T05:04:49+00:00",
+   "reason": "no run in the public project matches this task id. The miners for this task never synced, or the task predates public syncing \u2014 not a query failure."
+  },
+  "4022aee4-05b1-4533-b1d9-0c6f52bbb747/api": {
+   "status": "ok",
+   "at": "2026-09-19T05:04:51+00:00"
+  },
+  "4022aee4-05b1-4533-b1d9-0c6f52bbb747/augmented": {
+   "status": "ok",
+   "at": "2026-09-19T05:04:51+00:00"
+  },
+  "4022aee4-05b1-4533-b1d9-0c6f52bbb747/wandb-find": {
+   "status": "ok",
+   "at": "2026-09-19T05:04:52+00:00"
+  },
+  "4022aee4-05b1-4533-b1d9-0c6f52bbb747/loki/5CkYizfLyb5hLmcK4WtBGG13WKTQrynHBEV6qC23748g17zC": {
+   "status": "ok",
+   "at": "2026-09-19T05:04:57+00:00",
+   "lines": 3798,
+   "cap": false
+  },
+  "4022aee4-05b1-4533-b1d9-0c6f52bbb747/hf/5CkYizfLyb5hLmcK4WtBGG13WKTQrynHBEV6qC23748g17zC": {
+   "status": "ok",
+   "at": "2026-09-19T05:05:06+00:00"
+  },
+  "4022aee4-05b1-4533-b1d9-0c6f52bbb747/wandb/5CkYizfLyb5hLmcK4WtBGG13WKTQrynHBEV6qC23748g17zC": {
+   "status": "UNAVAILABLE",
+   "at": "2026-09-19T05:05:06+00:00",
+   "reason": "no run in the public project matches this task id. The miners for this task never synced, or the task predates public syncing \u2014 not a query failure."
+  },
+  "4022aee4-05b1-4533-b1d9-0c6f52bbb747/loki/5GU4Xkd3dCGTU3s8VLcHGc5wsD5M8XyxDca5yDQhYm1mVXFu": {
+   "status": "ok",
+   "at": "2026-09-19T05:05:10+00:00",
+   "lines": 3910,
+   "cap": false
+  },
+  "4022aee4-05b1-4533-b1d9-0c6f52bbb747/hf/5GU4Xkd3dCGTU3s8VLcHGc5wsD5M8XyxDca5yDQhYm1mVXFu": {
+   "status": "ok",
+   "at": "2026-09-19T05:05:15+00:00"
+  },
+  "4022aee4-05b1-4533-b1d9-0c6f52bbb747/wandb/5GU4Xkd3dCGTU3s8VLcHGc5wsD5M8XyxDca5yDQhYm1mVXFu": {
+   "status": "UNAVAILABLE",
+   "at": "2026-09-19T05:05:15+00:00",
+   "reason": "no run in the public project matches this task id. The miners for this task never synced, or the task predates public syncing \u2014 not a query failure."
+  },
+  "5d21390a-867a-42e8-aa7f-3d2d22305484/api": {
+   "status": "ok",
+   "at": "2026-09-19T05:05:15+00:00"
+  },
+  "5d21390a-867a-42e8-aa7f-3d2d22305484/augmented": {
+   "status": "ok",
+   "at": "2026-09-19T05:05:17+00:00"
+  },
+  "5d21390a-867a-42e8-aa7f-3d2d22305484/wandb-find": {
+   "status": "ok",
+   "at": "2026-09-19T05:05:17+00:00"
+  },
+  "5d21390a-867a-42e8-aa7f-3d2d22305484/loki/5CkYizfLyb5hLmcK4WtBGG13WKTQrynHBEV6qC23748g17zC": {
+   "status": "EMPTY",
+   "at": "2026-09-19T05:05:19+00:00",
+   "lines": 0,
+   "cap": false
+  },
+  "5d21390a-867a-42e8-aa7f-3d2d22305484/hf/5CkYizfLyb5hLmcK4WtBGG13WKTQrynHBEV6qC23748g17zC": {
+   "status": "NO_REPO",
+   "at": "2026-09-19T05:05:19+00:00"
+  },
+  "5d21390a-867a-42e8-aa7f-3d2d22305484/wandb/5CkYizfLyb5hLmcK4WtBGG13WKTQrynHBEV6qC23748g17zC": {
+   "status": "UNAVAILABLE",
+   "at": "2026-09-19T05:05:19+00:00",
+   "reason": "no run in the public project matches this task id. The miners for this task never synced, or the task predates public syncing \u2014 not a query failure."
+  },
+  "5d21390a-867a-42e8-aa7f-3d2d22305484/loki/5GU4Xkd3dCGTU3s8VLcHGc5wsD5M8XyxDca5yDQhYm1mVXFu": {
+   "status": "EMPTY",
+   "at": "2026-09-19T05:05:21+00:00",
+   "lines": 0,
+   "cap": false
+  },
+  "5d21390a-867a-42e8-aa7f-3d2d22305484/hf/5GU4Xkd3dCGTU3s8VLcHGc5wsD5M8XyxDca5yDQhYm1mVXFu": {
+   "status": "NO_REPO",
+   "at": "2026-09-19T05:05:21+00:00"
+  },
+  "5d21390a-867a-42e8-aa7f-3d2d22305484/wandb/5GU4Xkd3dCGTU3s8VLcHGc5wsD5M8XyxDca5yDQhYm1mVXFu": {
+   "status": "UNAVAILABLE",
+   "at": "2026-09-19T05:05:21+00:00",
+   "reason": "no run in the public project matches this task id. The miners for this task never synced, or the task predates public syncing \u2014 not a query failure."
+  },
+  "87c51c39-914b-4c7f-a97a-4925c6ec58b3/api": {
+   "status": "ok",
+   "at": "2026-09-19T05:05:22+00:00"
+  },
+  "87c51c39-914b-4c7f-a97a-4925c6ec58b3/augmented": {
+   "status": "ok",
+   "at": "2026-09-19T05:05:22+00:00"
+  },
+  "87c51c39-914b-4c7f-a97a-4925c6ec58b3/wandb-find": {
+   "status": "ok",
+   "at": "2026-09-19T05:05:23+00:00"
+  },
+  "87c51c39-914b-4c7f-a97a-4925c6ec58b3/loki/5CkYizfLyb5hLmcK4WtBGG13WKTQrynHBEV6qC23748g17zC": {
+   "status": "ok",
+   "at": "2026-09-19T05:05:27+00:00",
+   "lines": 1267,
+   "cap": false
+  },
+  "87c51c39-914b-4c7f-a97a-4925c6ec58b3/hf/5CkYizfLyb5hLmcK4WtBGG13WKTQrynHBEV6qC23748g17zC": {
+   "status": "ok",
+   "at": "2026-09-19T05:05:35+00:00"
+  },
+  "87c51c39-914b-4c7f-a97a-4925c6ec58b3/wandb/5CkYizfLyb5hLmcK4WtBGG13WKTQrynHBEV6qC23748g17zC": {
+   "status": "UNAVAILABLE",
+   "at": "2026-09-19T05:05:35+00:00",
+   "reason": "no run in the public project matches this task id. The miners for this task never synced, or the task predates public syncing \u2014 not a query failure."
+  },
+  "87c51c39-914b-4c7f-a97a-4925c6ec58b3/loki/5DXVNvDmGZqdXbqRzsJZdJVoAgbLdhdFrrrmtAAfsh4QkGUU": {
+   "status": "ok",
+   "at": "2026-09-19T05:05:39+00:00",
+   "lines": 1769,
+   "cap": false
+  },
+  "87c51c39-914b-4c7f-a97a-4925c6ec58b3/hf/5DXVNvDmGZqdXbqRzsJZdJVoAgbLdhdFrrrmtAAfsh4QkGUU": {
+   "status": "ok",
+   "at": "2026-09-19T05:05:46+00:00"
+  },
+  "87c51c39-914b-4c7f-a97a-4925c6ec58b3/wandb/5DXVNvDmGZqdXbqRzsJZdJVoAgbLdhdFrrrmtAAfsh4QkGUU": {
+   "status": "UNAVAILABLE",
+   "at": "2026-09-19T05:05:46+00:00",
+   "reason": "no run in the public project matches this task id. The miners for this task never synced, or the task predates public syncing \u2014 not a query failure."
+  },
+  "87c51c39-914b-4c7f-a97a-4925c6ec58b3/loki/5DDVSRDLbcd57ZHnzFNjHdvcffekjiRdRJeBfWUHeSkWFprv": {
+   "status": "ok",
+   "at": "2026-09-19T05:05:50+00:00",
+   "lines": 1265,
+   "cap": false
+  },
+  "87c51c39-914b-4c7f-a97a-4925c6ec58b3/hf/5DDVSRDLbcd57ZHnzFNjHdvcffekjiRdRJeBfWUHeSkWFprv": {
+   "status": "ok",
+   "at": "2026-09-19T05:05:58+00:00"
+  },
+  "87c51c39-914b-4c7f-a97a-4925c6ec58b3/wandb/5DDVSRDLbcd57ZHnzFNjHdvcffekjiRdRJeBfWUHeSkWFprv": {
+   "status": "UNAVAILABLE",
+   "at": "2026-09-19T05:05:58+00:00",
+   "reason": "no run in the public project matches this task id. The miners for this task never synced, or the task predates public syncing \u2014 not a query failure."
+  },
+  "87c51c39-914b-4c7f-a97a-4925c6ec58b3/loki/5HBgDWKxNX3333Yit3qMokkYY4Guz1r8Qfons2UJTSU5oqjV": {
+   "status": "ok",
+   "at": "2026-09-19T05:06:03+00:00",
+   "lines": 5000,
+   "cap": true
+  },
+  "87c51c39-914b-4c7f-a97a-4925c6ec58b3/hf/5HBgDWKxNX3333Yit3qMokkYY4Guz1r8Qfons2UJTSU5oqjV": {
+   "status": "ok",
+   "at": "2026-09-19T05:06:09+00:00"
+  },
+  "87c51c39-914b-4c7f-a97a-4925c6ec58b3/wandb/5HBgDWKxNX3333Yit3qMokkYY4Guz1r8Qfons2UJTSU5oqjV": {
+   "status": "UNAVAILABLE",
+   "at": "2026-09-19T05:06:09+00:00",
+   "reason": "no run in the public project matches this task id. The miners for this task never synced, or the task predates public syncing \u2014 not a query failure."
+  },
+  "87c51c39-914b-4c7f-a97a-4925c6ec58b3/loki/5E2fNjMWkC7NhjFsobwdDT1ym9R8ws7iDMnaZtE1RcnAsfZf": {
+   "status": "ok",
+   "at": "2026-09-19T05:06:13+00:00",
+   "lines": 1535,
+   "cap": false
+  },
+  "87c51c39-914b-4c7f-a97a-4925c6ec58b3/hf/5E2fNjMWkC7NhjFsobwdDT1ym9R8ws7iDMnaZtE1RcnAsfZf": {
+   "status": "ok",
+   "at": "2026-09-19T05:06:26+00:00"
+  },
+  "87c51c39-914b-4c7f-a97a-4925c6ec58b3/wandb/5E2fNjMWkC7NhjFsobwdDT1ym9R8ws7iDMnaZtE1RcnAsfZf": {
+   "status": "UNAVAILABLE",
+   "at": "2026-09-19T05:06:26+00:00",
+   "reason": "no run in the public project matches this task id. The miners for this task never synced, or the task predates public syncing \u2014 not a query failure."
+  },
+  "87c51c39-914b-4c7f-a97a-4925c6ec58b3/loki/5EeEWvKfXj84kWKid9tAmFSiXTUGJT87oi9AjRYdW1rx2KYA": {
+   "status": "ok",
+   "at": "2026-09-19T05:06:30+00:00",
+   "lines": 1441,
+   "cap": false
+  },
+  "87c51c39-914b-4c7f-a97a-4925c6ec58b3/hf/5EeEWvKfXj84kWKid9tAmFSiXTUGJT87oi9AjRYdW1rx2KYA": {
+   "status": "ok",
+   "at": "2026-09-19T05:06:40+00:00"
+  },
+  "87c51c39-914b-4c7f-a97a-4925c6ec58b3/wandb/5EeEWvKfXj84kWKid9tAmFSiXTUGJT87oi9AjRYdW1rx2KYA": {
+   "status": "UNAVAILABLE",
+   "at": "2026-09-19T05:06:40+00:00",
+   "reason": "no run in the public project matches this task id. The miners for this task never synced, or the task predates public syncing \u2014 not a query failure."
+  },
+  "87c51c39-914b-4c7f-a97a-4925c6ec58b3/loki/5FtF14uZ1mACHivSorX8nTn8gx3AdTATAhV7CZShGTtHsb3u": {
+   "status": "ok",
+   "at": "2026-09-19T05:06:45+00:00",
+   "lines": 1265,
+   "cap": false
+  },
+  "87c51c39-914b-4c7f-a97a-4925c6ec58b3/hf/5FtF14uZ1mACHivSorX8nTn8gx3AdTATAhV7CZShGTtHsb3u": {
+   "status": "ok",
+   "at": "2026-09-19T05:06:50+00:00"
+  },
+  "87c51c39-914b-4c7f-a97a-4925c6ec58b3/wandb/5FtF14uZ1mACHivSorX8nTn8gx3AdTATAhV7CZShGTtHsb3u": {
+   "status": "UNAVAILABLE",
+   "at": "2026-09-19T05:06:50+00:00",
+   "reason": "no run in the public project matches this task id. The miners for this task never synced, or the task predates public syncing \u2014 not a query failure."
+  },
+  "87c51c39-914b-4c7f-a97a-4925c6ec58b3/loki/5E6p1x3eCugTn634Dc2GrwyTjwb6j6hgzEGzZgQ8Xuyr5fXW": {
+   "status": "ok",
+   "at": "2026-09-19T05:06:54+00:00",
+   "lines": 1584,
+   "cap": false
+  },
+  "87c51c39-914b-4c7f-a97a-4925c6ec58b3/hf/5E6p1x3eCugTn634Dc2GrwyTjwb6j6hgzEGzZgQ8Xuyr5fXW": {
+   "status": "ok",
+   "at": "2026-09-19T05:06:59+00:00"
+  },
+  "87c51c39-914b-4c7f-a97a-4925c6ec58b3/wandb/5E6p1x3eCugTn634Dc2GrwyTjwb6j6hgzEGzZgQ8Xuyr5fXW": {
+   "status": "UNAVAILABLE",
+   "at": "2026-09-19T05:06:59+00:00",
+   "reason": "no run in the public project matches this task id. The miners for this task never synced, or the task predates public syncing \u2014 not a query failure."
+  },
+  "87c51c39-914b-4c7f-a97a-4925c6ec58b3/loki/5GcAxvH7oAr9hT2bauAU8y2B8GUiZbvmwrrnj1B4op9toCnY": {
+   "status": "ok",
+   "at": "2026-09-19T05:07:03+00:00",
+   "lines": 351,
+   "cap": false
+  },
+  "87c51c39-914b-4c7f-a97a-4925c6ec58b3/hf/5GcAxvH7oAr9hT2bauAU8y2B8GUiZbvmwrrnj1B4op9toCnY": {
+   "status": "ok",
+   "at": "2026-09-19T05:07:07+00:00"
+  },
+  "87c51c39-914b-4c7f-a97a-4925c6ec58b3/wandb/5GcAxvH7oAr9hT2bauAU8y2B8GUiZbvmwrrnj1B4op9toCnY": {
+   "status": "UNAVAILABLE",
+   "at": "2026-09-19T05:07:07+00:00",
+   "reason": "no run in the public project matches this task id. The miners for this task never synced, or the task predates public syncing \u2014 not a query failure."
+  },
+  "87c51c39-914b-4c7f-a97a-4925c6ec58b3/loki/5EUHojrMhLPHWFpgZDS6oHyYgWSe6haqnfKE2mdy4U7bEEnQ": {
+   "status": "ok",
+   "at": "2026-09-19T05:07:12+00:00",
+   "lines": 1307,
+   "cap": false
+  },
+  "87c51c39-914b-4c7f-a97a-4925c6ec58b3/hf/5EUHojrMhLPHWFpgZDS6oHyYgWSe6haqnfKE2mdy4U7bEEnQ": {
+   "status": "ok",
+   "at": "2026-09-19T05:07:18+00:00"
+  },
+  "87c51c39-914b-4c7f-a97a-4925c6ec58b3/wandb/5EUHojrMhLPHWFpgZDS6oHyYgWSe6haqnfKE2mdy4U7bEEnQ": {
+   "status": "UNAVAILABLE",
+   "at": "2026-09-19T05:07:18+00:00",
+   "reason": "no run in the public project matches this task id. The miners for this task never synced, or the task predates public syncing \u2014 not a query failure."
+  },
+  "87c51c39-914b-4c7f-a97a-4925c6ec58b3/loki/5EcZmz41oFGaJVte8DEzuGd8QyBBxjhTobhrK4A5y4b1Q24Y": {
+   "status": "ok",
+   "at": "2026-09-19T05:07:22+00:00",
+   "lines": 375,
+   "cap": false
+  },
+  "87c51c39-914b-4c7f-a97a-4925c6ec58b3/hf/5EcZmz41oFGaJVte8DEzuGd8QyBBxjhTobhrK4A5y4b1Q24Y": {
+   "status": "ok",
+   "at": "2026-09-19T05:07:30+00:00"
+  },
+  "87c51c39-914b-4c7f-a97a-4925c6ec58b3/wandb/5EcZmz41oFGaJVte8DEzuGd8QyBBxjhTobhrK4A5y4b1Q24Y": {
+   "status": "UNAVAILABLE",
+   "at": "2026-09-19T05:07:30+00:00",
+   "reason": "no run in the public project matches this task id. The miners for this task never synced, or the task predates public syncing \u2014 not a query failure."
+  },
+  "87c51c39-914b-4c7f-a97a-4925c6ec58b3/loki/5DLy32QP39w7Y5xJSggknW6KH8mDnRpQ2PPXETtVuC6637Ev": {
+   "status": "ok",
+   "at": "2026-09-19T05:07:35+00:00",
+   "lines": 1897,
+   "cap": false
+  },
+  "87c51c39-914b-4c7f-a97a-4925c6ec58b3/hf/5DLy32QP39w7Y5xJSggknW6KH8mDnRpQ2PPXETtVuC6637Ev": {
+   "status": "ok",
+   "at": "2026-09-19T05:07:45+00:00"
+  },
+  "87c51c39-914b-4c7f-a97a-4925c6ec58b3/wandb/5DLy32QP39w7Y5xJSggknW6KH8mDnRpQ2PPXETtVuC6637Ev": {
+   "status": "UNAVAILABLE",
+   "at": "2026-09-19T05:07:45+00:00",
+   "reason": "no run in the public project matches this task id. The miners for this task never synced, or the task predates public syncing \u2014 not a query failure."
+  },
+  "87c51c39-914b-4c7f-a97a-4925c6ec58b3/loki/5HLA2QWYy3GpNwCiBCwMMhGw5hpPosSeZ41my8B3nuFDQHNF": {
+   "status": "ok",
+   "at": "2026-09-19T05:07:48+00:00",
+   "lines": 219,
+   "cap": false
+  },
+  "87c51c39-914b-4c7f-a97a-4925c6ec58b3/hf/5HLA2QWYy3GpNwCiBCwMMhGw5hpPosSeZ41my8B3nuFDQHNF": {
+   "status": "ok",
+   "at": "2026-09-19T05:07:57+00:00"
+  },
+  "87c51c39-914b-4c7f-a97a-4925c6ec58b3/wandb/5HLA2QWYy3GpNwCiBCwMMhGw5hpPosSeZ41my8B3nuFDQHNF": {
+   "status": "UNAVAILABLE",
+   "at": "2026-09-19T05:07:57+00:00",
+   "reason": "no run in the public project matches this task id. The miners for this task never synced, or the task predates public syncing \u2014 not a query failure."
+  },
+  "87c51c39-914b-4c7f-a97a-4925c6ec58b3/loki/5FW2EqiCeLknueng7Bp9rj4JrPNv5F6nxNg7yUtART6U1odT": {
+   "status": "ok",
+   "at": "2026-09-19T05:08:02+00:00",
+   "lines": 1781,
+   "cap": false
+  },
+  "87c51c39-914b-4c7f-a97a-4925c6ec58b3/hf/5FW2EqiCeLknueng7Bp9rj4JrPNv5F6nxNg7yUtART6U1odT": {
+   "status": "ok",
+   "at": "2026-09-19T05:08:13+00:00"
+  },
+  "87c51c39-914b-4c7f-a97a-4925c6ec58b3/wandb/5FW2EqiCeLknueng7Bp9rj4JrPNv5F6nxNg7yUtART6U1odT": {
+   "status": "UNAVAILABLE",
+   "at": "2026-09-19T05:08:13+00:00",
+   "reason": "no run in the public project matches this task id. The miners for this task never synced, or the task predates public syncing \u2014 not a query failure."
+  },
+  "87c51c39-914b-4c7f-a97a-4925c6ec58b3/loki/5DU5Qyae6n5c3PCDY7EBidC8FaZZCb1ykTMAF2JCXm63oQcf": {
+   "status": "ok",
+   "at": "2026-09-19T05:08:17+00:00",
+   "lines": 1943,
+   "cap": false
+  },
+  "87c51c39-914b-4c7f-a97a-4925c6ec58b3/hf/5DU5Qyae6n5c3PCDY7EBidC8FaZZCb1ykTMAF2JCXm63oQcf": {
+   "status": "ok",
+   "at": "2026-09-19T05:08:22+00:00"
+  },
+  "87c51c39-914b-4c7f-a97a-4925c6ec58b3/wandb/5DU5Qyae6n5c3PCDY7EBidC8FaZZCb1ykTMAF2JCXm63oQcf": {
+   "status": "UNAVAILABLE",
+   "at": "2026-09-19T05:08:22+00:00",
+   "reason": "no run in the public project matches this task id. The miners for this task never synced, or the task predates public syncing \u2014 not a query failure."
+  },
+  "87c51c39-914b-4c7f-a97a-4925c6ec58b3/loki/5EhyCWPuyYUDD5RMQ8FM5jknMqfTtSQZ3a3PDARRhjSdCAYb": {
+   "status": "ok",
+   "at": "2026-09-19T05:08:27+00:00",
+   "lines": 1441,
+   "cap": false
+  },
+  "87c51c39-914b-4c7f-a97a-4925c6ec58b3/hf/5EhyCWPuyYUDD5RMQ8FM5jknMqfTtSQZ3a3PDARRhjSdCAYb": {
+   "status": "ok",
+   "at": "2026-09-19T05:08:40+00:00"
+  },
+  "87c51c39-914b-4c7f-a97a-4925c6ec58b3/wandb/5EhyCWPuyYUDD5RMQ8FM5jknMqfTtSQZ3a3PDARRhjSdCAYb": {
+   "status": "UNAVAILABLE",
+   "at": "2026-09-19T05:08:40+00:00",
+   "reason": "no run in the public project matches this task id. The miners for this task never synced, or the task predates public syncing \u2014 not a query failure."
+  },
+  "87c51c39-914b-4c7f-a97a-4925c6ec58b3/loki/5EvaWzGbtasB2yh6fev3fhdYF6vXzviPPijnh3SLRm2KDP8F": {
+   "status": "ok",
+   "at": "2026-09-19T05:08:44+00:00",
+   "lines": 250,
+   "cap": false
+  },
+  "87c51c39-914b-4c7f-a97a-4925c6ec58b3/hf/5EvaWzGbtasB2yh6fev3fhdYF6vXzviPPijnh3SLRm2KDP8F": {
+   "status": "NO_REPO",
+   "at": "2026-09-19T05:08:44+00:00"
+  },
+  "87c51c39-914b-4c7f-a97a-4925c6ec58b3/wandb/5EvaWzGbtasB2yh6fev3fhdYF6vXzviPPijnh3SLRm2KDP8F": {
+   "status": "UNAVAILABLE",
+   "at": "2026-09-19T05:08:44+00:00",
+   "reason": "no run in the public project matches this task id. The miners for this task never synced, or the task predates public syncing \u2014 not a query failure."
+  },
+  "90d361cb-0b97-464a-9fda-36eb34c99261/api": {
+   "status": "ok",
+   "at": "2026-09-19T05:08:46+00:00"
+  },
+  "90d361cb-0b97-464a-9fda-36eb34c99261/augmented": {
+   "status": "ok",
+   "at": "2026-09-19T05:08:46+00:00"
+  },
+  "90d361cb-0b97-464a-9fda-36eb34c99261/wandb-find": {
+   "status": "ok",
+   "at": "2026-09-19T05:08:48+00:00"
+  },
+  "90d361cb-0b97-464a-9fda-36eb34c99261/loki/5CkYizfLyb5hLmcK4WtBGG13WKTQrynHBEV6qC23748g17zC": {
+   "status": "ok",
+   "at": "2026-09-19T05:08:52+00:00",
+   "lines": 2231,
+   "cap": false
+  },
+  "90d361cb-0b97-464a-9fda-36eb34c99261/hf/5CkYizfLyb5hLmcK4WtBGG13WKTQrynHBEV6qC23748g17zC": {
+   "status": "ok",
+   "at": "2026-09-19T05:09:03+00:00"
+  },
+  "90d361cb-0b97-464a-9fda-36eb34c99261/wandb/5CkYizfLyb5hLmcK4WtBGG13WKTQrynHBEV6qC23748g17zC": {
+   "status": "UNAVAILABLE",
+   "at": "2026-09-19T05:09:03+00:00",
+   "reason": "no run in the public project matches this task id. The miners for this task never synced, or the task predates public syncing \u2014 not a query failure."
+  },
+  "90d361cb-0b97-464a-9fda-36eb34c99261/loki/5FtF14uZ1mACHivSorX8nTn8gx3AdTATAhV7CZShGTtHsb3u": {
+   "status": "ok",
+   "at": "2026-09-19T05:09:07+00:00",
+   "lines": 1267,
+   "cap": false
+  },
+  "90d361cb-0b97-464a-9fda-36eb34c99261/hf/5FtF14uZ1mACHivSorX8nTn8gx3AdTATAhV7CZShGTtHsb3u": {
+   "status": "ok",
+   "at": "2026-09-19T05:09:22+00:00"
+  },
+  "90d361cb-0b97-464a-9fda-36eb34c99261/wandb/5FtF14uZ1mACHivSorX8nTn8gx3AdTATAhV7CZShGTtHsb3u": {
+   "status": "UNAVAILABLE",
+   "at": "2026-09-19T05:09:22+00:00",
+   "reason": "no run in the public project matches this task id. The miners for this task never synced, or the task predates public syncing \u2014 not a query failure."
+  },
+  "90d361cb-0b97-464a-9fda-36eb34c99261/loki/5DDVSRDLbcd57ZHnzFNjHdvcffekjiRdRJeBfWUHeSkWFprv": {
+   "status": "ok",
+   "at": "2026-09-19T05:09:26+00:00",
+   "lines": 2488,
+   "cap": false
+  },
+  "90d361cb-0b97-464a-9fda-36eb34c99261/hf/5DDVSRDLbcd57ZHnzFNjHdvcffekjiRdRJeBfWUHeSkWFprv": {
+   "status": "ok",
+   "at": "2026-09-19T05:09:44+00:00"
+  },
+  "90d361cb-0b97-464a-9fda-36eb34c99261/wandb/5DDVSRDLbcd57ZHnzFNjHdvcffekjiRdRJeBfWUHeSkWFprv": {
+   "status": "UNAVAILABLE",
+   "at": "2026-09-19T05:09:44+00:00",
+   "reason": "no run in the public project matches this task id. The miners for this task never synced, or the task predates public syncing \u2014 not a query failure."
+  },
+  "90d361cb-0b97-464a-9fda-36eb34c99261/loki/5DLy32QP39w7Y5xJSggknW6KH8mDnRpQ2PPXETtVuC6637Ev": {
+   "status": "ok",
+   "at": "2026-09-19T05:09:49+00:00",
+   "lines": 2966,
+   "cap": false
+  },
+  "90d361cb-0b97-464a-9fda-36eb34c99261/hf/5DLy32QP39w7Y5xJSggknW6KH8mDnRpQ2PPXETtVuC6637Ev": {
+   "status": "ok",
+   "at": "2026-09-19T05:10:05+00:00"
+  },
+  "90d361cb-0b97-464a-9fda-36eb34c99261/wandb/5DLy32QP39w7Y5xJSggknW6KH8mDnRpQ2PPXETtVuC6637Ev": {
+   "status": "UNAVAILABLE",
+   "at": "2026-09-19T05:10:05+00:00",
+   "reason": "no run in the public project matches this task id. The miners for this task never synced, or the task predates public syncing \u2014 not a query failure."
+  },
+  "90d361cb-0b97-464a-9fda-36eb34c99261/loki/5E6p1x3eCugTn634Dc2GrwyTjwb6j6hgzEGzZgQ8Xuyr5fXW": {
+   "status": "ok",
+   "at": "2026-09-19T05:10:09+00:00",
+   "lines": 1587,
+   "cap": false
+  },
+  "90d361cb-0b97-464a-9fda-36eb34c99261/hf/5E6p1x3eCugTn634Dc2GrwyTjwb6j6hgzEGzZgQ8Xuyr5fXW": {
+   "status": "ok",
+   "at": "2026-09-19T05:10:22+00:00"
+  },
+  "90d361cb-0b97-464a-9fda-36eb34c99261/wandb/5E6p1x3eCugTn634Dc2GrwyTjwb6j6hgzEGzZgQ8Xuyr5fXW": {
+   "status": "UNAVAILABLE",
+   "at": "2026-09-19T05:10:22+00:00",
+   "reason": "no run in the public project matches this task id. The miners for this task never synced, or the task predates public syncing \u2014 not a query failure."
+  },
+  "90d361cb-0b97-464a-9fda-36eb34c99261/loki/5EcZmz41oFGaJVte8DEzuGd8QyBBxjhTobhrK4A5y4b1Q24Y": {
+   "status": "ok",
+   "at": "2026-09-19T05:10:26+00:00",
+   "lines": 428,
+   "cap": false
+  },
+  "90d361cb-0b97-464a-9fda-36eb34c99261/hf/5EcZmz41oFGaJVte8DEzuGd8QyBBxjhTobhrK4A5y4b1Q24Y": {
+   "status": "ok",
+   "at": "2026-09-19T05:10:36+00:00"
+  },
+  "90d361cb-0b97-464a-9fda-36eb34c99261/wandb/5EcZmz41oFGaJVte8DEzuGd8QyBBxjhTobhrK4A5y4b1Q24Y": {
+   "status": "UNAVAILABLE",
+   "at": "2026-09-19T05:10:36+00:00",
+   "reason": "no run in the public project matches this task id. The miners for this task never synced, or the task predates public syncing \u2014 not a query failure."
+  },
+  "90d361cb-0b97-464a-9fda-36eb34c99261/loki/5HLA2QWYy3GpNwCiBCwMMhGw5hpPosSeZ41my8B3nuFDQHNF": {
+   "status": "ok",
+   "at": "2026-09-19T05:10:40+00:00",
+   "lines": 484,
+   "cap": false
+  },
+  "90d361cb-0b97-464a-9fda-36eb34c99261/hf/5HLA2QWYy3GpNwCiBCwMMhGw5hpPosSeZ41my8B3nuFDQHNF": {
+   "status": "ok",
+   "at": "2026-09-19T05:10:53+00:00"
+  },
+  "90d361cb-0b97-464a-9fda-36eb34c99261/wandb/5HLA2QWYy3GpNwCiBCwMMhGw5hpPosSeZ41my8B3nuFDQHNF": {
+   "status": "UNAVAILABLE",
+   "at": "2026-09-19T05:10:53+00:00",
+   "reason": "no run in the public project matches this task id. The miners for this task never synced, or the task predates public syncing \u2014 not a query failure."
+  },
+  "90d361cb-0b97-464a-9fda-36eb34c99261/loki/5EeEWvKfXj84kWKid9tAmFSiXTUGJT87oi9AjRYdW1rx2KYA": {
+   "status": "ok",
+   "at": "2026-09-19T05:10:58+00:00",
+   "lines": 1437,
+   "cap": false
+  },
+  "90d361cb-0b97-464a-9fda-36eb34c99261/hf/5EeEWvKfXj84kWKid9tAmFSiXTUGJT87oi9AjRYdW1rx2KYA": {
+   "status": "ok",
+   "at": "2026-09-19T05:11:15+00:00"
+  },
+  "90d361cb-0b97-464a-9fda-36eb34c99261/wandb/5EeEWvKfXj84kWKid9tAmFSiXTUGJT87oi9AjRYdW1rx2KYA": {
+   "status": "UNAVAILABLE",
+   "at": "2026-09-19T05:11:15+00:00",
+   "reason": "no run in the public project matches this task id. The miners for this task never synced, or the task predates public syncing \u2014 not a query failure."
+  },
+  "90d361cb-0b97-464a-9fda-36eb34c99261/loki/5E2fNjMWkC7NhjFsobwdDT1ym9R8ws7iDMnaZtE1RcnAsfZf": {
+   "status": "ok",
+   "at": "2026-09-19T05:11:19+00:00",
+   "lines": 1533,
+   "cap": false
+  },
+  "90d361cb-0b97-464a-9fda-36eb34c99261/hf/5E2fNjMWkC7NhjFsobwdDT1ym9R8ws7iDMnaZtE1RcnAsfZf": {
+   "status": "ok",
+   "at": "2026-09-19T05:11:29+00:00"
+  },
+  "90d361cb-0b97-464a-9fda-36eb34c99261/wandb/5E2fNjMWkC7NhjFsobwdDT1ym9R8ws7iDMnaZtE1RcnAsfZf": {
+   "status": "UNAVAILABLE",
+   "at": "2026-09-19T05:11:29+00:00",
+   "reason": "no run in the public project matches this task id. The miners for this task never synced, or the task predates public syncing \u2014 not a query failure."
+  },
+  "90d361cb-0b97-464a-9fda-36eb34c99261/loki/5EUHojrMhLPHWFpgZDS6oHyYgWSe6haqnfKE2mdy4U7bEEnQ": {
+   "status": "ok",
+   "at": "2026-09-19T05:11:33+00:00",
+   "lines": 1525,
+   "cap": false
+  },
+  "90d361cb-0b97-464a-9fda-36eb34c99261/hf/5EUHojrMhLPHWFpgZDS6oHyYgWSe6haqnfKE2mdy4U7bEEnQ": {
+   "status": "ok",
+   "at": "2026-09-19T05:11:45+00:00"
+  },
+  "90d361cb-0b97-464a-9fda-36eb34c99261/wandb/5EUHojrMhLPHWFpgZDS6oHyYgWSe6haqnfKE2mdy4U7bEEnQ": {
+   "status": "UNAVAILABLE",
+   "at": "2026-09-19T05:11:45+00:00",
+   "reason": "no run in the public project matches this task id. The miners for this task never synced, or the task predates public syncing \u2014 not a query failure."
+  },
+  "90d361cb-0b97-464a-9fda-36eb34c99261/loki/5DXVNvDmGZqdXbqRzsJZdJVoAgbLdhdFrrrmtAAfsh4QkGUU": {
+   "status": "ok",
+   "at": "2026-09-19T05:11:49+00:00",
+   "lines": 1633,
+   "cap": false
+  },
+  "90d361cb-0b97-464a-9fda-36eb34c99261/hf/5DXVNvDmGZqdXbqRzsJZdJVoAgbLdhdFrrrmtAAfsh4QkGUU": {
+   "status": "ok",
+   "at": "2026-09-19T05:11:59+00:00"
+  },
+  "90d361cb-0b97-464a-9fda-36eb34c99261/wandb/5DXVNvDmGZqdXbqRzsJZdJVoAgbLdhdFrrrmtAAfsh4QkGUU": {
+   "status": "UNAVAILABLE",
+   "at": "2026-09-19T05:11:59+00:00",
+   "reason": "no run in the public project matches this task id. The miners for this task never synced, or the task predates public syncing \u2014 not a query failure."
+  },
+  "90d361cb-0b97-464a-9fda-36eb34c99261/loki/5GcAxvH7oAr9hT2bauAU8y2B8GUiZbvmwrrnj1B4op9toCnY": {
+   "status": "ok",
+   "at": "2026-09-19T05:12:03+00:00",
+   "lines": 351,
+   "cap": false
+  },
+  "90d361cb-0b97-464a-9fda-36eb34c99261/hf/5GcAxvH7oAr9hT2bauAU8y2B8GUiZbvmwrrnj1B4op9toCnY": {
+   "status": "ok",
+   "at": "2026-09-19T05:12:09+00:00"
+  },
+  "90d361cb-0b97-464a-9fda-36eb34c99261/wandb/5GcAxvH7oAr9hT2bauAU8y2B8GUiZbvmwrrnj1B4op9toCnY": {
+   "status": "UNAVAILABLE",
+   "at": "2026-09-19T05:12:09+00:00",
+   "reason": "no run in the public project matches this task id. The miners for this task never synced, or the task predates public syncing \u2014 not a query failure."
+  },
+  "90d361cb-0b97-464a-9fda-36eb34c99261/loki/5EhyCWPuyYUDD5RMQ8FM5jknMqfTtSQZ3a3PDARRhjSdCAYb": {
+   "status": "ok",
+   "at": "2026-09-19T05:12:13+00:00",
+   "lines": 1857,
+   "cap": false
+  },
+  "90d361cb-0b97-464a-9fda-36eb34c99261/hf/5EhyCWPuyYUDD5RMQ8FM5jknMqfTtSQZ3a3PDARRhjSdCAYb": {
+   "status": "ok",
+   "at": "2026-09-19T05:12:19+00:00"
+  },
+  "90d361cb-0b97-464a-9fda-36eb34c99261/wandb/5EhyCWPuyYUDD5RMQ8FM5jknMqfTtSQZ3a3PDARRhjSdCAYb": {
+   "status": "UNAVAILABLE",
+   "at": "2026-09-19T05:12:19+00:00",
+   "reason": "no run in the public project matches this task id. The miners for this task never synced, or the task predates public syncing \u2014 not a query failure."
+  },
+  "90d361cb-0b97-464a-9fda-36eb34c99261/loki/5FW2EqiCeLknueng7Bp9rj4JrPNv5F6nxNg7yUtART6U1odT": {
+   "status": "ok",
+   "at": "2026-09-19T05:12:23+00:00",
+   "lines": 1783,
+   "cap": false
+  },
+  "90d361cb-0b97-464a-9fda-36eb34c99261/hf/5FW2EqiCeLknueng7Bp9rj4JrPNv5F6nxNg7yUtART6U1odT": {
+   "status": "ok",
+   "at": "2026-09-19T05:12:36+00:00"
+  },
+  "90d361cb-0b97-464a-9fda-36eb34c99261/wandb/5FW2EqiCeLknueng7Bp9rj4JrPNv5F6nxNg7yUtART6U1odT": {
+   "status": "UNAVAILABLE",
+   "at": "2026-09-19T05:12:36+00:00",
+   "reason": "no run in the public project matches this task id. The miners for this task never synced, or the task predates public syncing \u2014 not a query failure."
+  },
+  "90d361cb-0b97-464a-9fda-36eb34c99261/loki/5HBgDWKxNX3333Yit3qMokkYY4Guz1r8Qfons2UJTSU5oqjV": {
+   "status": "ok",
+   "at": "2026-09-19T05:12:40+00:00",
+   "lines": 1401,
+   "cap": false
+  },
+  "90d361cb-0b97-464a-9fda-36eb34c99261/hf/5HBgDWKxNX3333Yit3qMokkYY4Guz1r8Qfons2UJTSU5oqjV": {
+   "status": "ok",
+   "at": "2026-09-19T05:12:54+00:00"
+  },
+  "90d361cb-0b97-464a-9fda-36eb34c99261/wandb/5HBgDWKxNX3333Yit3qMokkYY4Guz1r8Qfons2UJTSU5oqjV": {
+   "status": "UNAVAILABLE",
+   "at": "2026-09-19T05:12:54+00:00",
+   "reason": "no run in the public project matches this task id. The miners for this task never synced, or the task predates public syncing \u2014 not a query failure."
+  },
+  "90d361cb-0b97-464a-9fda-36eb34c99261/loki/5EvaWzGbtasB2yh6fev3fhdYF6vXzviPPijnh3SLRm2KDP8F": {
+   "status": "ok",
+   "at": "2026-09-19T05:12:58+00:00",
+   "lines": 250,
+   "cap": false
+  },
+  "90d361cb-0b97-464a-9fda-36eb34c99261/hf/5EvaWzGbtasB2yh6fev3fhdYF6vXzviPPijnh3SLRm2KDP8F": {
+   "status": "NO_REPO",
+   "at": "2026-09-19T05:12:58+00:00"
+  },
+  "90d361cb-0b97-464a-9fda-36eb34c99261/wandb/5EvaWzGbtasB2yh6fev3fhdYF6vXzviPPijnh3SLRm2KDP8F": {
+   "status": "UNAVAILABLE",
+   "at": "2026-09-19T05:12:58+00:00",
+   "reason": "no run in the public project matches this task id. The miners for this task never synced, or the task predates public syncing \u2014 not a query failure."
+  },
+  "90d361cb-0b97-464a-9fda-36eb34c99261/loki/5DU5Qyae6n5c3PCDY7EBidC8FaZZCb1ykTMAF2JCXm63oQcf": {
+   "status": "ok",
+   "at": "2026-09-19T05:13:03+00:00",
+   "lines": 2836,
+   "cap": false
+  },
+  "90d361cb-0b97-464a-9fda-36eb34c99261/hf/5DU5Qyae6n5c3PCDY7EBidC8FaZZCb1ykTMAF2JCXm63oQcf": {
+   "status": "NO_REPO",
+   "at": "2026-09-19T05:13:03+00:00"
+  },
+  "90d361cb-0b97-464a-9fda-36eb34c99261/wandb/5DU5Qyae6n5c3PCDY7EBidC8FaZZCb1ykTMAF2JCXm63oQcf": {
+   "status": "UNAVAILABLE",
+   "at": "2026-09-19T05:13:03+00:00",
+   "reason": "no run in the public project matches this task id. The miners for this task never synced, or the task predates public syncing \u2014 not a query failure."
+  }
+ }
+}

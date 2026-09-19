@@ -1,0 +1,55 @@
+{
+ "provenance": {
+  "endpoint": "https://api.gradients.io/auditing/tasks/22c5aeee-9805-43c5-98a6-90ac35037b46",
+  "query": {
+   "task_id": "22c5aeee-9805-43c5-98a6-90ac35037b46"
+  },
+  "fetched_at": "2026-09-19T05:02:59Z"
+ },
+ "task_id": "22c5aeee-9805-43c5-98a6-90ac35037b46",
+ "status": "success",
+ "task_type": "InstructTextTask",
+ "model_id": "unsloth/Llama-3.1-Storm-8B",
+ "model_type": {
+  "status": "UNAVAILABLE",
+  "reason": "'model_type' not present in this task's auditing API response"
+ },
+ "ds": "LeoLM/OpenSchnabeltier",
+ "trigger_word": {
+  "status": "UNAVAILABLE",
+  "reason": "'trigger_word' not present in this task's auditing API response"
+ },
+ "is_organic": false,
+ "trained_model_repository": "gradients-io-tournaments/tournament-tourn_5c64e784a087074a_20260914-46398aa9-4bab-4185-91e9-a65d581aca9d-5GU4Xkd3",
+ "hours_to_complete": 1.0,
+ "image_text_pair_count": {
+  "status": "UNAVAILABLE",
+  "reason": "'image_text_pairs' not present in this task's auditing API response"
+ },
+ "dataset_url_expires_at": "2026-09-22T18:12:10Z",
+ "hotkey_details": [
+  {
+   "hotkey": "5GU4Xkd3dCGTU3s8VLcHGc5wsD5M8XyxDca5yDQhYm1mVXFu",
+   "submission_id": "859389c9-8e76-4833-9a74-22174c646a70",
+   "quality_score": 3.0,
+   "test_loss": 0.5473410487174988,
+   "synth_loss": 0.5473410487174988,
+   "repo": "gradients-io-tournaments/tournament-tourn_5c64e784a087074a_20260914-46398aa9-4bab-4185-91e9-a65d581aca9d-5GU4Xkd3",
+   "rank": 1,
+   "score_reason": "Winner at per-example win rate (Challenger win rate 30.1% (bound 25.5%) below required 55.0% of 528 decided examples)",
+   "offer_response": null
+  },
+  {
+   "hotkey": "5CkYizfLyb5hLmcK4WtBGG13WKTQrynHBEV6qC23748g17zC",
+   "submission_id": "ce1bde89-76eb-4f57-a68c-754bffb076b2",
+   "quality_score": 0.0,
+   "test_loss": 0.5568991899490356,
+   "synth_loss": 0.5568991899490356,
+   "repo": "gradients-io-tournaments/tournament-tourn_5c64e784a087074a_20260914-46398aa9-4bab-4185-91e9-a65d581aca9d-5CkYizfL",
+   "rank": 2,
+   "score_reason": "Lost to winner 5GU4Xkd3dCGTU3s8VLcHGc5wsD5M8XyxDca5yDQhYm1mVXFu at per-example win rate (Challenger win rate 30.1% (bound 25.5%) below required 55.0% of 528 decided examples)",
+   "offer_response": null
+  }
+ ],
+ "kl_note": "use_kl and kl_coef are always False/None here even for KL tasks \u2014 the config is not persisted once a task finishes. See references/kl-and-augmentation.md"
+}

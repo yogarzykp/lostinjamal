@@ -1,0 +1,138 @@
+{
+ "provenance": {
+  "endpoint": "https://huggingface.co/api/models/gradients-io-tournaments/tournament-tourn_5c64e784a087074a_20260914-90d361cb-0b97-464a-9fda-36eb34c99261-5FW2EqiC/tree/main?recursive=1",
+  "query": {
+   "repo": "gradients-io-tournaments/tournament-tourn_5c64e784a087074a_20260914-90d361cb-0b97-464a-9fda-36eb34c99261-5FW2EqiC"
+  },
+  "fetched_at": "2026-09-19T05:12:36Z"
+ },
+ "repo": "gradients-io-tournaments/tournament-tourn_5c64e784a087074a_20260914-90d361cb-0b97-464a-9fda-36eb34c99261-5FW2EqiC",
+ "method": "full fine-tune",
+ "file_count": 8,
+ "tree": [
+  {
+   "path": ".gitattributes",
+   "size": 1570
+  },
+  {
+   "path": "chat_template.jinja",
+   "size": 5443
+  },
+  {
+   "path": "config.json",
+   "size": 1495
+  },
+  {
+   "path": "generation_config.json",
+   "size": 328
+  },
+  {
+   "path": "loss.txt",
+   "size": 824
+  },
+  {
+   "path": "model.safetensors",
+   "size": 5394427448
+  },
+  {
+   "path": "tokenizer.json",
+   "size": 17905598
+  },
+  {
+   "path": "tokenizer_config.json",
+   "size": 363
+  }
+ ],
+ "config_yaml": {
+  "status": "UNAVAILABLE",
+  "reason": "not published by this miner"
+ },
+ "safetensors_header": {
+  "metadata": {
+   "format": "pt"
+  },
+  "tensor_count": 266,
+  "lora_rank": [],
+  "dtype": "BF16",
+  "target_modules": []
+ },
+ "base_model_name_or_path": null,
+ "files": {
+  "config.json": {
+   "architectures": [
+    "Lfm2ForCausalLM"
+   ],
+   "block_auto_adjust_ff_dim": false,
+   "block_dim": 2048,
+   "block_ffn_dim_multiplier": 1.0,
+   "block_mlp_init_scale": 1.0,
+   "block_multiple_of": 256,
+   "block_norm_eps": 1e-05,
+   "block_out_init_scale": 1.0,
+   "block_use_swiglu": true,
+   "block_use_xavier_init": true,
+   "bos_token_id": 124894,
+   "conv_L_cache": 3,
+   "conv_bias": false,
+   "conv_dim": 2048,
+   "conv_use_xavier_init": true,
+   "dtype": "bfloat16",
+   "eos_token_id": 124900,
+   "full_attn_idxs": null,
+   "hidden_size": 2048,
+   "initializer_range": 0.02,
+   "intermediate_size": 10752,
+   "layer_types": [
+    "conv",
+    "conv",
+    "full_attention",
+    "conv",
+    "conv",
+    "full_attention",
+    "conv",
+    "conv",
+    "conv",
+    "full_attention",
+    "conv",
+    "conv",
+    "conv",
+    "full_attention",
+    "conv",
+    "conv",
+    "conv",
+    "full_attention",
+    "conv",
+    "conv",
+    "conv",
+    "full_attention",
+    "conv",
+    "conv",
+    "full_attention",
+    "conv",
+    "conv",
+    "full_attention",
+    "conv",
+    "conv"
+   ],
+   "max_position_embeddings": 131072,
+   "model_type": "lfm2",
+   "norm_eps": 1e-05,
+   "num_attention_heads": 32,
+   "num_heads": 32,
+   "num_hidden_layers": 30,
+   "num_key_value_heads": 8,
+   "pad_token_id": 124893,
+   "rope_parameters": {
+    "rope_theta": 10000000.0,
+    "rope_type": "default"
+   },
+   "tie_word_embeddings": true,
+   "transformers_version": "5.12.1",
+   "use_cache": false,
+   "use_pos_enc": true,
+   "vocab_size": 128000
+  },
+  "loss.txt": "420,0.5462642908096313\n500,0.5446506142616272\n630,0.5243870615959167\n840,0.5294908881187439\n1000,0.5262851119041443\n1050,0.5272308588027954\n1260,0.4932975172996521\n1470,0.4824386239051819\n1500,0.49068138003349304\n1680,0.4685352146625519\n1890,0.48598283529281616\n2000,0.4723997116088867\n2100,0.48367840051651\n2310,0.46837130188941956\n2500,0.46255412697792053\n2520,0.466232568025589\n2730,0.46591442823410034\n2940,0.4529092609882355\n3000,0.45306289196014404\n3150,0.45319563150405884\n3360,0.4441409707069397\n3496,0.4684773087501526\n3496,0.4441409707069397\n3496,0.4097442626953125\n3496,0.40745270252227783\n3496,0.40413665771484375\n3496,0.39666587114334106\n3496,0.39586055278778076\n3496,0.3952179551124573\n3496,0.3934601843357086\nbest checkpoint at step 3496 (eval_loss=0.3934601843357086)\nfinal: soup(n=8/16) (dev_loss=0.393460)\n"
+ },
+ "not_found": {}
+}

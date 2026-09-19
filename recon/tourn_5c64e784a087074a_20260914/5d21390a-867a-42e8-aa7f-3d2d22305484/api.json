@@ -1,0 +1,55 @@
+{
+ "provenance": {
+  "endpoint": "https://api.gradients.io/auditing/tasks/5d21390a-867a-42e8-aa7f-3d2d22305484",
+  "query": {
+   "task_id": "5d21390a-867a-42e8-aa7f-3d2d22305484"
+  },
+  "fetched_at": "2026-09-19T05:05:15Z"
+ },
+ "task_id": "5d21390a-867a-42e8-aa7f-3d2d22305484",
+ "status": "success",
+ "task_type": "InstructTextTask",
+ "model_id": "zerofata/L3.3-GeneticLemonade-Final-70B",
+ "model_type": {
+  "status": "UNAVAILABLE",
+  "reason": "'model_type' not present in this task's auditing API response"
+ },
+ "ds": "PipableAI/pip-txt-to-sql-spider-bird-dataset",
+ "trigger_word": {
+  "status": "UNAVAILABLE",
+  "reason": "'trigger_word' not present in this task's auditing API response"
+ },
+ "is_organic": false,
+ "trained_model_repository": null,
+ "hours_to_complete": 2.25,
+ "image_text_pair_count": {
+  "status": "UNAVAILABLE",
+  "reason": "'image_text_pairs' not present in this task's auditing API response"
+ },
+ "dataset_url_expires_at": "2026-09-22T17:22:25Z",
+ "hotkey_details": [
+  {
+   "hotkey": "5CkYizfLyb5hLmcK4WtBGG13WKTQrynHBEV6qC23748g17zC",
+   "submission_id": null,
+   "quality_score": 0.0,
+   "test_loss": 0.0,
+   "synth_loss": 0.0,
+   "repo": null,
+   "rank": 1,
+   "score_reason": null,
+   "offer_response": null
+  },
+  {
+   "hotkey": "5GU4Xkd3dCGTU3s8VLcHGc5wsD5M8XyxDca5yDQhYm1mVXFu",
+   "submission_id": null,
+   "quality_score": 0.0,
+   "test_loss": 0.0,
+   "synth_loss": 0.0,
+   "repo": null,
+   "rank": 1,
+   "score_reason": null,
+   "offer_response": null
+  }
+ ],
+ "kl_note": "use_kl and kl_coef are always False/None here even for KL tasks \u2014 the config is not persisted once a task finishes. See references/kl-and-augmentation.md"
+}

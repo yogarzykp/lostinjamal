@@ -1,0 +1,168 @@
+{
+ "task_id": "059bf721-cca5-4d02-9832-a794cf37074b",
+ "model": "gradients-io-tournaments/tournament-tourn_2ba0f79237bffcf7_20260907-3da4fc7a-d2c2-4412-802f-fba9fd255704-5GcAxvH7",
+ "type": "ChatTask",
+ "hours": 5.0,
+ "status": "success",
+ "augmented": {
+  "provenance": {
+   "endpoint": "derived from repo names",
+   "query": {
+    "task_id": "059bf721-cca5-4d02-9832-a794cf37074b"
+   },
+   "fetched_at": "2026-09-19T04:59:25Z"
+  },
+  "task_id": "059bf721-cca5-4d02-9832-a794cf37074b",
+  "verdicts": [
+   {
+    "repo": "gradients-io-tournaments/tournament-tourn_5c64e784a087074a_20260914-059bf721-cca5-4d02-9832-a794cf37074b-5CkYizfL",
+    "repo_uuid": "059bf721-cca5-4d02-9832-a794cf37074b",
+    "verdict": "CLEAN"
+   },
+   {
+    "repo": "gradients-io-tournaments/tournament-tourn_5c64e784a087074a_20260914-059bf721-cca5-4d02-9832-a794cf37074b-5GU4Xkd3",
+    "repo_uuid": "059bf721-cca5-4d02-9832-a794cf37074b",
+    "verdict": "CLEAN"
+   }
+  ],
+  "consensus": "CLEAN",
+  "next_step": "to name the augmented repo itself, read base_model_name_or_path from any LoRA participant's adapter_config.json via `hf`"
+ },
+ "rows": [
+  {
+   "hotkey": "5CkYizfLyb5hLmcK4WtBGG13WKTQrynHBEV6qC23748g17zC",
+   "ours": false,
+   "rank": 1,
+   "test_loss": 0.5830270648002625,
+   "reason": "Winner at per-example win rate (Challenger won 97.4% of 4201 decided examples (bound 96.9%) by 0.1040 nats (bound 0.1012))",
+   "submitted": true,
+   "hf": {
+    "method": "LoRA",
+    "file_count": 9,
+    "base": "gradients-io-tournaments/merged-bf9f23b81c012680",
+    "lora_r": 128,
+    "lora_alpha": 512,
+    "targets": [
+     "o_proj",
+     "q_proj",
+     "down_proj",
+     "up_proj",
+     "v_proj",
+     "gate_proj",
+     "k_proj"
+    ],
+    "dropout": 0.1,
+    "use_rslora": false,
+    "use_dora": false,
+    "init": true,
+    "hdr_rank": [
+     128
+    ],
+    "dtype": "BF16",
+    "tensors": 560,
+    "has_training_args": false,
+    "has_loss_txt": true,
+    "weights_bytes": 1027681376
+   },
+   "loki": {
+    "lines": 2653,
+    "capped": false,
+    "lr_max": {
+     "UNAVAILABLE": "no learning_rate lines"
+    },
+    "lr_first": null,
+    "log_steps": 0,
+    "evals": 0,
+    "eval_losses": [],
+    "epoch_max": null,
+    "tracebacks": 3,
+    "oom": 0,
+    "ladder_rungs": [],
+    "fallback": false,
+    "batch": [
+     "1"
+    ],
+    "ga": [
+     "1"
+    ],
+    "epochs": [
+     "3"
+    ],
+    "lora_r": null,
+    "maxlen": null,
+    "kl_mentions": 0,
+    "finished": false,
+    "first_ts": "2026-09-16 16:52:57",
+    "last_ts": "2026-09-16 22:35:24"
+   }
+  },
+  {
+   "hotkey": "5GU4Xkd3dCGTU3s8VLcHGc5wsD5M8XyxDca5yDQhYm1mVXFu",
+   "ours": false,
+   "rank": 2,
+   "test_loss": 0.6870865821838379,
+   "reason": "Lost to winner 5CkYizfLyb5hLmcK4WtBGG13WKTQrynHBEV6qC23748g17zC at per-example win rate (Challenger won 97.4% of 4201 decided examples (bound 96.9%) by 0.1040 nats (bound 0.1012))",
+   "submitted": true,
+   "hf": {
+    "method": "LoRA",
+    "file_count": 11,
+    "base": "gradients-io-tournaments/merged-bf9f23b81c012680",
+    "lora_r": 128,
+    "lora_alpha": 512,
+    "targets": [
+     "down_proj",
+     "q_proj",
+     "up_proj",
+     "o_proj",
+     "k_proj",
+     "v_proj",
+     "gate_proj"
+    ],
+    "dropout": 0.1,
+    "use_rslora": false,
+    "use_dora": false,
+    "init": true,
+    "hdr_rank": [
+     128
+    ],
+    "dtype": "BF16",
+    "tensors": 560,
+    "has_training_args": false,
+    "has_loss_txt": true,
+    "weights_bytes": 1027681376
+   },
+   "loki": {
+    "lines": 2631,
+    "capped": false,
+    "lr_max": {
+     "UNAVAILABLE": "no learning_rate lines"
+    },
+    "lr_first": null,
+    "log_steps": 0,
+    "evals": 0,
+    "eval_losses": [],
+    "epoch_max": null,
+    "tracebacks": 0,
+    "oom": 0,
+    "ladder_rungs": [],
+    "fallback": false,
+    "batch": [
+     "1",
+     "3"
+    ],
+    "ga": [
+     "1"
+    ],
+    "epochs": [
+     "3"
+    ],
+    "lora_r": null,
+    "maxlen": null,
+    "kl_mentions": 0,
+    "finished": false,
+    "first_ts": "2026-09-16 22:57:34",
+    "last_ts": "2026-09-17 03:48:02"
+   }
+  }
+ ]
+}

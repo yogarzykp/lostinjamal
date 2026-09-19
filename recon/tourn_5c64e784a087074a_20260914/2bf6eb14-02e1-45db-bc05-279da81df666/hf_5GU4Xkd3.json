@@ -1,0 +1,107 @@
+{
+ "provenance": {
+  "endpoint": "https://huggingface.co/api/models/gradients-io-tournaments/tournament-tourn_5c64e784a087074a_20260914-2915c8d4-85ae-4806-842f-7dd5e385bdf2-5GU4Xkd3/tree/main?recursive=1",
+  "query": {
+   "repo": "gradients-io-tournaments/tournament-tourn_5c64e784a087074a_20260914-2915c8d4-85ae-4806-842f-7dd5e385bdf2-5GU4Xkd3"
+  },
+  "fetched_at": "2026-09-19T05:04:08Z"
+ },
+ "repo": "gradients-io-tournaments/tournament-tourn_5c64e784a087074a_20260914-2915c8d4-85ae-4806-842f-7dd5e385bdf2-5GU4Xkd3",
+ "method": "full fine-tune",
+ "file_count": 9,
+ "tree": [
+  {
+   "path": ".gitattributes",
+   "size": 1519
+  },
+  {
+   "path": "config.json",
+   "size": 1238
+  },
+  {
+   "path": "generation_config.json",
+   "size": 79
+  },
+  {
+   "path": "merges.txt",
+   "size": 456318
+  },
+  {
+   "path": "model.safetensors",
+   "size": 2623284688
+  },
+  {
+   "path": "special_tokens_map.json",
+   "size": 441
+  },
+  {
+   "path": "tokenizer.json",
+   "size": 3557681
+  },
+  {
+   "path": "tokenizer_config.json",
+   "size": 475
+  },
+  {
+   "path": "vocab.json",
+   "size": 798156
+  }
+ ],
+ "config_yaml": {
+  "status": "UNAVAILABLE",
+  "reason": "not published by this miner"
+ },
+ "safetensors_header": {
+  "metadata": {
+   "format": "pt"
+  },
+  "tensor_count": 291,
+  "lora_rank": [],
+  "dtype": "BF16",
+  "target_modules": []
+ },
+ "base_model_name_or_path": null,
+ "files": {
+  "config.json": {
+   "activation": "gelu",
+   "alibi": true,
+   "apply_residual_connection_post_layernorm": false,
+   "architectures": [
+    "FalconForCausalLM"
+   ],
+   "attention_dropout": 0.0,
+   "auto_map": {
+    "AutoConfig": "configuration_falcon.FalconConfig",
+    "AutoModel": "modeling_falcon.FalconModel",
+    "AutoModelForCausalLM": "modeling_falcon.FalconForCausalLM",
+    "AutoModelForQuestionAnswering": "modeling_falcon.FalconForQuestionAnswering",
+    "AutoModelForSequenceClassification": "modeling_falcon.FalconForSequenceClassification",
+    "AutoModelForTokenClassification": "modeling_falcon.FalconForTokenClassification"
+   },
+   "bias": true,
+   "bos_token_id": 1,
+   "eos_token_id": 2,
+   "ffn_hidden_size": 8192,
+   "hidden_dropout": 0.0,
+   "hidden_size": 2048,
+   "initializer_range": 0.02,
+   "layer_norm_epsilon": 1e-05,
+   "max_position_embeddings": 2048,
+   "model_type": "falcon",
+   "multi_query": false,
+   "new_decoder_architecture": false,
+   "num_attention_heads": 32,
+   "num_hidden_layers": 24,
+   "num_kv_heads": 32,
+   "num_ln_in_parallel_attn": null,
+   "parallel_attn": false,
+   "rope_scaling": null,
+   "rope_theta": 10000.0,
+   "torch_dtype": "bfloat16",
+   "transformers_version": "4.51.3",
+   "use_cache": true,
+   "vocab_size": 50304
+  }
+ },
+ "not_found": {}
+}

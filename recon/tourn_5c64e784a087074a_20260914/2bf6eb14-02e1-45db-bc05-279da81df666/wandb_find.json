@@ -1,0 +1,16 @@
+{
+ "provenance": {
+  "endpoint": "https://api.wandb.ai/graphql",
+  "query": {
+   "task_id": "2bf6eb14-02e1-45db-bc05-279da81df666",
+   "entity": "rayonlabs-rayon-labs",
+   "project": "huggingface"
+  },
+  "fetched_at": "2026-09-19T05:03:57Z"
+ },
+ "task_id": "2bf6eb14-02e1-45db-bc05-279da81df666",
+ "runs": {
+  "status": "UNAVAILABLE",
+  "reason": "no run in the public project matches this task id. The miners for this task never synced, or the task predates public syncing \u2014 not a query failure."
+ }
+}

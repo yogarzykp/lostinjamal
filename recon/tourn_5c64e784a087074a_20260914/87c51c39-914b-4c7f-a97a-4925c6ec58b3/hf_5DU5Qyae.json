@@ -1,0 +1,100 @@
+{
+ "provenance": {
+  "endpoint": "https://huggingface.co/api/models/gradients-io-tournaments/tournament-tourn_5c64e784a087074a_20260914-92e83f80-9629-4499-8be5-48d2f0cdfbc7-5DU5Qyae/tree/main?recursive=1",
+  "query": {
+   "repo": "gradients-io-tournaments/tournament-tourn_5c64e784a087074a_20260914-92e83f80-9629-4499-8be5-48d2f0cdfbc7-5DU5Qyae"
+  },
+  "fetched_at": "2026-09-19T05:08:22Z"
+ },
+ "repo": "gradients-io-tournaments/tournament-tourn_5c64e784a087074a_20260914-92e83f80-9629-4499-8be5-48d2f0cdfbc7-5DU5Qyae",
+ "method": "full fine-tune",
+ "file_count": 10,
+ "tree": [
+  {
+   "path": ".gitattributes",
+   "size": 1570
+  },
+  {
+   "path": "added_tokens.json",
+   "size": 605
+  },
+  {
+   "path": "config.json",
+   "size": 708
+  },
+  {
+   "path": "generation_config.json",
+   "size": 265
+  },
+  {
+   "path": "merges.txt",
+   "size": 1671853
+  },
+  {
+   "path": "model.safetensors",
+   "size": 988097824
+  },
+  {
+   "path": "special_tokens_map.json",
+   "size": 614
+  },
+  {
+   "path": "tokenizer.json",
+   "size": 11421896
+  },
+  {
+   "path": "tokenizer_config.json",
+   "size": 7362
+  },
+  {
+   "path": "vocab.json",
+   "size": 2776833
+  }
+ ],
+ "config_yaml": {
+  "status": "UNAVAILABLE",
+  "reason": "not published by this miner"
+ },
+ "safetensors_header": {
+  "metadata": {
+   "format": "pt"
+  },
+  "tensor_count": 290,
+  "lora_rank": [],
+  "dtype": "BF16",
+  "target_modules": []
+ },
+ "base_model_name_or_path": null,
+ "files": {
+  "config.json": {
+   "architectures": [
+    "Qwen2ForCausalLM"
+   ],
+   "attention_dropout": 0.0,
+   "eos_token_id": 151645,
+   "hidden_act": "silu",
+   "hidden_size": 896,
+   "initializer_range": 0.02,
+   "intermediate_size": 4864,
+   "max_position_embeddings": 32768,
+   "max_window_layers": 21,
+   "model_type": "qwen2",
+   "num_attention_heads": 14,
+   "num_hidden_layers": 24,
+   "num_key_value_heads": 2,
+   "pad_token_id": 151654,
+   "rms_norm_eps": 1e-06,
+   "rope_scaling": null,
+   "rope_theta": 1000000.0,
+   "sliding_window": null,
+   "tie_word_embeddings": true,
+   "torch_dtype": "bfloat16",
+   "transformers_version": "4.51.3",
+   "unsloth_fixed": true,
+   "use_cache": false,
+   "use_sliding_window": false,
+   "vocab_size": 151936
+  }
+ },
+ "not_found": {}
+}

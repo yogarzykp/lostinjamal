@@ -1,0 +1,169 @@
+{
+ "task_id": "24c8317e-07e4-4424-b996-b336dde5a580",
+ "model": "Qwen/Qwen3-32B",
+ "type": "InstructTextTask",
+ "hours": 1.25,
+ "status": "success",
+ "augmented": {
+  "provenance": {
+   "endpoint": "derived from repo names",
+   "query": {
+    "task_id": "24c8317e-07e4-4424-b996-b336dde5a580"
+   },
+   "fetched_at": "2026-09-19T05:03:25Z"
+  },
+  "task_id": "24c8317e-07e4-4424-b996-b336dde5a580",
+  "verdicts": [
+   {
+    "repo": "gradients-io-tournaments/tournament-tourn_5c64e784a087074a_20260914-24c8317e-07e4-4424-b996-b336dde5a580-5CkYizfL",
+    "repo_uuid": "24c8317e-07e4-4424-b996-b336dde5a580",
+    "verdict": "CLEAN"
+   },
+   {
+    "repo": "gradients-io-tournaments/tournament-tourn_5c64e784a087074a_20260914-24c8317e-07e4-4424-b996-b336dde5a580-5DDVSRDL",
+    "repo_uuid": "24c8317e-07e4-4424-b996-b336dde5a580",
+    "verdict": "CLEAN"
+   }
+  ],
+  "consensus": "CLEAN",
+  "next_step": "to name the augmented repo itself, read base_model_name_or_path from any LoRA participant's adapter_config.json via `hf`"
+ },
+ "rows": [
+  {
+   "hotkey": "5CkYizfLyb5hLmcK4WtBGG13WKTQrynHBEV6qC23748g17zC",
+   "ours": false,
+   "rank": 1,
+   "test_loss": 0.4036138653755188,
+   "reason": "Winner at per-example win rate (won 166/225 decided examples (73.8%))",
+   "submitted": true,
+   "hf": {
+    "method": "LoRA",
+    "file_count": 9,
+    "base": "Qwen/Qwen3-32B",
+    "lora_r": 128,
+    "lora_alpha": 512,
+    "targets": [
+     "v_proj",
+     "q_proj",
+     "gate_proj",
+     "down_proj",
+     "o_proj",
+     "up_proj",
+     "k_proj"
+    ],
+    "dropout": 0.1,
+    "use_rslora": false,
+    "use_dora": false,
+    "init": true,
+    "hdr_rank": [
+     128
+    ],
+    "dtype": "BF16",
+    "tensors": 896,
+    "has_training_args": false,
+    "has_loss_txt": true,
+    "weights_bytes": 2147607752
+   },
+   "loki": {
+    "lines": 1321,
+    "capped": false,
+    "lr_max": {
+     "UNAVAILABLE": "no learning_rate lines"
+    },
+    "lr_first": null,
+    "log_steps": 0,
+    "evals": 0,
+    "eval_losses": [],
+    "epoch_max": null,
+    "tracebacks": 0,
+    "oom": 0,
+    "ladder_rungs": [],
+    "fallback": false,
+    "batch": [
+     "1",
+     "4"
+    ],
+    "ga": [
+     "4"
+    ],
+    "epochs": [
+     "3"
+    ],
+    "lora_r": null,
+    "maxlen": null,
+    "kl_mentions": 0,
+    "finished": false,
+    "first_ts": "2026-09-15 15:12:46",
+    "last_ts": "2026-09-15 16:04:57"
+   }
+  },
+  {
+   "hotkey": "5DDVSRDLbcd57ZHnzFNjHdvcffekjiRdRJeBfWUHeSkWFprv",
+   "ours": false,
+   "rank": 2,
+   "test_loss": 0.40922290086746216,
+   "reason": "Lost to winner 5CkYizfLyb5hLmcK4WtBGG13WKTQrynHBEV6qC23748g17zC at per-example win rate (won 166/225 decided examples (73.8%))",
+   "submitted": true,
+   "hf": {
+    "method": "LoRA",
+    "file_count": 9,
+    "base": "Qwen/Qwen3-32B",
+    "lora_r": 128,
+    "lora_alpha": 512,
+    "targets": [
+     "gate_proj",
+     "v_proj",
+     "o_proj",
+     "q_proj",
+     "k_proj",
+     "up_proj",
+     "down_proj"
+    ],
+    "dropout": 0.1,
+    "use_rslora": false,
+    "use_dora": false,
+    "init": true,
+    "hdr_rank": [
+     128
+    ],
+    "dtype": "F32",
+    "tensors": 896,
+    "has_training_args": false,
+    "has_loss_txt": true,
+    "weights_bytes": 4295090968
+   },
+   "loki": {
+    "lines": 1308,
+    "capped": false,
+    "lr_max": {
+     "UNAVAILABLE": "no learning_rate lines"
+    },
+    "lr_first": null,
+    "log_steps": 0,
+    "evals": 0,
+    "eval_losses": [],
+    "epoch_max": null,
+    "tracebacks": 0,
+    "oom": 0,
+    "ladder_rungs": [],
+    "fallback": false,
+    "batch": [
+     "1",
+     "18"
+    ],
+    "ga": [
+     "1"
+    ],
+    "epochs": [
+     "3"
+    ],
+    "lora_r": null,
+    "maxlen": null,
+    "kl_mentions": 0,
+    "finished": false,
+    "first_ts": "2026-09-15 15:25:57",
+    "last_ts": "2026-09-15 15:26:08"
+   }
+  }
+ ]
+}

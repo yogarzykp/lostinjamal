@@ -1,0 +1,902 @@
+{
+ "task_id": "87c51c39-914b-4c7f-a97a-4925c6ec58b3",
+ "model": "unsloth/Qwen2.5-0.5B-Instruct",
+ "type": "InstructTextTask",
+ "hours": 1.0,
+ "status": "success",
+ "augmented": {
+  "provenance": {
+   "endpoint": "derived from repo names",
+   "query": {
+    "task_id": "87c51c39-914b-4c7f-a97a-4925c6ec58b3"
+   },
+   "fetched_at": "2026-09-19T05:05:22Z"
+  },
+  "task_id": "87c51c39-914b-4c7f-a97a-4925c6ec58b3",
+  "verdicts": [
+   {
+    "repo": "gradients-io-tournaments/tournament-tourn_5c64e784a087074a_20260914-92e83f80-9629-4499-8be5-48d2f0cdfbc7-5CkYizfL",
+    "repo_uuid": "92e83f80-9629-4499-8be5-48d2f0cdfbc7",
+    "verdict": "AUGMENTED"
+   },
+   {
+    "repo": "gradients-io-tournaments/tournament-tourn_5c64e784a087074a_20260914-92e83f80-9629-4499-8be5-48d2f0cdfbc7-5DXVNvDm",
+    "repo_uuid": "92e83f80-9629-4499-8be5-48d2f0cdfbc7",
+    "verdict": "AUGMENTED"
+   },
+   {
+    "repo": "gradients-io-tournaments/tournament-tourn_5c64e784a087074a_20260914-92e83f80-9629-4499-8be5-48d2f0cdfbc7-5DDVSRDL",
+    "repo_uuid": "92e83f80-9629-4499-8be5-48d2f0cdfbc7",
+    "verdict": "AUGMENTED"
+   },
+   {
+    "repo": "gradients-io-tournaments/tournament-tourn_5c64e784a087074a_20260914-92e83f80-9629-4499-8be5-48d2f0cdfbc7-5HBgDWKx",
+    "repo_uuid": "92e83f80-9629-4499-8be5-48d2f0cdfbc7",
+    "verdict": "AUGMENTED"
+   },
+   {
+    "repo": "gradients-io-tournaments/tournament-tourn_5c64e784a087074a_20260914-92e83f80-9629-4499-8be5-48d2f0cdfbc7-5E2fNjMW",
+    "repo_uuid": "92e83f80-9629-4499-8be5-48d2f0cdfbc7",
+    "verdict": "AUGMENTED"
+   },
+   {
+    "repo": "gradients-io-tournaments/tournament-tourn_5c64e784a087074a_20260914-92e83f80-9629-4499-8be5-48d2f0cdfbc7-5EeEWvKf",
+    "repo_uuid": "92e83f80-9629-4499-8be5-48d2f0cdfbc7",
+    "verdict": "AUGMENTED"
+   },
+   {
+    "repo": "gradients-io-tournaments/tournament-tourn_5c64e784a087074a_20260914-92e83f80-9629-4499-8be5-48d2f0cdfbc7-5FtF14uZ",
+    "repo_uuid": "92e83f80-9629-4499-8be5-48d2f0cdfbc7",
+    "verdict": "AUGMENTED"
+   },
+   {
+    "repo": "gradients-io-tournaments/tournament-tourn_5c64e784a087074a_20260914-92e83f80-9629-4499-8be5-48d2f0cdfbc7-5E6p1x3e",
+    "repo_uuid": "92e83f80-9629-4499-8be5-48d2f0cdfbc7",
+    "verdict": "AUGMENTED"
+   },
+   {
+    "repo": "gradients-io-tournaments/tournament-tourn_5c64e784a087074a_20260914-92e83f80-9629-4499-8be5-48d2f0cdfbc7-5GcAxvH7",
+    "repo_uuid": "92e83f80-9629-4499-8be5-48d2f0cdfbc7",
+    "verdict": "AUGMENTED"
+   },
+   {
+    "repo": "gradients-io-tournaments/tournament-tourn_5c64e784a087074a_20260914-92e83f80-9629-4499-8be5-48d2f0cdfbc7-5EUHojrM",
+    "repo_uuid": "92e83f80-9629-4499-8be5-48d2f0cdfbc7",
+    "verdict": "AUGMENTED"
+   },
+   {
+    "repo": "gradients-io-tournaments/tournament-tourn_5c64e784a087074a_20260914-92e83f80-9629-4499-8be5-48d2f0cdfbc7-5EcZmz41",
+    "repo_uuid": "92e83f80-9629-4499-8be5-48d2f0cdfbc7",
+    "verdict": "AUGMENTED"
+   },
+   {
+    "repo": "gradients-io-tournaments/tournament-tourn_5c64e784a087074a_20260914-92e83f80-9629-4499-8be5-48d2f0cdfbc7-5DLy32QP",
+    "repo_uuid": "92e83f80-9629-4499-8be5-48d2f0cdfbc7",
+    "verdict": "AUGMENTED"
+   },
+   {
+    "repo": "gradients-io-tournaments/tournament-tourn_5c64e784a087074a_20260914-92e83f80-9629-4499-8be5-48d2f0cdfbc7-5HLA2QWY",
+    "repo_uuid": "92e83f80-9629-4499-8be5-48d2f0cdfbc7",
+    "verdict": "AUGMENTED"
+   },
+   {
+    "repo": "gradients-io-tournaments/tournament-tourn_5c64e784a087074a_20260914-92e83f80-9629-4499-8be5-48d2f0cdfbc7-5FW2EqiC",
+    "repo_uuid": "92e83f80-9629-4499-8be5-48d2f0cdfbc7",
+    "verdict": "AUGMENTED"
+   },
+   {
+    "repo": "gradients-io-tournaments/tournament-tourn_5c64e784a087074a_20260914-92e83f80-9629-4499-8be5-48d2f0cdfbc7-5DU5Qyae",
+    "repo_uuid": "92e83f80-9629-4499-8be5-48d2f0cdfbc7",
+    "verdict": "AUGMENTED"
+   },
+   {
+    "repo": "gradients-io-tournaments/tournament-tourn_5c64e784a087074a_20260914-92e83f80-9629-4499-8be5-48d2f0cdfbc7-5EhyCWPu",
+    "repo_uuid": "92e83f80-9629-4499-8be5-48d2f0cdfbc7",
+    "verdict": "AUGMENTED"
+   }
+  ],
+  "consensus": "AUGMENTED",
+  "next_step": "to name the augmented repo itself, read base_model_name_or_path from any LoRA participant's adapter_config.json via `hf`"
+ },
+ "rows": [
+  {
+   "hotkey": "5CkYizfLyb5hLmcK4WtBGG13WKTQrynHBEV6qC23748g17zC",
+   "ours": false,
+   "rank": 1,
+   "test_loss": 1.2702425718307495,
+   "reason": "Ranked 1st by test_loss",
+   "submitted": true,
+   "hf": {
+    "method": "full fine-tune",
+    "file_count": 9,
+    "base": null,
+    "hdr_rank": [],
+    "dtype": "BF16",
+    "tensors": 290,
+    "has_training_args": false,
+    "has_loss_txt": true,
+    "weights_bytes": 988097824
+   },
+   "loki": {
+    "lines": 1267,
+    "capped": false,
+    "lr_max": {
+     "UNAVAILABLE": "no learning_rate lines"
+    },
+    "lr_first": null,
+    "log_steps": 0,
+    "evals": 0,
+    "eval_losses": [],
+    "epoch_max": null,
+    "tracebacks": 0,
+    "oom": 0,
+    "ladder_rungs": [],
+    "fallback": false,
+    "batch": null,
+    "ga": null,
+    "epochs": null,
+    "lora_r": null,
+    "maxlen": null,
+    "kl_mentions": 0,
+    "finished": false,
+    "first_ts": "2026-09-15 12:10:34",
+    "last_ts": "2026-09-15 12:10:34"
+   }
+  },
+  {
+   "hotkey": "5DXVNvDmGZqdXbqRzsJZdJVoAgbLdhdFrrrmtAAfsh4QkGUU",
+   "ours": false,
+   "rank": 2,
+   "test_loss": 1.2725995779037476,
+   "reason": "Ranked below top 1 by test_loss",
+   "submitted": true,
+   "hf": {
+    "method": "full fine-tune",
+    "file_count": 11,
+    "base": null,
+    "hdr_rank": [],
+    "dtype": "BF16",
+    "tensors": 290,
+    "has_training_args": false,
+    "has_loss_txt": true,
+    "weights_bytes": 988097824
+   },
+   "loki": {
+    "lines": 1769,
+    "capped": false,
+    "lr_max": {
+     "UNAVAILABLE": "no learning_rate lines"
+    },
+    "lr_first": null,
+    "log_steps": 0,
+    "evals": 0,
+    "eval_losses": [],
+    "epoch_max": null,
+    "tracebacks": 0,
+    "oom": 0,
+    "ladder_rungs": [],
+    "fallback": false,
+    "batch": null,
+    "ga": null,
+    "epochs": null,
+    "lora_r": null,
+    "maxlen": null,
+    "kl_mentions": 0,
+    "finished": false,
+    "first_ts": null,
+    "last_ts": null
+   }
+  },
+  {
+   "hotkey": "5DDVSRDLbcd57ZHnzFNjHdvcffekjiRdRJeBfWUHeSkWFprv",
+   "ours": false,
+   "rank": 3,
+   "test_loss": 1.2769296169281006,
+   "reason": "Ranked below top 1 by test_loss",
+   "submitted": true,
+   "hf": {
+    "method": "full fine-tune",
+    "file_count": 9,
+    "base": null,
+    "hdr_rank": [],
+    "dtype": "BF16",
+    "tensors": 290,
+    "has_training_args": false,
+    "has_loss_txt": true,
+    "weights_bytes": 988097824
+   },
+   "loki": {
+    "lines": 1265,
+    "capped": false,
+    "lr_max": {
+     "UNAVAILABLE": "no learning_rate lines"
+    },
+    "lr_first": null,
+    "log_steps": 0,
+    "evals": 0,
+    "eval_losses": [],
+    "epoch_max": null,
+    "tracebacks": 0,
+    "oom": 0,
+    "ladder_rungs": [],
+    "fallback": false,
+    "batch": null,
+    "ga": null,
+    "epochs": null,
+    "lora_r": null,
+    "maxlen": null,
+    "kl_mentions": 0,
+    "finished": false,
+    "first_ts": null,
+    "last_ts": null
+   }
+  },
+  {
+   "hotkey": "5HBgDWKxNX3333Yit3qMokkYY4Guz1r8Qfons2UJTSU5oqjV",
+   "ours": true,
+   "rank": 4,
+   "test_loss": 1.2787219285964966,
+   "reason": "Ranked below top 1 by test_loss",
+   "submitted": true,
+   "hf": {
+    "method": "full fine-tune",
+    "file_count": 11,
+    "base": null,
+    "hdr_rank": [],
+    "dtype": "BF16",
+    "tensors": 290,
+    "has_training_args": false,
+    "has_loss_txt": true,
+    "weights_bytes": 988097824
+   },
+   "loki": {
+    "lines": 5000,
+    "capped": true,
+    "lr_max": 5.246958431617444e-05,
+    "lr_first": 5.246958431617444e-05,
+    "log_steps": 18,
+    "evals": 0,
+    "eval_losses": [],
+    "epoch_max": 1.95,
+    "tracebacks": 0,
+    "oom": 0,
+    "ladder_rungs": [],
+    "fallback": false,
+    "batch": [
+     "4",
+     "60"
+    ],
+    "ga": null,
+    "epochs": null,
+    "lora_r": null,
+    "maxlen": [
+     "2031"
+    ],
+    "kl_mentions": 0,
+    "finished": true,
+    "first_ts": "2026-09-15 13:37:22",
+    "last_ts": "2026-09-15 14:09:05"
+   }
+  },
+  {
+   "hotkey": "5E2fNjMWkC7NhjFsobwdDT1ym9R8ws7iDMnaZtE1RcnAsfZf",
+   "ours": false,
+   "rank": 5,
+   "test_loss": 1.2799394130706787,
+   "reason": "Ranked below top 1 by test_loss",
+   "submitted": true,
+   "hf": {
+    "method": "full fine-tune",
+    "file_count": 11,
+    "base": null,
+    "hdr_rank": [],
+    "dtype": "BF16",
+    "tensors": 290,
+    "has_training_args": false,
+    "has_loss_txt": true,
+    "weights_bytes": 988097824
+   },
+   "loki": {
+    "lines": 1535,
+    "capped": false,
+    "lr_max": {
+     "UNAVAILABLE": "no learning_rate lines"
+    },
+    "lr_first": null,
+    "log_steps": 0,
+    "evals": 0,
+    "eval_losses": [],
+    "epoch_max": null,
+    "tracebacks": 0,
+    "oom": 0,
+    "ladder_rungs": [],
+    "fallback": false,
+    "batch": null,
+    "ga": null,
+    "epochs": null,
+    "lora_r": null,
+    "maxlen": null,
+    "kl_mentions": 0,
+    "finished": false,
+    "first_ts": null,
+    "last_ts": null
+   }
+  },
+  {
+   "hotkey": "5EeEWvKfXj84kWKid9tAmFSiXTUGJT87oi9AjRYdW1rx2KYA",
+   "ours": false,
+   "rank": 6,
+   "test_loss": 1.2810009717941284,
+   "reason": "Ranked below top 1 by test_loss",
+   "submitted": true,
+   "hf": {
+    "method": "full fine-tune",
+    "file_count": 8,
+    "base": null,
+    "hdr_rank": [],
+    "dtype": "BF16",
+    "tensors": 290,
+    "has_training_args": false,
+    "has_loss_txt": true,
+    "weights_bytes": 988097824
+   },
+   "loki": {
+    "lines": 1441,
+    "capped": false,
+    "lr_max": {
+     "UNAVAILABLE": "no learning_rate lines"
+    },
+    "lr_first": null,
+    "log_steps": 0,
+    "evals": 0,
+    "eval_losses": [],
+    "epoch_max": null,
+    "tracebacks": 0,
+    "oom": 0,
+    "ladder_rungs": [],
+    "fallback": false,
+    "batch": null,
+    "ga": null,
+    "epochs": null,
+    "lora_r": null,
+    "maxlen": null,
+    "kl_mentions": 0,
+    "finished": false,
+    "first_ts": null,
+    "last_ts": null
+   }
+  },
+  {
+   "hotkey": "5FtF14uZ1mACHivSorX8nTn8gx3AdTATAhV7CZShGTtHsb3u",
+   "ours": false,
+   "rank": 7,
+   "test_loss": 1.2822961807250977,
+   "reason": "Ranked below top 1 by test_loss",
+   "submitted": true,
+   "hf": {
+    "method": "full fine-tune",
+    "file_count": 9,
+    "base": null,
+    "hdr_rank": [],
+    "dtype": "BF16",
+    "tensors": 290,
+    "has_training_args": false,
+    "has_loss_txt": true,
+    "weights_bytes": 988097824
+   },
+   "loki": {
+    "lines": 1265,
+    "capped": false,
+    "lr_max": {
+     "UNAVAILABLE": "no learning_rate lines"
+    },
+    "lr_first": null,
+    "log_steps": 0,
+    "evals": 0,
+    "eval_losses": [],
+    "epoch_max": null,
+    "tracebacks": 0,
+    "oom": 0,
+    "ladder_rungs": [],
+    "fallback": false,
+    "batch": null,
+    "ga": null,
+    "epochs": null,
+    "lora_r": null,
+    "maxlen": null,
+    "kl_mentions": 0,
+    "finished": false,
+    "first_ts": null,
+    "last_ts": null
+   }
+  },
+  {
+   "hotkey": "5E6p1x3eCugTn634Dc2GrwyTjwb6j6hgzEGzZgQ8Xuyr5fXW",
+   "ours": false,
+   "rank": 8,
+   "test_loss": 1.2833727598190308,
+   "reason": "Ranked below top 1 by test_loss",
+   "submitted": true,
+   "hf": {
+    "method": "full fine-tune",
+    "file_count": 11,
+    "base": null,
+    "hdr_rank": [],
+    "dtype": "BF16",
+    "tensors": 290,
+    "has_training_args": false,
+    "has_loss_txt": true,
+    "weights_bytes": 988097824
+   },
+   "loki": {
+    "lines": 1584,
+    "capped": false,
+    "lr_max": {
+     "UNAVAILABLE": "no learning_rate lines"
+    },
+    "lr_first": null,
+    "log_steps": 0,
+    "evals": 0,
+    "eval_losses": [],
+    "epoch_max": null,
+    "tracebacks": 0,
+    "oom": 0,
+    "ladder_rungs": [],
+    "fallback": false,
+    "batch": null,
+    "ga": null,
+    "epochs": null,
+    "lora_r": null,
+    "maxlen": null,
+    "kl_mentions": 0,
+    "finished": false,
+    "first_ts": null,
+    "last_ts": null
+   }
+  },
+  {
+   "hotkey": "5GcAxvH7oAr9hT2bauAU8y2B8GUiZbvmwrrnj1B4op9toCnY",
+   "ours": false,
+   "rank": 9,
+   "test_loss": 1.2854962348937988,
+   "reason": "Ranked below top 1 by test_loss",
+   "submitted": true,
+   "hf": {
+    "method": "full fine-tune",
+    "file_count": 8,
+    "base": null,
+    "hdr_rank": [],
+    "dtype": "BF16",
+    "tensors": 290,
+    "has_training_args": false,
+    "has_loss_txt": true,
+    "weights_bytes": 988097824
+   },
+   "loki": {
+    "lines": 351,
+    "capped": false,
+    "lr_max": {
+     "UNAVAILABLE": "no learning_rate lines"
+    },
+    "lr_first": null,
+    "log_steps": 0,
+    "evals": 0,
+    "eval_losses": [],
+    "epoch_max": null,
+    "tracebacks": 0,
+    "oom": 0,
+    "ladder_rungs": [],
+    "fallback": false,
+    "batch": null,
+    "ga": null,
+    "epochs": null,
+    "lora_r": null,
+    "maxlen": null,
+    "kl_mentions": 0,
+    "finished": false,
+    "first_ts": null,
+    "last_ts": null
+   }
+  },
+  {
+   "hotkey": "5EUHojrMhLPHWFpgZDS6oHyYgWSe6haqnfKE2mdy4U7bEEnQ",
+   "ours": false,
+   "rank": 10,
+   "test_loss": 1.2888904809951782,
+   "reason": "Ranked below top 1 by test_loss",
+   "submitted": true,
+   "hf": {
+    "method": "full fine-tune",
+    "file_count": 11,
+    "base": null,
+    "hdr_rank": [],
+    "dtype": "BF16",
+    "tensors": 290,
+    "has_training_args": false,
+    "has_loss_txt": true,
+    "weights_bytes": 988097824
+   },
+   "loki": {
+    "lines": 1307,
+    "capped": false,
+    "lr_max": {
+     "UNAVAILABLE": "no learning_rate lines"
+    },
+    "lr_first": null,
+    "log_steps": 0,
+    "evals": 0,
+    "eval_losses": [],
+    "epoch_max": null,
+    "tracebacks": 0,
+    "oom": 0,
+    "ladder_rungs": [],
+    "fallback": false,
+    "batch": null,
+    "ga": null,
+    "epochs": null,
+    "lora_r": null,
+    "maxlen": null,
+    "kl_mentions": 0,
+    "finished": false,
+    "first_ts": null,
+    "last_ts": null
+   }
+  },
+  {
+   "hotkey": "5EcZmz41oFGaJVte8DEzuGd8QyBBxjhTobhrK4A5y4b1Q24Y",
+   "ours": false,
+   "rank": 11,
+   "test_loss": 1.2943605184555054,
+   "reason": "Ranked below top 1 by test_loss",
+   "submitted": true,
+   "hf": {
+    "method": "LoRA",
+    "file_count": 8,
+    "base": "unsloth/Qwen2.5-0.5B-Instruct",
+    "lora_r": 128,
+    "lora_alpha": 512,
+    "targets": [
+     "o_proj",
+     "k_proj",
+     "v_proj",
+     "q_proj",
+     "down_proj",
+     "gate_proj",
+     "up_proj"
+    ],
+    "dropout": 0.1,
+    "use_rslora": false,
+    "use_dora": false,
+    "init": true,
+    "hdr_rank": [
+     128
+    ],
+    "dtype": "F32",
+    "tensors": 336,
+    "has_training_args": false,
+    "has_loss_txt": false,
+    "weights_bytes": 281587880
+   },
+   "loki": {
+    "lines": 375,
+    "capped": false,
+    "lr_max": {
+     "UNAVAILABLE": "no learning_rate lines"
+    },
+    "lr_first": null,
+    "log_steps": 0,
+    "evals": 0,
+    "eval_losses": [],
+    "epoch_max": null,
+    "tracebacks": 0,
+    "oom": 0,
+    "ladder_rungs": [],
+    "fallback": false,
+    "batch": [
+     "70"
+    ],
+    "ga": [
+     "1"
+    ],
+    "epochs": [
+     "3",
+     "4"
+    ],
+    "lora_r": [
+     "128"
+    ],
+    "maxlen": [
+     "4096"
+    ],
+    "kl_mentions": 3,
+    "finished": false,
+    "first_ts": null,
+    "last_ts": null
+   }
+  },
+  {
+   "hotkey": "5DLy32QP39w7Y5xJSggknW6KH8mDnRpQ2PPXETtVuC6637Ev",
+   "ours": false,
+   "rank": 12,
+   "test_loss": 1.301453709602356,
+   "reason": "Ranked below top 1 by test_loss",
+   "submitted": true,
+   "hf": {
+    "method": "full fine-tune",
+    "file_count": 8,
+    "base": null,
+    "hdr_rank": [],
+    "dtype": "BF16",
+    "tensors": 290,
+    "has_training_args": false,
+    "has_loss_txt": true,
+    "weights_bytes": 988097792
+   },
+   "loki": {
+    "lines": 1897,
+    "capped": false,
+    "lr_max": {
+     "UNAVAILABLE": "no learning_rate lines"
+    },
+    "lr_first": null,
+    "log_steps": 0,
+    "evals": 0,
+    "eval_losses": [],
+    "epoch_max": null,
+    "tracebacks": 0,
+    "oom": 0,
+    "ladder_rungs": [],
+    "fallback": false,
+    "batch": null,
+    "ga": null,
+    "epochs": null,
+    "lora_r": null,
+    "maxlen": null,
+    "kl_mentions": 0,
+    "finished": false,
+    "first_ts": null,
+    "last_ts": null
+   }
+  },
+  {
+   "hotkey": "5HLA2QWYy3GpNwCiBCwMMhGw5hpPosSeZ41my8B3nuFDQHNF",
+   "ours": false,
+   "rank": 13,
+   "test_loss": 1.3210453987121582,
+   "reason": "Bottom 25% ranked by test_loss",
+   "submitted": true,
+   "hf": {
+    "method": "LoRA",
+    "file_count": 10,
+    "base": "unsloth/Qwen2.5-0.5B-Instruct",
+    "lora_r": 32,
+    "lora_alpha": 64,
+    "targets": [
+     "down_proj",
+     "q_proj",
+     "up_proj",
+     "o_proj",
+     "gate_proj",
+     "v_proj",
+     "k_proj"
+    ],
+    "dropout": 0.05,
+    "use_rslora": false,
+    "use_dora": false,
+    "init": true,
+    "hdr_rank": [
+     32
+    ],
+    "dtype": "F32",
+    "tensors": 336,
+    "has_training_args": false,
+    "has_loss_txt": false,
+    "weights_bytes": 70430032
+   },
+   "loki": {
+    "lines": 219,
+    "capped": false,
+    "lr_max": {
+     "UNAVAILABLE": "no learning_rate lines"
+    },
+    "lr_first": null,
+    "log_steps": 0,
+    "evals": 0,
+    "eval_losses": [],
+    "epoch_max": null,
+    "tracebacks": 0,
+    "oom": 0,
+    "ladder_rungs": [],
+    "fallback": false,
+    "batch": null,
+    "ga": null,
+    "epochs": null,
+    "lora_r": null,
+    "maxlen": null,
+    "kl_mentions": 0,
+    "finished": false,
+    "first_ts": null,
+    "last_ts": null
+   }
+  },
+  {
+   "hotkey": "5FW2EqiCeLknueng7Bp9rj4JrPNv5F6nxNg7yUtART6U1odT",
+   "ours": false,
+   "rank": 14,
+   "test_loss": 1.328057885169983,
+   "reason": "Bottom 25% ranked by test_loss",
+   "submitted": true,
+   "hf": {
+    "method": "full fine-tune",
+    "file_count": 8,
+    "base": null,
+    "hdr_rank": [],
+    "dtype": "BF16",
+    "tensors": 290,
+    "has_training_args": false,
+    "has_loss_txt": true,
+    "weights_bytes": 988097824
+   },
+   "loki": {
+    "lines": 1781,
+    "capped": false,
+    "lr_max": {
+     "UNAVAILABLE": "no learning_rate lines"
+    },
+    "lr_first": null,
+    "log_steps": 0,
+    "evals": 0,
+    "eval_losses": [],
+    "epoch_max": null,
+    "tracebacks": 0,
+    "oom": 0,
+    "ladder_rungs": [],
+    "fallback": false,
+    "batch": null,
+    "ga": null,
+    "epochs": null,
+    "lora_r": null,
+    "maxlen": null,
+    "kl_mentions": 0,
+    "finished": false,
+    "first_ts": null,
+    "last_ts": null
+   }
+  },
+  {
+   "hotkey": "5DU5Qyae6n5c3PCDY7EBidC8FaZZCb1ykTMAF2JCXm63oQcf",
+   "ours": false,
+   "rank": 15,
+   "test_loss": 1.3678549528121948,
+   "reason": "Bottom 25% ranked by test_loss",
+   "submitted": true,
+   "hf": {
+    "method": "full fine-tune",
+    "file_count": 10,
+    "base": null,
+    "hdr_rank": [],
+    "dtype": "BF16",
+    "tensors": 290,
+    "has_training_args": false,
+    "has_loss_txt": false,
+    "weights_bytes": 988097824
+   },
+   "loki": {
+    "lines": 1943,
+    "capped": false,
+    "lr_max": 7.528250160194466e-05,
+    "lr_first": 7.528250160194466e-05,
+    "log_steps": 24,
+    "evals": 13,
+    "eval_losses": [
+     2.68163166002544,
+     2.1448534753300503,
+     1.8187407875258124,
+     1.729639001474352,
+     1.6438332149434185,
+     1.5240945854114147,
+     1.5104331604404775,
+     1.4785386050131195,
+     1.3980733467254765,
+     1.3751222630234843,
+     1.3676170664102227,
+     1.3473921576757468
+    ],
+    "epoch_max": 1.38,
+    "tracebacks": 0,
+    "oom": 0,
+    "ladder_rungs": [],
+    "fallback": false,
+    "batch": null,
+    "ga": null,
+    "epochs": null,
+    "lora_r": null,
+    "maxlen": null,
+    "kl_mentions": 0,
+    "finished": false,
+    "first_ts": "2026-09-15 12:14:36",
+    "last_ts": "2026-09-15 12:14:36"
+   }
+  },
+  {
+   "hotkey": "5EhyCWPuyYUDD5RMQ8FM5jknMqfTtSQZ3a3PDARRhjSdCAYb",
+   "ours": false,
+   "rank": 16,
+   "test_loss": 1.3747272491455078,
+   "reason": "Bottom 25% ranked by test_loss",
+   "submitted": true,
+   "hf": {
+    "method": "full fine-tune",
+    "file_count": 8,
+    "base": null,
+    "hdr_rank": [],
+    "dtype": "BF16",
+    "tensors": 290,
+    "has_training_args": false,
+    "has_loss_txt": true,
+    "weights_bytes": 988097824
+   },
+   "loki": {
+    "lines": 1441,
+    "capped": false,
+    "lr_max": {
+     "UNAVAILABLE": "no learning_rate lines"
+    },
+    "lr_first": null,
+    "log_steps": 0,
+    "evals": 0,
+    "eval_losses": [],
+    "epoch_max": null,
+    "tracebacks": 0,
+    "oom": 0,
+    "ladder_rungs": [],
+    "fallback": false,
+    "batch": null,
+    "ga": null,
+    "epochs": null,
+    "lora_r": null,
+    "maxlen": null,
+    "kl_mentions": 0,
+    "finished": false,
+    "first_ts": null,
+    "last_ts": null
+   }
+  },
+  {
+   "hotkey": "5EvaWzGbtasB2yh6fev3fhdYF6vXzviPPijnh3SLRm2KDP8F",
+   "ours": false,
+   "rank": 17,
+   "test_loss": 0.0,
+   "reason": null,
+   "submitted": false,
+   "hf": {
+    "UNAVAILABLE": "no hf record (no repo or fetch failed)"
+   },
+   "loki": {
+    "lines": 250,
+    "capped": false,
+    "lr_max": {
+     "UNAVAILABLE": "no learning_rate lines"
+    },
+    "lr_first": null,
+    "log_steps": 0,
+    "evals": 0,
+    "eval_losses": [],
+    "epoch_max": null,
+    "tracebacks": 2,
+    "oom": 0,
+    "ladder_rungs": [],
+    "fallback": false,
+    "batch": null,
+    "ga": null,
+    "epochs": null,
+    "lora_r": null,
+    "maxlen": null,
+    "kl_mentions": 0,
+    "finished": false,
+    "first_ts": null,
+    "last_ts": null
+   }
+  }
+ ]
+}

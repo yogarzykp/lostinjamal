@@ -1,0 +1,99 @@
+{
+ "provenance": {
+  "endpoint": "https://huggingface.co/api/models/gradients-io-tournaments/tournament-tourn_5c64e784a087074a_20260914-69994e1c-f07f-4a17-acc7-e4b3af7d8f98-5GU4Xkd3/tree/main?recursive=1",
+  "query": {
+   "repo": "gradients-io-tournaments/tournament-tourn_5c64e784a087074a_20260914-69994e1c-f07f-4a17-acc7-e4b3af7d8f98-5GU4Xkd3"
+  },
+  "fetched_at": "2026-09-19T05:04:49Z"
+ },
+ "repo": "gradients-io-tournaments/tournament-tourn_5c64e784a087074a_20260914-69994e1c-f07f-4a17-acc7-e4b3af7d8f98-5GU4Xkd3",
+ "method": "full fine-tune",
+ "file_count": 10,
+ "tree": [
+  {
+   "path": ".gitattributes",
+   "size": 1570
+  },
+  {
+   "path": "config.json",
+   "size": 658
+  },
+  {
+   "path": "generation_config.json",
+   "size": 79
+  },
+  {
+   "path": "model-00001-of-00002.safetensors",
+   "size": 4945242264
+  },
+  {
+   "path": "model-00002-of-00002.safetensors",
+   "size": 67121608
+  },
+  {
+   "path": "model.safetensors.index.json",
+   "size": 13489
+  },
+  {
+   "path": "special_tokens_map.json",
+   "size": 555
+  },
+  {
+   "path": "tokenizer.json",
+   "size": 34362915
+  },
+  {
+   "path": "tokenizer.model",
+   "size": 4241023
+  },
+  {
+   "path": "tokenizer_config.json",
+   "size": 46376
+  }
+ ],
+ "config_yaml": {
+  "status": "UNAVAILABLE",
+  "reason": "not published by this miner"
+ },
+ "safetensors_header": {
+  "metadata": {
+   "format": "pt"
+  },
+  "tensor_count": 160,
+  "lora_rank": [],
+  "dtype": "BF16",
+  "target_modules": []
+ },
+ "base_model_name_or_path": null,
+ "files": {
+  "config.json": {
+   "architectures": [
+    "GemmaForCausalLM"
+   ],
+   "attention_bias": false,
+   "attention_dropout": 0.0,
+   "bos_token_id": 2,
+   "eos_token_id": 1,
+   "head_dim": 256,
+   "hidden_act": "gelu",
+   "hidden_activation": null,
+   "hidden_size": 2048,
+   "initializer_range": 0.02,
+   "intermediate_size": 16384,
+   "max_position_embeddings": 8192,
+   "model_type": "gemma",
+   "num_attention_heads": 8,
+   "num_hidden_layers": 18,
+   "num_key_value_heads": 1,
+   "pad_token_id": 0,
+   "rms_norm_eps": 1e-06,
+   "rope_theta": 10000.0,
+   "torch_dtype": "bfloat16",
+   "transformers_version": "4.51.3",
+   "unsloth_version": "2024.9",
+   "use_cache": true,
+   "vocab_size": 256000
+  }
+ },
+ "not_found": {}
+}

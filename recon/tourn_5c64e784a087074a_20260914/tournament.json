@@ -1,0 +1,65 @@
+{
+ "tournament_id": "tourn_5c64e784a087074a_20260914",
+ "provenance": {
+  "endpoint": "https://www.gradients.io/app/research/tournament/tourn_5c64e784a087074a_20260914",
+  "query": {
+   "tourn_id": "tourn_5c64e784a087074a_20260914"
+  },
+  "fetched_at": "2026-09-19T04:59:22Z"
+ },
+ "http_status": 200,
+ "participants": {
+  "hotkeys": [
+   "5CkYizfLyb5hLmcK4WtBGG13WKTQrynHBEV6qC23748g17zC",
+   "5DDVSRDLbcd57ZHnzFNjHdvcffekjiRdRJeBfWUHeSkWFprv",
+   "5DLy32QP39w7Y5xJSggknW6KH8mDnRpQ2PPXETtVuC6637Ev",
+   "5DU5Qyae6n5c3PCDY7EBidC8FaZZCb1ykTMAF2JCXm63oQcf",
+   "5DXVNvDmGZqdXbqRzsJZdJVoAgbLdhdFrrrmtAAfsh4QkGUU",
+   "5E2fNjMWkC7NhjFsobwdDT1ym9R8ws7iDMnaZtE1RcnAsfZf",
+   "5E6p1x3eCugTn634Dc2GrwyTjwb6j6hgzEGzZgQ8Xuyr5fXW",
+   "5EUHojrMhLPHWFpgZDS6oHyYgWSe6haqnfKE2mdy4U7bEEnQ",
+   "5EcZmz41oFGaJVte8DEzuGd8QyBBxjhTobhrK4A5y4b1Q24Y",
+   "5EeEWvKfXj84kWKid9tAmFSiXTUGJT87oi9AjRYdW1rx2KYA",
+   "5EhyCWPuyYUDD5RMQ8FM5jknMqfTtSQZ3a3PDARRhjSdCAYb",
+   "5EvaWzGbtasB2yh6fev3fhdYF6vXzviPPijnh3SLRm2KDP8F",
+   "5FW2EqiCeLknueng7Bp9rj4JrPNv5F6nxNg7yUtART6U1odT",
+   "5FtF14uZ1mACHivSorX8nTn8gx3AdTATAhV7CZShGTtHsb3u",
+   "5GU4Xkd3dCGTU3s8VLcHGc5wsD5M8XyxDca5yDQhYm1mVXFu",
+   "5GcAxvH7oAr9hT2bauAU8y2B8GUiZbvmwrrnj1B4op9toCnY",
+   "5HBgDWKxNX3333Yit3qMokkYY4Guz1r8Qfons2UJTSU5oqjV",
+   "5HLA2QWYy3GpNwCiBCwMMhGw5hpPosSeZ41my8B3nuFDQHNF"
+  ],
+  "training_repositories": [],
+  "raw": null
+ },
+ "status": "completed",
+ "base_winner_hotkey": "5H9AM1bG7m1BFagftX3B4X1SfyeBSsMYodTcWuM9ieQZk2NK",
+ "winner_hotkey": "5GU4Xkd3dCGTU3s8VLcHGc5wsD5M8XyxDca5yDQhYm1mVXFu",
+ "tasks": {
+  "task_ids": [
+   "059bf721-cca5-4d02-9832-a794cf37074b",
+   "067761fe-b567-44d7-8863-4cd41cc12261",
+   "22c5aeee-9805-43c5-98a6-90ac35037b46",
+   "24c8317e-07e4-4424-b996-b336dde5a580",
+   "2bf6eb14-02e1-45db-bc05-279da81df666",
+   "35c9e96d-3948-4e40-8272-8bc19b13dd43",
+   "4022aee4-05b1-4533-b1d9-0c6f52bbb747",
+   "5d21390a-867a-42e8-aa7f-3d2d22305484",
+   "87c51c39-914b-4c7f-a97a-4925c6ec58b3",
+   "90d361cb-0b97-464a-9fda-36eb34c99261"
+  ],
+  "task_types": [
+   "ChatTask",
+   "DpoTask",
+   "GrpoTask",
+   "InstructTextTask"
+  ],
+  "has_paired_example_wins": true,
+  "has_boss_round_performance": true,
+  "raw": null
+ },
+ "diff_report": {
+  "status": "FETCHED",
+  "length": 11029
+ }
+}

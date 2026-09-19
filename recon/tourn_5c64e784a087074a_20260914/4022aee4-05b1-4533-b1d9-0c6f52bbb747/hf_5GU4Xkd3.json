@@ -1,0 +1,119 @@
+{
+ "provenance": {
+  "endpoint": "https://huggingface.co/api/models/gradients-io-tournaments/tournament-tourn_5c64e784a087074a_20260914-7b63e4e3-55a6-4035-ae8b-898e676662c6-5GU4Xkd3/tree/main?recursive=1",
+  "query": {
+   "repo": "gradients-io-tournaments/tournament-tourn_5c64e784a087074a_20260914-7b63e4e3-55a6-4035-ae8b-898e676662c6-5GU4Xkd3"
+  },
+  "fetched_at": "2026-09-19T05:05:15Z"
+ },
+ "repo": "gradients-io-tournaments/tournament-tourn_5c64e784a087074a_20260914-7b63e4e3-55a6-4035-ae8b-898e676662c6-5GU4Xkd3",
+ "method": "full fine-tune",
+ "file_count": 11,
+ "tree": [
+  {
+   "path": ".gitattributes",
+   "size": 1519
+  },
+  {
+   "path": "config.json",
+   "size": 1062
+  },
+  {
+   "path": "generation_config.json",
+   "size": 184
+  },
+  {
+   "path": "loss.txt",
+   "size": 22
+  },
+  {
+   "path": "model-00001-of-00003.safetensors",
+   "size": 4938985352
+  },
+  {
+   "path": "model-00002-of-00003.safetensors",
+   "size": 4947390880
+  },
+  {
+   "path": "model-00003-of-00003.safetensors",
+   "size": 3590488816
+  },
+  {
+   "path": "model.safetensors.index.json",
+   "size": 23950
+  },
+  {
+   "path": "special_tokens_map.json",
+   "size": 586
+  },
+  {
+   "path": "tokenizer.json",
+   "size": 3618870
+  },
+  {
+   "path": "tokenizer_config.json",
+   "size": 1105
+  }
+ ],
+ "config_yaml": {
+  "status": "UNAVAILABLE",
+  "reason": "not published by this miner"
+ },
+ "safetensors_header": {
+  "metadata": {
+   "format": "pt"
+  },
+  "tensor_count": 109,
+  "lora_rank": [],
+  "dtype": "BF16",
+  "target_modules": []
+ },
+ "base_model_name_or_path": null,
+ "files": {
+  "config.json": {
+   "architectures": [
+    "LlamaForCausalLM"
+   ],
+   "attention_bias": false,
+   "attention_dropout": 0.0,
+   "auto_map": {
+    "AutoConfig": "configuration_llama.LlamaConfig",
+    "AutoModelForCausalLM": "modeling_llama_together_yarn.LlamaForCausalLM"
+   },
+   "bos_token_id": 1,
+   "dtype": "bfloat16",
+   "eos_token_id": 2,
+   "head_dim": 128,
+   "hidden_act": "silu",
+   "hidden_size": 4096,
+   "initializer_range": 0.02,
+   "intermediate_size": 11008,
+   "max_position_embeddings": 65536,
+   "mlp_bias": false,
+   "model_type": "llama",
+   "num_attention_heads": 32,
+   "num_hidden_layers": 32,
+   "num_key_value_heads": 32,
+   "pad_token_id": 0,
+   "pretraining_tp": 1,
+   "rms_norm_eps": 1e-05,
+   "rope_parameters": {
+    "factor": 16.0,
+    "finetuned": true,
+    "original_max_position_embeddings": 4096,
+    "rope_theta": 10000.0,
+    "rope_type": "yarn",
+    "type": "yarn"
+   },
+   "rope_scaling": null,
+   "rope_theta": 10000.0,
+   "tie_word_embeddings": false,
+   "torch_dtype": "bfloat16",
+   "transformers_version": "4.51.3",
+   "use_cache": false,
+   "vocab_size": 32000
+  },
+  "loss.txt": "130,2.1936776638031006"
+ },
+ "not_found": {}
+}
