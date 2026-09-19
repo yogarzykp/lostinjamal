@@ -1,0 +1,556 @@
+{
+ "tourn": "tourn_5c64e784a087074a_20260914",
+ "at": "2026-09-19T03:44:39.479656+00:00",
+ "status": "completed",
+ "winner": "5GU4Xkd3dCGTU3s8VLcHGc5wsD5M8XyxDca5yDQhYm1mVXFu",
+ "base_winner": "5H9AM1bG7m1BFagftX3B4X1SfyeBSsMYodTcWuM9ieQZk2NK",
+ "field": [
+  "5CkYizfLyb5hLmcK4WtBGG13WKTQrynHBEV6qC23748g17zC",
+  "5DDVSRDLbcd57ZHnzFNjHdvcffekjiRdRJeBfWUHeSkWFprv",
+  "5DLy32QP39w7Y5xJSggknW6KH8mDnRpQ2PPXETtVuC6637Ev",
+  "5DU5Qyae6n5c3PCDY7EBidC8FaZZCb1ykTMAF2JCXm63oQcf",
+  "5DXVNvDmGZqdXbqRzsJZdJVoAgbLdhdFrrrmtAAfsh4QkGUU",
+  "5E2fNjMWkC7NhjFsobwdDT1ym9R8ws7iDMnaZtE1RcnAsfZf",
+  "5E6p1x3eCugTn634Dc2GrwyTjwb6j6hgzEGzZgQ8Xuyr5fXW",
+  "5EUHojrMhLPHWFpgZDS6oHyYgWSe6haqnfKE2mdy4U7bEEnQ",
+  "5EcZmz41oFGaJVte8DEzuGd8QyBBxjhTobhrK4A5y4b1Q24Y",
+  "5EeEWvKfXj84kWKid9tAmFSiXTUGJT87oi9AjRYdW1rx2KYA",
+  "5EhyCWPuyYUDD5RMQ8FM5jknMqfTtSQZ3a3PDARRhjSdCAYb",
+  "5EvaWzGbtasB2yh6fev3fhdYF6vXzviPPijnh3SLRm2KDP8F",
+  "5FW2EqiCeLknueng7Bp9rj4JrPNv5F6nxNg7yUtART6U1odT",
+  "5FtF14uZ1mACHivSorX8nTn8gx3AdTATAhV7CZShGTtHsb3u",
+  "5GU4Xkd3dCGTU3s8VLcHGc5wsD5M8XyxDca5yDQhYm1mVXFu",
+  "5GcAxvH7oAr9hT2bauAU8y2B8GUiZbvmwrrnj1B4op9toCnY",
+  "5HBgDWKxNX3333Yit3qMokkYY4Guz1r8Qfons2UJTSU5oqjV",
+  "5HLA2QWYy3GpNwCiBCwMMhGw5hpPosSeZ41my8B3nuFDQHNF"
+ ],
+ "task_ids": [
+  "059bf721-cca5-4d02-9832-a794cf37074b",
+  "067761fe-b567-44d7-8863-4cd41cc12261",
+  "22c5aeee-9805-43c5-98a6-90ac35037b46",
+  "24c8317e-07e4-4424-b996-b336dde5a580",
+  "2bf6eb14-02e1-45db-bc05-279da81df666",
+  "35c9e96d-3948-4e40-8272-8bc19b13dd43",
+  "4022aee4-05b1-4533-b1d9-0c6f52bbb747",
+  "5d21390a-867a-42e8-aa7f-3d2d22305484",
+  "87c51c39-914b-4c7f-a97a-4925c6ec58b3",
+  "90d361cb-0b97-464a-9fda-36eb34c99261"
+ ],
+ "tasks": {
+  "059bf721-cca5-4d02-9832-a794cf37074b": {
+   "model": "gradients-io-tournaments/tournament-tourn_2ba0f79237bffcf7_20260907-3da4fc7a-d2c2-4412-802f-fba9fd255704-5GcAxvH7",
+   "type": "ChatTask",
+   "status": "success",
+   "hours": 5.0,
+   "created": "2026-09-15T17:15:42.712958Z",
+   "termination": "2026-09-16T14:55:58.224043Z",
+   "delays": 0,
+   "rows": 2,
+   "ours": null,
+   "scored": [
+    {
+     "hk": "5CkYizfLyb5h",
+     "loss": 0.58303,
+     "rank": 1,
+     "reason": "Winner at per-example win rate (Challenger won 97.4% of 4201 decided examples (b"
+    },
+    {
+     "hk": "5GU4Xkd3dCGT",
+     "loss": 0.68709,
+     "rank": 2,
+     "reason": "Lost to winner 5CkYizfLyb5hLmcK4WtBGG13WKTQrynHBEV6qC23748g17zC at per-example w"
+    }
+   ],
+   "_error": null
+  },
+  "067761fe-b567-44d7-8863-4cd41cc12261": {
+   "model": "unsloth/Llama-3.2-1B-Instruct",
+   "type": "InstructTextTask",
+   "status": "success",
+   "hours": 1.0,
+   "created": "2026-09-15T03:16:00.363481Z",
+   "termination": "2026-09-15T09:52:35.323330Z",
+   "delays": 0,
+   "rows": 17,
+   "ours": {
+    "submission_id": "8639dedc-ee79-4c9b-8bb6-d10cb98d79a3",
+    "test_loss": 1.1401609182357788,
+    "quality_score": 0.0,
+    "rank": 9,
+    "score_reason": "Ranked below top 1 by test_loss",
+    "repo": "gradients-io-tournaments/tournament-tourn_5c64e784a087074a_20260914-12a8c324-8bae-4f43-b01f-14b0fa6dbf62-5HBgDWKx"
+   },
+   "scored": [
+    {
+     "hk": "5FtF14uZ1mAC",
+     "loss": 1.0545,
+     "rank": 1,
+     "reason": "Ranked 1st by test_loss"
+    },
+    {
+     "hk": "5DDVSRDLbcd5",
+     "loss": 1.0553,
+     "rank": 2,
+     "reason": "Ranked below top 1 by test_loss"
+    },
+    {
+     "hk": "5CkYizfLyb5h",
+     "loss": 1.05565,
+     "rank": 3,
+     "reason": "Ranked below top 1 by test_loss"
+    },
+    {
+     "hk": "5E2fNjMWkC7N",
+     "loss": 1.08295,
+     "rank": 4,
+     "reason": "Ranked below top 1 by test_loss"
+    },
+    {
+     "hk": "5EhyCWPuyYUD",
+     "loss": 1.08346,
+     "rank": 5,
+     "reason": "Ranked below top 1 by test_loss"
+    },
+    {
+     "hk": "5DXVNvDmGZqd",
+     "loss": 1.09092,
+     "rank": 6,
+     "reason": "Ranked below top 1 by test_loss"
+    },
+    {
+     "hk": "5DLy32QP39w7",
+     "loss": 1.10705,
+     "rank": 7,
+     "reason": "Ranked below top 1 by test_loss"
+    },
+    {
+     "hk": "5GcAxvH7oAr9",
+     "loss": 1.11896,
+     "rank": 8,
+     "reason": "Ranked below top 1 by test_loss"
+    },
+    {
+     "hk": "5HBgDWKxNX33",
+     "loss": 1.14016,
+     "rank": 9,
+     "reason": "Ranked below top 1 by test_loss"
+    },
+    {
+     "hk": "5EcZmz41oFGa",
+     "loss": 1.19157,
+     "rank": 10,
+     "reason": "Ranked below top 1 by test_loss"
+    },
+    {
+     "hk": "5EeEWvKfXj84",
+     "loss": 1.19396,
+     "rank": 11,
+     "reason": "Ranked below top 1 by test_loss"
+    },
+    {
+     "hk": "5FW2EqiCeLkn",
+     "loss": 1.20418,
+     "rank": 12,
+     "reason": "Ranked below top 1 by test_loss"
+    },
+    {
+     "hk": "5DU5Qyae6n5c",
+     "loss": 1.23144,
+     "rank": 13,
+     "reason": "Bottom 25% ranked by test_loss"
+    },
+    {
+     "hk": "5EUHojrMhLPH",
+     "loss": 1.24575,
+     "rank": 14,
+     "reason": "Bottom 25% ranked by test_loss"
+    },
+    {
+     "hk": "5HLA2QWYy3Gp",
+     "loss": 1.27544,
+     "rank": 15,
+     "reason": "Bottom 25% ranked by test_loss"
+    },
+    {
+     "hk": "5E6p1x3eCugT",
+     "loss": 1.51614,
+     "rank": 16,
+     "reason": "Bottom 25% ranked by test_loss"
+    }
+   ],
+   "_error": null
+  },
+  "22c5aeee-9805-43c5-98a6-90ac35037b46": {
+   "model": "unsloth/Llama-3.1-Storm-8B",
+   "type": "InstructTextTask",
+   "status": "success",
+   "hours": 1.0,
+   "created": "2026-09-15T18:11:48.936867Z",
+   "termination": "2026-09-15T21:18:48.215211Z",
+   "delays": 0,
+   "rows": 2,
+   "ours": null,
+   "scored": [
+    {
+     "hk": "5GU4Xkd3dCGT",
+     "loss": 0.54734,
+     "rank": 1,
+     "reason": "Winner at per-example win rate (Challenger win rate 30.1% (bound 25.5%) below re"
+    },
+    {
+     "hk": "5CkYizfLyb5h",
+     "loss": 0.5569,
+     "rank": 2,
+     "reason": "Lost to winner 5GU4Xkd3dCGTU3s8VLcHGc5wsD5M8XyxDca5yDQhYm1mVXFu at per-example w"
+    }
+   ],
+   "_error": null
+  },
+  "24c8317e-07e4-4424-b996-b336dde5a580": {
+   "model": "Qwen/Qwen3-32B",
+   "type": "InstructTextTask",
+   "status": "success",
+   "hours": 1.25,
+   "created": "2026-09-15T14:51:23.705548Z",
+   "termination": "2026-09-15T16:22:47.500573Z",
+   "delays": 0,
+   "rows": 2,
+   "ours": null,
+   "scored": [
+    {
+     "hk": "5CkYizfLyb5h",
+     "loss": 0.40361,
+     "rank": 1,
+     "reason": "Winner at per-example win rate (won 166/225 decided examples (73.8%))"
+    },
+    {
+     "hk": "5DDVSRDLbcd5",
+     "loss": 0.40922,
+     "rank": 2,
+     "reason": "Lost to winner 5CkYizfLyb5hLmcK4WtBGG13WKTQrynHBEV6qC23748g17zC at per-example w"
+    }
+   ],
+   "_error": null
+  },
+  "2bf6eb14-02e1-45db-bc05-279da81df666": {
+   "model": "tiiuae/falcon-rw-1b",
+   "type": "GrpoTask",
+   "status": "success",
+   "hours": 1.5,
+   "created": "2026-09-15T17:45:15.721919Z",
+   "termination": "2026-09-15T19:37:00.319630Z",
+   "delays": 0,
+   "rows": 2,
+   "ours": null,
+   "scored": [
+    {
+     "hk": "5GU4Xkd3dCGT",
+     "loss": 0.43603,
+     "rank": 1,
+     "reason": "Winner at 1.0% boss-round win margin"
+    },
+    {
+     "hk": "5CkYizfLyb5h",
+     "loss": 0.34779,
+     "rank": 2,
+     "reason": "Lost to winner 5GU4Xkd3dCGTU3s8VLcHGc5wsD5M8XyxDca5yDQhYm1mVXFu at 1.0% boss-rou"
+    }
+   ],
+   "_error": null
+  },
+  "35c9e96d-3948-4e40-8272-8bc19b13dd43": {
+   "model": "unsloth/codegemma-2b",
+   "type": "DpoTask",
+   "status": "success",
+   "hours": 1.0,
+   "created": "2026-09-15T17:45:17.433512Z",
+   "termination": "2026-09-15T20:58:39.035625Z",
+   "delays": 0,
+   "rows": 2,
+   "ours": null,
+   "scored": [
+    {
+     "hk": "5CkYizfLyb5h",
+     "loss": 2.24098,
+     "rank": 1,
+     "reason": "Lost to winner 5GU4Xkd3dCGTU3s8VLcHGc5wsD5M8XyxDca5yDQhYm1mVXFu at per-example w"
+    },
+    {
+     "hk": "5GU4Xkd3dCGT",
+     "loss": 2.44585,
+     "rank": 2,
+     "reason": "Winner at per-example win rate (Challenger win rate 49.3% (bound 45.3%) below re"
+    }
+   ],
+   "_error": null
+  },
+  "4022aee4-05b1-4533-b1d9-0c6f52bbb747": {
+   "model": "NousResearch/Yarn-Llama-2-7b-64k",
+   "type": "InstructTextTask",
+   "status": "success",
+   "hours": 1.25,
+   "created": "2026-09-15T20:05:47.314203Z",
+   "termination": "2026-09-15T21:48:07.627383Z",
+   "delays": 0,
+   "rows": 2,
+   "ours": null,
+   "scored": [
+    {
+     "hk": "5CkYizfLyb5h",
+     "loss": 2.22578,
+     "rank": 1,
+     "reason": "Winner at per-example win rate (Challenger won 97.9% of 934 decided examples (bo"
+    },
+    {
+     "hk": "5GU4Xkd3dCGT",
+     "loss": 2.27234,
+     "rank": 2,
+     "reason": "Lost to winner 5CkYizfLyb5hLmcK4WtBGG13WKTQrynHBEV6qC23748g17zC at per-example w"
+    }
+   ],
+   "_error": null
+  },
+  "5d21390a-867a-42e8-aa7f-3d2d22305484": {
+   "model": "zerofata/L3.3-GeneticLemonade-Final-70B",
+   "type": "InstructTextTask",
+   "status": "success",
+   "hours": 2.25,
+   "created": "2026-09-15T17:16:43.874232Z",
+   "termination": "2026-09-15T19:31:43.874232Z",
+   "delays": 0,
+   "rows": 2,
+   "ours": null,
+   "scored": [],
+   "_error": null
+  },
+  "87c51c39-914b-4c7f-a97a-4925c6ec58b3": {
+   "model": "unsloth/Qwen2.5-0.5B-Instruct",
+   "type": "InstructTextTask",
+   "status": "success",
+   "hours": 1.0,
+   "created": "2026-09-15T03:54:16.196466Z",
+   "termination": "2026-09-15T09:54:28.119615Z",
+   "delays": 0,
+   "rows": 17,
+   "ours": {
+    "submission_id": "ce64aaf2-50f8-4f9a-960b-98c5a38ae37d",
+    "test_loss": 1.2787219285964966,
+    "quality_score": 0.0,
+    "rank": 4,
+    "score_reason": "Ranked below top 1 by test_loss",
+    "repo": "gradients-io-tournaments/tournament-tourn_5c64e784a087074a_20260914-92e83f80-9629-4499-8be5-48d2f0cdfbc7-5HBgDWKx"
+   },
+   "scored": [
+    {
+     "hk": "5CkYizfLyb5h",
+     "loss": 1.27024,
+     "rank": 1,
+     "reason": "Ranked 1st by test_loss"
+    },
+    {
+     "hk": "5DXVNvDmGZqd",
+     "loss": 1.2726,
+     "rank": 2,
+     "reason": "Ranked below top 1 by test_loss"
+    },
+    {
+     "hk": "5DDVSRDLbcd5",
+     "loss": 1.27693,
+     "rank": 3,
+     "reason": "Ranked below top 1 by test_loss"
+    },
+    {
+     "hk": "5HBgDWKxNX33",
+     "loss": 1.27872,
+     "rank": 4,
+     "reason": "Ranked below top 1 by test_loss"
+    },
+    {
+     "hk": "5E2fNjMWkC7N",
+     "loss": 1.27994,
+     "rank": 5,
+     "reason": "Ranked below top 1 by test_loss"
+    },
+    {
+     "hk": "5EeEWvKfXj84",
+     "loss": 1.281,
+     "rank": 6,
+     "reason": "Ranked below top 1 by test_loss"
+    },
+    {
+     "hk": "5FtF14uZ1mAC",
+     "loss": 1.2823,
+     "rank": 7,
+     "reason": "Ranked below top 1 by test_loss"
+    },
+    {
+     "hk": "5E6p1x3eCugT",
+     "loss": 1.28337,
+     "rank": 8,
+     "reason": "Ranked below top 1 by test_loss"
+    },
+    {
+     "hk": "5GcAxvH7oAr9",
+     "loss": 1.2855,
+     "rank": 9,
+     "reason": "Ranked below top 1 by test_loss"
+    },
+    {
+     "hk": "5EUHojrMhLPH",
+     "loss": 1.28889,
+     "rank": 10,
+     "reason": "Ranked below top 1 by test_loss"
+    },
+    {
+     "hk": "5EcZmz41oFGa",
+     "loss": 1.29436,
+     "rank": 11,
+     "reason": "Ranked below top 1 by test_loss"
+    },
+    {
+     "hk": "5DLy32QP39w7",
+     "loss": 1.30145,
+     "rank": 12,
+     "reason": "Ranked below top 1 by test_loss"
+    },
+    {
+     "hk": "5HLA2QWYy3Gp",
+     "loss": 1.32105,
+     "rank": 13,
+     "reason": "Bottom 25% ranked by test_loss"
+    },
+    {
+     "hk": "5FW2EqiCeLkn",
+     "loss": 1.32806,
+     "rank": 14,
+     "reason": "Bottom 25% ranked by test_loss"
+    },
+    {
+     "hk": "5DU5Qyae6n5c",
+     "loss": 1.36785,
+     "rank": 15,
+     "reason": "Bottom 25% ranked by test_loss"
+    },
+    {
+     "hk": "5EhyCWPuyYUD",
+     "loss": 1.37473,
+     "rank": 16,
+     "reason": "Bottom 25% ranked by test_loss"
+    }
+   ],
+   "_error": null
+  },
+  "90d361cb-0b97-464a-9fda-36eb34c99261": {
+   "model": "LiquidAI/LFM2.5-2.6B",
+   "type": "InstructTextTask",
+   "status": "success",
+   "hours": 2.0,
+   "created": "2026-09-14T11:03:54.412881Z",
+   "termination": "2026-09-14T22:49:03.143960Z",
+   "delays": 0,
+   "rows": 17,
+   "ours": {
+    "submission_id": "776a67a9-736d-4c88-83b4-bcad1d141634",
+    "test_loss": 0.7458220720291138,
+    "quality_score": -1.0,
+    "rank": 15,
+    "score_reason": "Bottom 25% ranked by test_loss",
+    "repo": "gradients-io-tournaments/tournament-tourn_5c64e784a087074a_20260914-90d361cb-0b97-464a-9fda-36eb34c99261-5HBgDWKx"
+   },
+   "scored": [
+    {
+     "hk": "5CkYizfLyb5h",
+     "loss": 0.32558,
+     "rank": 1,
+     "reason": "Ranked 1st by test_loss"
+    },
+    {
+     "hk": "5FtF14uZ1mAC",
+     "loss": 0.32561,
+     "rank": 2,
+     "reason": "Ranked below top 1 by test_loss"
+    },
+    {
+     "hk": "5DDVSRDLbcd5",
+     "loss": 0.32599,
+     "rank": 3,
+     "reason": "Ranked below top 1 by test_loss"
+    },
+    {
+     "hk": "5DLy32QP39w7",
+     "loss": 0.3279,
+     "rank": 4,
+     "reason": "Ranked below top 1 by test_loss"
+    },
+    {
+     "hk": "5E6p1x3eCugT",
+     "loss": 0.32824,
+     "rank": 5,
+     "reason": "Ranked below top 1 by test_loss"
+    },
+    {
+     "hk": "5EcZmz41oFGa",
+     "loss": 0.32933,
+     "rank": 6,
+     "reason": "Ranked below top 1 by test_loss"
+    },
+    {
+     "hk": "5HLA2QWYy3Gp",
+     "loss": 0.33083,
+     "rank": 7,
+     "reason": "Ranked below top 1 by test_loss"
+    },
+    {
+     "hk": "5EeEWvKfXj84",
+     "loss": 0.33176,
+     "rank": 8,
+     "reason": "Ranked below top 1 by test_loss"
+    },
+    {
+     "hk": "5E2fNjMWkC7N",
+     "loss": 0.33241,
+     "rank": 9,
+     "reason": "Ranked below top 1 by test_loss"
+    },
+    {
+     "hk": "5EUHojrMhLPH",
+     "loss": 0.33307,
+     "rank": 10,
+     "reason": "Ranked below top 1 by test_loss"
+    },
+    {
+     "hk": "5DXVNvDmGZqd",
+     "loss": 0.33428,
+     "rank": 11,
+     "reason": "Ranked below top 1 by test_loss"
+    },
+    {
+     "hk": "5GcAxvH7oAr9",
+     "loss": 0.39643,
+     "rank": 12,
+     "reason": "Ranked below top 1 by test_loss"
+    },
+    {
+     "hk": "5EhyCWPuyYUD",
+     "loss": 0.39898,
+     "rank": 13,
+     "reason": "Bottom 25% ranked by test_loss"
+    },
+    {
+     "hk": "5FW2EqiCeLkn",
+     "loss": 0.4504,
+     "rank": 14,
+     "reason": "Bottom 25% ranked by test_loss"
+    },
+    {
+     "hk": "5HBgDWKxNX33",
+     "loss": 0.74582,
+     "rank": 15,
+     "reason": "Bottom 25% ranked by test_loss"
+    }
+   ],
+   "_error": null
+  }
+ },
+ "page_error": null
+}

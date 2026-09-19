@@ -1,0 +1,217 @@
+{
+ "tourn": "tourn_5c64e784a087074a_20260914",
+ "at": "2026-09-15T10:37:35.114388+00:00",
+ "status": "active",
+ "winner": "5H9AM1bG7m1BFagftX3B4X1SfyeBSsMYodTcWuM9ieQZk2NK",
+ "base_winner": "5H9AM1bG7m1BFagftX3B4X1SfyeBSsMYodTcWuM9ieQZk2NK",
+ "field": [
+  "5CkYizfLyb5hLmcK4WtBGG13WKTQrynHBEV6qC23748g17zC",
+  "5DDVSRDLbcd57ZHnzFNjHdvcffekjiRdRJeBfWUHeSkWFprv",
+  "5DLy32QP39w7Y5xJSggknW6KH8mDnRpQ2PPXETtVuC6637Ev",
+  "5DU5Qyae6n5c3PCDY7EBidC8FaZZCb1ykTMAF2JCXm63oQcf",
+  "5DXVNvDmGZqdXbqRzsJZdJVoAgbLdhdFrrrmtAAfsh4QkGUU",
+  "5E2fNjMWkC7NhjFsobwdDT1ym9R8ws7iDMnaZtE1RcnAsfZf",
+  "5E6p1x3eCugTn634Dc2GrwyTjwb6j6hgzEGzZgQ8Xuyr5fXW",
+  "5EUHojrMhLPHWFpgZDS6oHyYgWSe6haqnfKE2mdy4U7bEEnQ",
+  "5EcZmz41oFGaJVte8DEzuGd8QyBBxjhTobhrK4A5y4b1Q24Y",
+  "5EeEWvKfXj84kWKid9tAmFSiXTUGJT87oi9AjRYdW1rx2KYA",
+  "5EhyCWPuyYUDD5RMQ8FM5jknMqfTtSQZ3a3PDARRhjSdCAYb",
+  "5EvaWzGbtasB2yh6fev3fhdYF6vXzviPPijnh3SLRm2KDP8F",
+  "5FW2EqiCeLknueng7Bp9rj4JrPNv5F6nxNg7yUtART6U1odT",
+  "5FtF14uZ1mACHivSorX8nTn8gx3AdTATAhV7CZShGTtHsb3u",
+  "5GU4Xkd3dCGTU3s8VLcHGc5wsD5M8XyxDca5yDQhYm1mVXFu",
+  "5GcAxvH7oAr9hT2bauAU8y2B8GUiZbvmwrrnj1B4op9toCnY",
+  "5HBgDWKxNX3333Yit3qMokkYY4Guz1r8Qfons2UJTSU5oqjV",
+  "5HLA2QWYy3GpNwCiBCwMMhGw5hpPosSeZ41my8B3nuFDQHNF"
+ ],
+ "task_ids": [
+  "067761fe-b567-44d7-8863-4cd41cc12261",
+  "87c51c39-914b-4c7f-a97a-4925c6ec58b3",
+  "90d361cb-0b97-464a-9fda-36eb34c99261"
+ ],
+ "tasks": {
+  "067761fe-b567-44d7-8863-4cd41cc12261": {
+   "model": "unsloth/Llama-3.2-1B-Instruct",
+   "type": "InstructTextTask",
+   "status": "training",
+   "hours": 1.0,
+   "created": "2026-09-15T03:16:00.363481Z",
+   "termination": "2026-09-15T09:52:35.323330Z",
+   "delays": 0,
+   "rows": 17,
+   "ours": {
+    "submission_id": null,
+    "test_loss": 0.0,
+    "quality_score": 0.0,
+    "rank": 6,
+    "score_reason": null,
+    "repo": null
+   },
+   "scored": [
+    {
+     "hk": "5EhyCWPuyYUD",
+     "loss": 1.08346,
+     "rank": 1,
+     "reason": ""
+    },
+    {
+     "hk": "5DLy32QP39w7",
+     "loss": 1.10705,
+     "rank": 2,
+     "reason": ""
+    },
+    {
+     "hk": "5EeEWvKfXj84",
+     "loss": 1.19396,
+     "rank": 3,
+     "reason": ""
+    },
+    {
+     "hk": "5EUHojrMhLPH",
+     "loss": 1.24575,
+     "rank": 4,
+     "reason": ""
+    },
+    {
+     "hk": "5HLA2QWYy3Gp",
+     "loss": 1.27544,
+     "rank": 5,
+     "reason": ""
+    }
+   ],
+   "_error": null
+  },
+  "87c51c39-914b-4c7f-a97a-4925c6ec58b3": {
+   "model": "unsloth/Qwen2.5-0.5B-Instruct",
+   "type": "InstructTextTask",
+   "status": "looking_for_nodes",
+   "hours": 1.0,
+   "created": "2026-09-15T03:54:16.196466Z",
+   "termination": "2026-09-15T09:54:28.119615Z",
+   "delays": 0,
+   "rows": 17,
+   "ours": {
+    "submission_id": null,
+    "test_loss": 0.0,
+    "quality_score": 0.0,
+    "rank": 1,
+    "score_reason": null,
+    "repo": null
+   },
+   "scored": [],
+   "_error": null
+  },
+  "90d361cb-0b97-464a-9fda-36eb34c99261": {
+   "model": "LiquidAI/LFM2.5-2.6B",
+   "type": "InstructTextTask",
+   "status": "success",
+   "hours": 2.0,
+   "created": "2026-09-14T11:03:54.412881Z",
+   "termination": "2026-09-14T22:49:03.143960Z",
+   "delays": 0,
+   "rows": 17,
+   "ours": {
+    "submission_id": "776a67a9-736d-4c88-83b4-bcad1d141634",
+    "test_loss": 0.7458220720291138,
+    "quality_score": -1.0,
+    "rank": 15,
+    "score_reason": "Bottom 25% ranked by test_loss",
+    "repo": "gradients-io-tournaments/tournament-tourn_5c64e784a087074a_20260914-90d361cb-0b97-464a-9fda-36eb34c99261-5HBgDWKx"
+   },
+   "scored": [
+    {
+     "hk": "5CkYizfLyb5h",
+     "loss": 0.32558,
+     "rank": 1,
+     "reason": "Ranked 1st by test_loss"
+    },
+    {
+     "hk": "5FtF14uZ1mAC",
+     "loss": 0.32561,
+     "rank": 2,
+     "reason": "Ranked below top 1 by test_loss"
+    },
+    {
+     "hk": "5DDVSRDLbcd5",
+     "loss": 0.32599,
+     "rank": 3,
+     "reason": "Ranked below top 1 by test_loss"
+    },
+    {
+     "hk": "5DLy32QP39w7",
+     "loss": 0.3279,
+     "rank": 4,
+     "reason": "Ranked below top 1 by test_loss"
+    },
+    {
+     "hk": "5E6p1x3eCugT",
+     "loss": 0.32824,
+     "rank": 5,
+     "reason": "Ranked below top 1 by test_loss"
+    },
+    {
+     "hk": "5EcZmz41oFGa",
+     "loss": 0.32933,
+     "rank": 6,
+     "reason": "Ranked below top 1 by test_loss"
+    },
+    {
+     "hk": "5HLA2QWYy3Gp",
+     "loss": 0.33083,
+     "rank": 7,
+     "reason": "Ranked below top 1 by test_loss"
+    },
+    {
+     "hk": "5EeEWvKfXj84",
+     "loss": 0.33176,
+     "rank": 8,
+     "reason": "Ranked below top 1 by test_loss"
+    },
+    {
+     "hk": "5E2fNjMWkC7N",
+     "loss": 0.33241,
+     "rank": 9,
+     "reason": "Ranked below top 1 by test_loss"
+    },
+    {
+     "hk": "5EUHojrMhLPH",
+     "loss": 0.33307,
+     "rank": 10,
+     "reason": "Ranked below top 1 by test_loss"
+    },
+    {
+     "hk": "5DXVNvDmGZqd",
+     "loss": 0.33428,
+     "rank": 11,
+     "reason": "Ranked below top 1 by test_loss"
+    },
+    {
+     "hk": "5GcAxvH7oAr9",
+     "loss": 0.39643,
+     "rank": 12,
+     "reason": "Ranked below top 1 by test_loss"
+    },
+    {
+     "hk": "5EhyCWPuyYUD",
+     "loss": 0.39898,
+     "rank": 13,
+     "reason": "Bottom 25% ranked by test_loss"
+    },
+    {
+     "hk": "5FW2EqiCeLkn",
+     "loss": 0.4504,
+     "rank": 14,
+     "reason": "Bottom 25% ranked by test_loss"
+    },
+    {
+     "hk": "5HBgDWKxNX33",
+     "loss": 0.74582,
+     "rank": 15,
+     "reason": "Bottom 25% ranked by test_loss"
+    }
+   ],
+   "_error": null
+  }
+ },
+ "page_error": null
+}

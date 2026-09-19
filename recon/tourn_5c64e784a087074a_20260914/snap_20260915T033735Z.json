@@ -1,0 +1,102 @@
+{
+ "tourn": "tourn_5c64e784a087074a_20260914",
+ "at": "2026-09-15T03:37:35.870328+00:00",
+ "status": "active",
+ "winner": "5H9AM1bG7m1BFagftX3B4X1SfyeBSsMYodTcWuM9ieQZk2NK",
+ "base_winner": "5H9AM1bG7m1BFagftX3B4X1SfyeBSsMYodTcWuM9ieQZk2NK",
+ "field": [
+  "5CkYizfLyb5hLmcK4WtBGG13WKTQrynHBEV6qC23748g17zC",
+  "5DDVSRDLbcd57ZHnzFNjHdvcffekjiRdRJeBfWUHeSkWFprv",
+  "5DLy32QP39w7Y5xJSggknW6KH8mDnRpQ2PPXETtVuC6637Ev",
+  "5DU5Qyae6n5c3PCDY7EBidC8FaZZCb1ykTMAF2JCXm63oQcf",
+  "5DXVNvDmGZqdXbqRzsJZdJVoAgbLdhdFrrrmtAAfsh4QkGUU",
+  "5E2fNjMWkC7NhjFsobwdDT1ym9R8ws7iDMnaZtE1RcnAsfZf",
+  "5E6p1x3eCugTn634Dc2GrwyTjwb6j6hgzEGzZgQ8Xuyr5fXW",
+  "5EUHojrMhLPHWFpgZDS6oHyYgWSe6haqnfKE2mdy4U7bEEnQ",
+  "5EcZmz41oFGaJVte8DEzuGd8QyBBxjhTobhrK4A5y4b1Q24Y",
+  "5EeEWvKfXj84kWKid9tAmFSiXTUGJT87oi9AjRYdW1rx2KYA",
+  "5EhyCWPuyYUDD5RMQ8FM5jknMqfTtSQZ3a3PDARRhjSdCAYb",
+  "5EvaWzGbtasB2yh6fev3fhdYF6vXzviPPijnh3SLRm2KDP8F",
+  "5FW2EqiCeLknueng7Bp9rj4JrPNv5F6nxNg7yUtART6U1odT",
+  "5FtF14uZ1mACHivSorX8nTn8gx3AdTATAhV7CZShGTtHsb3u",
+  "5GU4Xkd3dCGTU3s8VLcHGc5wsD5M8XyxDca5yDQhYm1mVXFu",
+  "5GcAxvH7oAr9hT2bauAU8y2B8GUiZbvmwrrnj1B4op9toCnY",
+  "5HBgDWKxNX3333Yit3qMokkYY4Guz1r8Qfons2UJTSU5oqjV",
+  "5HLA2QWYy3GpNwCiBCwMMhGw5hpPosSeZ41my8B3nuFDQHNF"
+ ],
+ "task_ids": [
+  "067761fe-b567-44d7-8863-4cd41cc12261",
+  "90d361cb-0b97-464a-9fda-36eb34c99261",
+  "da2249b1-3fdd-48cc-b467-89d1f21436f4"
+ ],
+ "tasks": {
+  "067761fe-b567-44d7-8863-4cd41cc12261": {
+   "model": "unsloth/SmolLM2-360M-Instruct",
+   "type": "InstructTextTask",
+   "status": "awaiting_model_prep",
+   "hours": 1.0,
+   "created": "2026-09-15T03:16:00.363481Z",
+   "termination": "2026-09-15T04:16:00.363481Z",
+   "delays": 0,
+   "rows": 17,
+   "ours": {
+    "submission_id": null,
+    "test_loss": 0.0,
+    "quality_score": 0.0,
+    "rank": 1,
+    "score_reason": null,
+    "repo": null
+   },
+   "scored": [],
+   "_error": null
+  },
+  "90d361cb-0b97-464a-9fda-36eb34c99261": {
+   "model": "LiquidAI/LFM2.5-2.6B",
+   "type": "InstructTextTask",
+   "status": "training",
+   "hours": 2.0,
+   "created": "2026-09-14T11:03:54.412881Z",
+   "termination": "2026-09-14T22:49:03.143960Z",
+   "delays": 0,
+   "rows": 17,
+   "ours": {
+    "submission_id": null,
+    "test_loss": 0.0,
+    "quality_score": 0.0,
+    "rank": 2,
+    "score_reason": null,
+    "repo": null
+   },
+   "scored": [
+    {
+     "hk": "5EcZmz41oFGa",
+     "loss": 0.32933,
+     "rank": 1,
+     "reason": ""
+    }
+   ],
+   "_error": null
+  },
+  "da2249b1-3fdd-48cc-b467-89d1f21436f4": {
+   "model": "bigscience/bloom-560m",
+   "type": "InstructTextTask",
+   "status": "prep_task_failure",
+   "hours": 1.0,
+   "created": "2026-09-15T03:35:41.588958Z",
+   "termination": "2026-09-15T04:35:41.588958Z",
+   "delays": 0,
+   "rows": 17,
+   "ours": {
+    "submission_id": null,
+    "test_loss": 0.0,
+    "quality_score": 0.0,
+    "rank": 1,
+    "score_reason": null,
+    "repo": null
+   },
+   "scored": [],
+   "_error": null
+  }
+ },
+ "page_error": null
+}
